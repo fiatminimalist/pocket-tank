@@ -214,6 +214,16 @@ const species_def_t SPECIES[SP_COUNT] = {
         { "BIGFIN", 0xeef2f4, 0xb8c4cc, 0xff9ad8 }, { "REEF", 0xf2b04a, 0xb87a26, 0x8a3a26 } },
       0.90f, 1.10f, 0.30f, 0.60f, 0.70f, 0.95f, 6.0f, 0.3f, 3.5f, LOCO_JET,
       0.65f, 1.80f, 1.10f, 0.0f, 34, false },
+    { "CRAB", "crab", { "pinch", "nipper", "clack", "sidney" },
+      { { "RED ROCK", 0xd8402a, 0x9a2a1c, 0xffe0c0 }, { "BLUE", 0x4a7ab8, 0x2e5080, 0xff6a3a },
+        { "LIGHTFOOT", 0xff6a2a, 0xb03a1a, 0x3ac0e8 }, { "SHORE", 0x5a8a3a, 0x3a5a26, 0xd8c48a } },
+      0.80f, 1.00f, 0.40f, 0.80f, 0.20f, 0.50f, 6.5f, 0.5f, 3.5f, LOCO_SIDEWALK,
+      0.50f, 1.30f, 0.30f, 0.0f, 30, false },
+    { "LOBSTER", "lobster", { "larry", "claws", "rocky", "pinchy" },
+      { { "COMMON", 0x3a4a3e, 0x24302a, 0xff7a3a }, { "BLUE", 0x2a6aff, 0x1a44b0, 0xa8d0ff },
+        { "SPINY", 0x3a8a7a, 0x2a5a50, 0xf2d23a }, { "CALICO", 0xd8402a, 0x9a2a1c, 0xf2e6cc } },
+      1.10f, 1.40f, 0.50f, 0.85f, 0.05f, 0.25f, 5.5f, 0.6f, 2.0f, LOCO_WALK,
+      0.40f, 2.20f, 0.30f, 0.0f, 38, false },
 };
 
 /* the keeper's palettes (setup.c): the six roster bodies + a blue and a

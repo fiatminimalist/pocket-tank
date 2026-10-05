@@ -1,7 +1,7 @@
 # Species (2026-10-05)
 
-Seven new creatures join the classic fish: **seahorse, octopus, pufferfish,
-anglerfish, electric eel, hammerhead shark, squid**. Each one breeds, comes
+Nine new creatures join the classic fish: **seahorse, octopus, pufferfish,
+anglerfish, electric eel, hammerhead shark, squid, crab, lobster**. Each one breeds, comes
 in several designs, rolls its own personality inside its species' range, and
 moves the way the real animal does. The distilled model still chooses every
 creature's goal; the species decides how that goal is carried out.
@@ -9,7 +9,7 @@ creature's goal; the species decides how that goal is carried out.
 ## Where they come from
 
 - **The shop:** each species is a sand-dollar item that brings a **pair of
-  juveniles** (`SD_ITEM_SP_*`, `progression_buy` → `tank_add_species_pair`).
+  juveniles** (`SD_ITEM_SP_*`, nine items, `progression_buy` → `tank_add_species_pair`).
   It needs two free places in the tank. A species can be bought again once
   none of its kind are left.
 - **A birth:** an arrival is the species of its parents. With a small chance
@@ -38,6 +38,8 @@ keeps everyone moving in between; the decisions are just older.
 | electric eel | `eel` | 1.40-1.75 | 0.60-0.90 | 0.10-0.30 | 4.5 | 0.60 | 1.8 | `LOCO_UNDULATE` |
 | hammerhead | `shark` | 1.60-1.95 | 0.80-0.95 | 0.50-0.80 | 5.0 | 0.10 | 1.5 | `LOCO_CRUISE` |
 | squid | `squid` | 0.90-1.10 | 0.30-0.60 | 0.70-0.95 | 6.0 | 0.30 | 3.5 | `LOCO_JET` (hovers in open water) |
+| crab | `crab` | 0.80-1.00 | 0.40-0.80 | 0.20-0.50 | 6.5 | 0.50 | 3.5 | `LOCO_SIDEWALK` |
+| lobster | `lobster` | 1.10-1.40 | 0.50-0.85 | 0.05-0.25 | 5.5 | 0.60 | 2.0 | `LOCO_WALK` |
 
 Sizes are tank-scaled (a "pup" hammerhead, a dwarf seahorse): 1.0 is the
 classic fish's ~42 px. A newborn's size, bold and social are rolled inside
@@ -59,6 +61,8 @@ other).
 - **Electric eel:** 0 olive (orange belly), 1 charcoal (yellow belly), 2 bronze, 3 spotted green
 - **Hammerhead:** 0 grey, 1 bronze, 2 slate blue, 3 pale scalloped
 - **Squid:** 0 pink (chromatophore dots), 1 firefly blue (glowing dots), 2 bigfin white, 3 reef amber
+- **Crab:** 0 red rock, 1 blue (orange-tipped claws), 2 Sally Lightfoot (orange, blue flecks), 3 green shore crab
+- **Lobster:** 0 common (dark olive, orange antennae), 1 rare blue, 2 spiny (teal, gold spots), 3 calico (red, cream patches)
 
 ## How they move (the reflex layer, tank.c)
 
@@ -93,10 +97,21 @@ step turn it into the animal's own motion.
   rippling, moves forward or backward, and jets in pulses to dart or flee
   (ink on a startle). Social: squid hold station near each other.
 
+- **Crab (`LOCO_SIDEWALK`)** - a floor walker that moves **sideways**, legs
+  stepping in a ripple; it climbs the reef cluster, castle and rocks, and
+  picks at food on the floor with its claws (two-handed). It never swims up:
+  a goal in open water becomes the nearest point on the floor or a rock below
+  it. REST: tucked under the reef / castle edge. Startle: claws up, then a
+  fast sideways scuttle away.
+- **Lobster (`LOCO_WALK`)** - walks the floor head first on its legs, long
+  antennae sweeping; REST in a den under rock. Startle: the **tail-flip** -
+  a few fast backward strokes of its tail that shoot it backward (burst ×2.2),
+  then it walks again. Like the crab it stays on the floor and rocks.
+
 ## The gentle tank
 
 No creature harms another. The small ones (fish, seahorse, pufferfish,
-squid) keep their distance from the big ones (hammerhead, eel): a stronger
+squid, crab, lobster) keep their distance from the big ones (hammerhead, eel): a stronger
 separation push inside `SP_AVOID_R`. Every creature eats pellets.
 
 ## Persistence

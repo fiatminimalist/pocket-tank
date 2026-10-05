@@ -191,7 +191,9 @@ extern const char *const TRAINED_NAMES[N_TRAINED_NAMES]; /* mira bolt kelp nori 
  * every creature's goal (schema 5 also hears its species); the species
  * decides how the goal is carried out (its locomotion, its own spots) and
  * how it looks (render.c). SP_FISH is 0, so every older save reads as fish. */
-typedef enum { SP_FISH, SP_SEAHORSE, SP_OCTOPUS, SP_PUFFER, SP_ANGLER, SP_EEL, SP_SHARK, SP_SQUID, SP_COUNT } species_t;
+typedef enum { SP_FISH, SP_SEAHORSE, SP_OCTOPUS, SP_PUFFER, SP_ANGLER, SP_EEL, SP_SHARK, SP_SQUID,
+               SP_CRAB, SP_LOBSTER,     /* the floor's two (2026-10-05, the same day) */
+               SP_COUNT } species_t;
 #define SP_VARIANTS 4            /* designs a species (fish_t.variant) */
 #define SP_MUTATE_P 0.04f        /* a classic fish's fry hatching as a new species */
 /* how a species moves (docs/species.md "How they move") */
@@ -202,12 +204,14 @@ typedef enum {
     LOCO_HOVER,      /* pufferfish: sculls, stops, turns on the spot, backs up */
     LOCO_AMBUSH,     /* anglerfish: still and low, short fast lunges */
     LOCO_UNDULATE,   /* electric eel: a travelling wave, swims backward, breathes air */
-    LOCO_CRUISE      /* hammerhead: never stops, wide turns, the head sweeps */
+    LOCO_CRUISE,     /* hammerhead: never stops, wide turns, the head sweeps */
+    LOCO_SIDEWALK,   /* crab: walks the floor SIDEWAYS on its legs, climbs rock, scuttles off when startled */
+    LOCO_WALK        /* lobster: walks the floor head first, a backward tail-flip to escape */
 } loco_t;
 typedef struct { const char *name; uint32_t color, fin, accent; } sp_variant_t;
 typedef struct {
     const char  *name;            /* the card's / shop's word, upper case */
-    const char  *token;           /* schema-5 word: fish seahorse octopus puffer angler eel shark squid */
+    const char  *token;           /* schema-5 word: fish seahorse octopus puffer angler eel shark squid crab lobster */
     const char  *names[4];        /* a newborn's default names (<= FISH_NAME_MAX) */
     sp_variant_t var[SP_VARIANTS];
     float size_lo, size_hi;       /* base size (1.0 = the classic fish's ~42 px) */
