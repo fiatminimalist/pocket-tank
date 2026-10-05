@@ -168,6 +168,54 @@ static const preset_t ROSTER[] = {
 int tank_roster_count(void) { return ROSTER_N; }
 const char *tank_roster_name(int preset) { return preset >= 0 && preset < ROSTER_N ? ROSTER[preset].name : "?"; }
 
+/* ---- the species (2026-10-05, docs/species.md): the classic fish's row is
+ * a placeholder - its looks and temperament are the ROSTER's ---- */
+const species_def_t SPECIES[SP_COUNT] = {
+    /* name, token, default names, designs {name, body, fin, accent},
+       size lo/hi, bold lo/hi, social lo/hi, curiosity, lazy, turn, loco,
+       speed_k, burst_k, vert_k, min_speed, hit_r, big */
+    { "FISH", "fish", { "mira", "bolt", "kelp", "nori" },
+      { { "CLASSIC", 0x38dcc7, 0x1d9f98, 0xffbd59 }, { "CLASSIC", 0x38dcc7, 0x1d9f98, 0xffbd59 },
+        { "CLASSIC", 0x38dcc7, 0x1d9f98, 0xffbd59 }, { "CLASSIC", 0x38dcc7, 0x1d9f98, 0xffbd59 } },
+      0.86f, 1.08f, 0.10f, 0.90f, 0.10f, 0.90f, 5.5f, 0.3f, 3.2f, LOCO_FIN,
+      1.00f, 1.00f, 0.72f, 0.0f, 38, false },
+    { "SEAHORSE", "seahorse", { "pearl", "sandy", "ripple", "coral" },
+      { { "GOLDEN", 0xffc93c, 0xd9962a, 0xff8a3d }, { "CRIMSON", 0xe0443a, 0x9e2a26, 0xffd6c9 },
+        { "BLACK", 0x34343c, 0x1e1e24, 0xf2f2f2 },  { "LAVENDER", 0xb38ce8, 0x7a5ec2, 0xffe08a } },
+      0.80f, 1.00f, 0.08f, 0.35f, 0.50f, 0.85f, 4.0f, 0.7f, 1.6f, LOCO_UPRIGHT,
+      0.35f, 0.45f, 1.60f, 0.0f, 32, false },
+    { "OCTOPUS", "octopus", { "inky", "otto", "squish", "ollie" },
+      { { "COMMON", 0xc0583a, 0x8a3a26, 0xf2b48a }, { "BLUE-RINGED", 0xd9b45a, 0x9e7e30, 0x2a8cff },
+        { "MIMIC", 0x8a5a3a, 0x5a3a26, 0xf2ead8 },  { "VIOLET", 0x8a4fd0, 0x5a2e96, 0xff9ad8 } },
+      1.00f, 1.25f, 0.40f, 0.80f, 0.05f, 0.25f, 8.5f, 0.4f, 3.0f, LOCO_JET,
+      0.55f, 1.60f, 1.00f, 0.0f, 38, false },
+    { "PUFFERFISH", "puffer", { "puff", "spike", "pebble", "bubbles" },
+      { { "SPOTTED", 0xd8c48a, 0x9e8a5a, 0x3a3226 }, { "DOGFACE", 0xa8aca4, 0x6e726c, 0x2a2a2e },
+        { "SADDLED", 0xf2f0e6, 0xb0aea4, 0x2a2a30 }, { "GOLDEN", 0xffc53a, 0xd99a1e, 0xfff0b0 } },
+      0.85f, 1.05f, 0.25f, 0.60f, 0.20f, 0.50f, 7.0f, 0.5f, 4.6f, LOCO_HOVER,
+      0.45f, 0.70f, 0.90f, 0.0f, 34, false },
+    { "ANGLERFISH", "angler", { "lumen", "glim", "ember", "murk" },
+      { { "ABYSS", 0x2e2a36, 0x1c1a22, 0x7ffcff }, { "FROGFISH", 0xff8a3d, 0xc05a1e, 0xffd23f },
+        { "MOTTLED", 0x7a5a3a, 0x4e3a26, 0xb9f04a }, { "PINK WARTY", 0xe38fb0, 0xa85a7a, 0xfff07a } },
+      0.95f, 1.20f, 0.50f, 0.80f, 0.05f, 0.20f, 2.5f, 0.9f, 1.4f, LOCO_AMBUSH,
+      0.30f, 1.70f, 0.60f, 0.0f, 38, false },
+    { "ELECTRIC EEL", "eel", { "zap", "volt", "sparky", "ohm" },
+      { { "OLIVE", 0x5a6a3a, 0x3a4626, 0xff8a3d }, { "CHARCOAL", 0x3a3f45, 0x24282c, 0xffd23f },
+        { "BRONZE", 0x8a6a3a, 0x5a4426, 0xffb070 },  { "SPOTTED", 0x4e7a4a, 0x2e4e2e, 0xd8f07a } },
+      1.40f, 1.75f, 0.60f, 0.90f, 0.10f, 0.30f, 4.5f, 0.6f, 1.8f, LOCO_UNDULATE,
+      0.70f, 1.10f, 0.80f, 0.0f, 46, true },
+    { "HAMMERHEAD", "shark", { "hammer", "finn", "ridge", "bruce" },
+      { { "GREY", 0x8a9aa6, 0x5e6e7a, 0xe8eef2 },  { "BRONZE", 0xa88a5a, 0x7a603a, 0xf2e6cc },
+        { "SLATE", 0x6a83a8, 0x46607e, 0xdde8f4 }, { "SCALLOPED", 0xc0ccd4, 0x8e9aa2, 0xffffff } },
+      1.60f, 1.95f, 0.80f, 0.95f, 0.50f, 0.80f, 5.0f, 0.1f, 1.5f, LOCO_CRUISE,
+      0.95f, 1.20f, 0.50f, 16.0f, 52, true },
+    { "SQUID", "squid", { "squee", "jett", "sumi", "kiki" },
+      { { "PINK", 0xf2a6c0, 0xc06a8a, 0xe0443a },   { "FIREFLY", 0x3a6aff, 0x2446b0, 0x9ffcff },
+        { "BIGFIN", 0xeef2f4, 0xb8c4cc, 0xff9ad8 }, { "REEF", 0xf2b04a, 0xb87a26, 0x8a3a26 } },
+      0.90f, 1.10f, 0.30f, 0.60f, 0.70f, 0.95f, 6.0f, 0.3f, 3.5f, LOCO_JET,
+      0.65f, 1.80f, 1.10f, 0.0f, 34, false },
+};
+
 /* the keeper's palettes (setup.c): the six roster bodies + a blue and a
  * silver; the roster's five accents + white, the stress red and a dark ink */
 const uint32_t LOOK_BODY[LOOK_N]   = { 0x38dcc7, 0xff725c, 0x78d67d, 0xa799ff, 0xffd166, 0xf48fb1, 0x4da3ff, 0xe8f1f2 };
@@ -187,7 +235,7 @@ const cluster_scheme_t CLUSTER_SCHEMES[CLUSTER_SCHEME_N] = {
 void tank_set_name(tank_t *t, int slot, const char *name) {
     if (slot < 0 || slot >= N_FISH_MAX) return;
     fish_t *f = &t->fish[slot];
-    if (!name || !*name) name = tank_roster_name(f->preset);
+    if (!name || !*name) name = f->species ? SPECIES[f->species % SP_COUNT].names[slot % 4] : tank_roster_name(f->preset);
     int n = 0;
     /* canonical lowercase (2026-09-15): the roster, the director and the
      * trained names are lowercase, the display uppercases at draw, and the
@@ -201,6 +249,8 @@ void tank_set_name(tank_t *t, int slot, const char *name) {
 }
 static uint32_t fin_for(uint32_t body) {
     for (int i = 0; i < ROSTER_N; i++) if (ROSTER[i].color == body) return ROSTER[i].fin;
+    for (int s = 1; s < SP_COUNT; s++)
+        for (int v = 0; v < SP_VARIANTS; v++) if (SPECIES[s].var[v].color == body) return SPECIES[s].var[v].fin;
     /* a body colour of the keeper's own: the fin is that body at 58% */
     uint32_t r = (body >> 16 & 255) * 58 / 100, g = (body >> 8 & 255) * 58 / 100, b = (body & 255) * 58 / 100;
     return (r << 16) | (g << 8) | b;
@@ -247,6 +297,58 @@ void tank_make_fish(tank_t *t, int slot, int preset, float sociable, float bold,
     f->sig = 0xffffffffu; f->ms_bits = 0; f->ms_seen = 0;
     f->color = p->color; f->fin = p->fin; f->accent = p->accent;
     f->parent_a = f->parent_b = -1;
+    f->species = SP_FISH; f->variant = 0;
+    /* (from the slot, not the tank's RNG: a seeded run stays the run it was) */
+    f->puff = 0; f->ink = 0; f->jet = (float)((slot * 29) % 100) / 100.0f; f->camo = 0; f->camo_rgb = 0;
+    f->air_s = 60.0f + (float)((slot * 41) % 60); f->spark = 0; f->lure = 0; f->anchor = -1;
+}
+
+/* ---- species (docs/species.md) ---- */
+static void place_near_reef(tank_t *t, fish_t *f);
+const species_def_t *tank_species(const fish_t *f) { return &SPECIES[f->species < SP_COUNT ? f->species : SP_FISH]; }
+float tank_species_size(const fish_t *f) {
+    if (f->species == SP_FISH || f->species >= SP_COUNT) return ROSTER[f->preset % ROSTER_N].size;
+    const species_def_t *s = &SPECIES[f->species];
+    /* from the personality it was born with (saved), so a load rebuilds the same size */
+    float k = f->bold0 * 7.31f + f->sociable0 * 3.17f;
+    k -= floorf(k);
+    return s->size_lo + (s->size_hi - s->size_lo) * k;
+}
+void tank_set_species(tank_t *t, int slot, int species, int variant) {
+    if (slot < 0 || slot >= N_FISH_MAX || species <= SP_FISH || species >= SP_COUNT) return;
+    fish_t *f = &t->fish[slot];
+    const species_def_t *s = &SPECIES[species];
+    const sp_variant_t *v = &s->var[(variant % SP_VARIANTS + SP_VARIANTS) % SP_VARIANTS];
+    f->species = (uint8_t)species; f->variant = (uint8_t)((variant % SP_VARIANTS + SP_VARIANTS) % SP_VARIANTS);
+    f->base_size = tank_species_size(f); f->size = f->base_size;
+    f->turn_rate = s->turn_rate; f->lazy = s->lazy; f->curiosity = s->curiosity;
+    f->color = v->color; f->fin = v->fin; f->accent = v->accent;
+    tank_set_name(t, slot, NULL);                      /* the species' default name */
+}
+int tank_species_n(const tank_t *t, int species) {
+    int n = 0;
+    for (int i = 0; i < t->n_fish; i++) n += t->fish[i].species == species;
+    return n;
+}
+static float sp_roll(tank_t *t, float lo, float hi) { return tank_randf(t, lo, hi); }
+int tank_add_species_pair(tank_t *t, int species) {
+    if (species <= SP_FISH || species >= SP_COUNT || t->n_fish + 2 > N_FISH_MAX) return -1;
+    const species_def_t *s = &SPECIES[species];
+    int first = t->n_fish;
+    for (int k = 0; k < 2; k++) {
+        int slot = t->n_fish;
+        /* a contrasting pair, as the founding fish are: bold apart by a third of the range */
+        float bold = sp_roll(t, s->bold_lo, s->bold_hi), soc = sp_roll(t, s->soc_lo, s->soc_hi);
+        if (k == 1 && fabsf(bold - t->fish[first].bold) < (s->bold_hi - s->bold_lo) * 0.33f)
+            bold = t->fish[first].bold < (s->bold_lo + s->bold_hi) * 0.5f ? s->bold_hi - 0.02f : s->bold_lo + 0.02f;
+        tank_make_fish(t, slot, slot % ROSTER_N, soc, bold, STAGE_JUV);
+        tank_set_species(t, slot, species, (int)tank_randf(t, 0, SP_VARIANTS - 0.001f));
+        place_near_reef(t, &t->fish[slot]);
+        t->fish[slot].hunger = 4; t->fish[slot].trust = 4;
+        t->n_fish++;
+    }
+    t->roster_gen++;
+    return first;
 }
 
 void tank_set_bubble_x(tank_t *t, float x) {
@@ -283,25 +385,45 @@ void tank_new_population(tank_t *t) {
 }
 
 int tank_add_fish(tank_t *t, int parent_a, int parent_b) {
-    if (t->n_fish >= N_FISH_MAX || t->n_fish >= ROSTER_N) return -1;
+    if (t->n_fish >= N_FISH_MAX) return -1;
+    /* a preset no fish is using, while there is one (a tank past six repeats them) */
     int used[ROSTER_N] = {0};
-    for (int i = 0; i < t->n_fish; i++) used[t->fish[i].preset] = 1;
+    for (int i = 0; i < t->n_fish; i++) used[t->fish[i].preset % ROSTER_N] = 1;
     int free_n = 0, free_idx[ROSTER_N];
     for (int i = 0; i < ROSTER_N; i++) if (!used[i]) free_idx[free_n++] = i;
-    if (!free_n) return -1;
-    int preset = free_idx[(int)tank_randf(t, 0, free_n - 0.001f)];
+    int preset = free_n ? free_idx[(int)tank_randf(t, 0, free_n - 0.001f)] : (int)tank_randf(t, 0, ROSTER_N - 0.001f);
     int ia = (parent_a >= 0 && parent_a < t->n_fish) ? parent_a : 0;
     int ib = (parent_b >= 0 && parent_b < t->n_fish) ? parent_b : (t->n_fish > 1 ? 1 : 0);
     const fish_t *pa = &t->fish[ia], *pb = &t->fish[ib];
-    float bold = clampf((pa->bold + pb->bold) * 0.5f + tank_randf(t, -0.15f, 0.15f), 0.05f, 0.95f);
-    float soc  = clampf((pa->sociable + pb->sociable) * 0.5f + tank_randf(t, -0.15f, 0.15f), 0.05f, 0.95f);
+    /* the species is the parents' (breeding is within a species: pick_parents);
+       a classic fish's fry may hatch as a new species, the rare surprise */
+    int species = pa->species < SP_COUNT ? pa->species : SP_FISH;
+    if (species == SP_FISH && tank_randf(t, 0, 1) < SP_MUTATE_P) species = 1 + (int)tank_randf(t, 0, SP_COUNT - 1.001f);
+    bool mutant = species != pa->species;
+    const species_def_t *sd = &SPECIES[species];
+    float blo = species ? sd->bold_lo - 0.1f : 0.05f, bhi = species ? sd->bold_hi + 0.1f : 0.95f;
+    float slo = species ? sd->soc_lo - 0.1f : 0.05f, shi = species ? sd->soc_hi + 0.1f : 0.95f;
+    float bold = mutant ? tank_randf(t, sd->bold_lo, sd->bold_hi)
+                        : clampf((pa->bold + pb->bold) * 0.5f + tank_randf(t, -0.15f, 0.15f), fmaxf(blo, 0.05f), fminf(bhi, 0.95f));
+    float soc  = mutant ? tank_randf(t, sd->soc_lo, sd->soc_hi)
+                        : clampf((pa->sociable + pb->sociable) * 0.5f + tank_randf(t, -0.15f, 0.15f), fmaxf(slo, 0.05f), fminf(shi, 0.95f));
     int slot = t->n_fish;
     tank_make_fish(t, slot, preset, soc, bold, STAGE_FRY);
     /* its look is the family's, not the preset's (2026-09-14): the body from
        one parent, the markings from the other - a coin decides which is
        which; tank_set_look keeps the markings off a matching body */
     if (tank_randf(t, 0, 1) < 0.5f) { int x = ia; ia = ib; ib = x; pa = &t->fish[ia]; pb = &t->fish[ib]; }
-    tank_set_look(t, slot, pa->color, pb->accent);
+    if (species == SP_FISH) tank_set_look(t, slot, pa->color, pb->accent);
+    else {
+        /* a design: one parent's (80 %) or a new one; a mutant's is its own */
+        int variant = !mutant && tank_randf(t, 0, 1) < 0.8f ? pa->variant : (int)tank_randf(t, 0, SP_VARIANTS - 0.001f);
+        tank_set_species(t, slot, species, variant);
+        if (!mutant && variant == pa->variant) {     /* the family's colours, the classic fish's rule */
+            t->fish[slot].color = pa->color; t->fish[slot].fin = pa->fin;
+            t->fish[slot].accent = pb->species == species ? pb->accent : pa->accent;
+            if (t->fish[slot].accent == t->fish[slot].color) t->fish[slot].accent = pa->accent;
+        }
+    }
     t->fish[slot].parent_a = (int8_t)ia; t->fish[slot].parent_b = (int8_t)ib;
     place_near_reef(t, &t->fish[slot]);
     t->fish[slot].hunger = 4; t->fish[slot].trust = 4;

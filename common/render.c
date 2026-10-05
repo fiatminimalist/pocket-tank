@@ -3208,7 +3208,7 @@ int render_milestones_tap(const tank_t *t, float x, float y) {
     int row = -1; bool tank_row = false, fry_row = false;
     fry_req_t req[FRY_REQ_MAX]; bool staged;
     int nreq = progression_next_fry(t, req, &staged);
-    if (y >= MSP_ROW_Y0 - 2 && y < MSP_ROW_Y0 + N_FISH_MAX * MSP_ROW_H) {
+    if (y >= MSP_ROW_Y0 - 2 && y < MSP_ROW_Y0 + MSP_FISH_ROWS * MSP_ROW_H) {
         row = (int)((y - MSP_ROW_Y0) / MSP_ROW_H);
         if (row < 0) row = 0;
         if (row == t->n_fish && nreq > 0) fry_row = true;   /* the NEW FRY row */

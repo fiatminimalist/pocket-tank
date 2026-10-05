@@ -395,6 +395,7 @@ void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size
 #define MSP_MODAL_W   336
 #define MSP_MODAL_H   156
 #define MSP_PER_ROW   6
+#define MSP_FISH_ROWS 6              /* fish rows a page holds (N_FISH_MAX was 6 until the species, 2026-10-05) */
 #define MSP_TPG_X     (PAGE_BOWL ? 396 : PAGE_NARROW ? 398 : 412)   /* the arrow's column: right of the sixth badge's slop, out to the glass
                                                                     (the bowl: its "new" ring and the page pips inside the circle) */
 #define MSP_ARROW_W   40             /* the arrow buttons, inset at the modal's top corners */

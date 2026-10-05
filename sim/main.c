@@ -105,7 +105,7 @@ static void print_roster(const tank_t *t) {
 #define MS_ARROW_R_X   (MSP_MODAL_X + MSP_MODAL_W - MSP_ARROW_IN - MSP_ARROW_W / 2)
 #define MS_ARROW_Y     (MSP_MODAL_Y + MSP_ARROW_IN + MSP_ARROW_H / 2)
 #define MS_OFF_X       (MSP_MODAL_X + MSP_MODAL_W / 2 - 24)
-#define MS_OFF_Y       (MS_ROW(N_FISH_MAX - 1) + MSP_ROW_H - 12)
+#define MS_OFF_Y       (MS_ROW(MSP_FISH_ROWS - 1) + MSP_ROW_H - 12)
 #define MS_HOW_X       (MSP_MODAL_X + (MSP_MODAL_W - MSP_HOW_W) / 2)
 #define MS_HOW_Y       (MSP_FRY_MODAL_Y + MSP_MODAL_H + 20 + 24 + MSP_HOW_H + 14 - 10 - MSP_HOW_H)
 /* every fish wants the reef (the reef badge's test) */
@@ -1068,7 +1068,7 @@ static int selftest_sleep(void) {
 #ifndef _MSC_VER
 #include <dirent.h>
 static const size_t SAVE_CUTS[] = { 448, 1112, 1304, 1408, 1432, 1440, 1456, 1480, 1608, 1616, 1624, 1640, 1656, 1664, 1672, 1680, 1688 };
-#define SAVE_NOW 1688                    /* today's sizeof(save_t): the urchin, 2026-10-02 (its x and its tally) */
+#define SAVE_NOW 2096                    /* today's sizeof(save_t): fish 7..10, 2026-10-05 (2092 + the int64's alignment) */
 static uint32_t sv_u32(const uint8_t *e, size_t off) { uint32_t v; memcpy(&v, e + off, 4); return v; }
 static float    sv_f32(const uint8_t *e, size_t off) { float v; memcpy(&v, e + off, 4); return v; }
 static int name_cmp(const void *a, const void *b) { return strcmp(*(char *const *)a, *(char *const *)b); }

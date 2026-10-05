@@ -78,7 +78,8 @@ float tank_glass_x1(float y);
 float tank_glass_top(float x);                         /* the glass above x (0 in the rectangle) */
 void  tank_glass_clamp(float *x, float *y, float m);   /* (x,y) brought to at least m px inside the glass and above the bottom */
 
-#define N_FISH_MAX 6            /* array bound; the live count is tank_t.n_fish */
+#define N_FISH_MAX 10           /* array bound; the live count is tank_t.n_fish (6 until the species,
+                                 * 2026-10-05: fish 7..10 save in their own tail, progression.c) */
 #define N_FISH_START 2          /* a new tank: two contrasting adults */
 #define N_TRAINED_NAMES 4       /* name tokens the v2 model was trained on */
 #define FISH_NAME_MAX 7         /* the keeper's name for a fish (first-run setup) */
@@ -184,6 +185,44 @@ extern const char *const GOAL_NAMES[GOAL_COUNT];   /* schema.md lowercase names 
 typedef enum { STAGE_FRY, STAGE_JUV, STAGE_ADULT, STAGE_ELDER } stage_t;
 extern const char *const STAGE_NAMES[4];           /* schema.md v2 stage tokens */
 extern const char *const TRAINED_NAMES[N_TRAINED_NAMES]; /* mira bolt kelp nori */
+
+/* ---- species (2026-10-05, docs/species.md) ----
+ * The classic fish and seven creatures that breed like it. The model picks
+ * every creature's goal (schema 5 also hears its species); the species
+ * decides how the goal is carried out (its locomotion, its own spots) and
+ * how it looks (render.c). SP_FISH is 0, so every older save reads as fish. */
+typedef enum { SP_FISH, SP_SEAHORSE, SP_OCTOPUS, SP_PUFFER, SP_ANGLER, SP_EEL, SP_SHARK, SP_SQUID, SP_COUNT } species_t;
+#define SP_VARIANTS 4            /* designs a species (fish_t.variant) */
+#define SP_MUTATE_P 0.04f        /* a classic fish's fry hatching as a new species */
+/* how a species moves (docs/species.md "How they move") */
+typedef enum {
+    LOCO_FIN,        /* the classic fish: committed U-turns, a tail beat */
+    LOCO_UPRIGHT,    /* seahorse: upright, slow, vertical, anchors its tail */
+    LOCO_JET,        /* octopus / squid: pulsed jets, mantle first; the octopus crawls the floor */
+    LOCO_HOVER,      /* pufferfish: sculls, stops, turns on the spot, backs up */
+    LOCO_AMBUSH,     /* anglerfish: still and low, short fast lunges */
+    LOCO_UNDULATE,   /* electric eel: a travelling wave, swims backward, breathes air */
+    LOCO_CRUISE      /* hammerhead: never stops, wide turns, the head sweeps */
+} loco_t;
+typedef struct { const char *name; uint32_t color, fin, accent; } sp_variant_t;
+typedef struct {
+    const char  *name;            /* the card's / shop's word, upper case */
+    const char  *token;           /* schema-5 word: fish seahorse octopus puffer angler eel shark squid */
+    const char  *names[4];        /* a newborn's default names (<= FISH_NAME_MAX) */
+    sp_variant_t var[SP_VARIANTS];
+    float size_lo, size_hi;       /* base size (1.0 = the classic fish's ~42 px) */
+    float bold_lo, bold_hi, soc_lo, soc_hi;
+    float curiosity, lazy, turn_rate;
+    loco_t loco;
+    float speed_k;                /* cruise speed x (the goal's speed) */
+    float burst_k;                /* dart / startle speed x */
+    float vert_k;                 /* climb preference: the classic fish's 0.72 flattens climbs; > 1 favours them */
+    float min_speed;              /* never slower (the hammerhead's ram breathing); 0 = can stop */
+    float hit_r;                  /* tap radius at size 1, px */
+    bool  big;                    /* the small ones keep their distance (SP_AVOID_R) */
+} species_def_t;
+extern const species_def_t SPECIES[SP_COUNT];
+#define SP_AVOID_R 70.0f          /* px at size 1: a small creature's berth around a big one */
 
 typedef struct {
     goal_id_t id;
@@ -298,6 +337,20 @@ typedef struct {
      * parent_b's, bold / sociable the pair's average with a nudge. -1 = one
      * of the founding pair (or an older save). Saved per fish. */
     int8_t parent_a, parent_b;
+    /* species (2026-10-05): what it is and which of the species' designs
+     * (saved, in fish_save_t's spare bytes); the rest is live state for the
+     * species' own motion and looks, not saved */
+    uint8_t species;        /* species_t */
+    uint8_t variant;        /* 0..SP_VARIANTS-1 */
+    float  puff;            /* pufferfish: 0 flat .. 1 a spiny ball */
+    float  ink;             /* octopus / squid: seconds the ink cloud has left */
+    float  jet;             /* jet pulse phase (octopus / squid), the eel's wave, the seahorse's fin */
+    float  camo;            /* octopus: 0 its own colours .. 1 the colour it sits on */
+    uint32_t camo_rgb;      /* ... that colour */
+    float  air_s;           /* eel: seconds until it needs a gulp of air (< 0 = rising for it) */
+    float  spark;           /* eel: seconds of a startle's spark left */
+    float  lure;            /* anglerfish: lure glow 0..1 */
+    int8_t anchor;          /* seahorse: the frond its tail holds (bed * 16 + frond), -1 = none */
 } fish_t;
 
 /* a pellet: it sinks ~43 s from the surface to the floor, then RESTS there
@@ -764,6 +817,17 @@ float tank_randf(tank_t *t, float lo, float hi);
 /* roster preset count (6) and a preset's display name, for UI */
 int   tank_roster_count(void);
 const char *tank_roster_name(int preset);
+/* species (docs/species.md). tank_make_fish is the classic fish;
+ * tank_set_species turns slot into a species' creature in place - its
+ * design, size range, temperament constants and default name - keeping the
+ * bold / sociable it has (a load re-applies it). tank_add_species_pair
+ * brings two juveniles of a species (the shop), -1 when there is no room
+ * for both. tank_species_n counts a species' living members. */
+const species_def_t *tank_species(const fish_t *f);
+void  tank_set_species(tank_t *t, int slot, int species, int variant);
+int   tank_add_species_pair(tank_t *t, int species);
+int   tank_species_n(const tank_t *t, int species);
+float tank_species_size(const fish_t *f);   /* its base size: from its personality, so a load gets the same */
 /* the keeper's say over a fish's identity (first-run setup, 2026-09-13; the
  * birth flow names an arrival, 2026-09-14). tank_set_name copies up to FISH_NAME_MAX
  * chars (empty = back to the preset's name); tank_set_look sets the body and
