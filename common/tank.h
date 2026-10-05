@@ -343,19 +343,52 @@ typedef struct {
     int8_t parent_a, parent_b;
     /* species (2026-10-05): what it is and which of the species' designs
      * (saved, in fish_save_t's spare bytes); the rest is live state for the
-     * species' own motion and looks, not saved */
+     * species' own motion and looks, not saved.
+     *
+     * THE CONVENTION (2026-10-05, the motion pass), for every species:
+     *  - (x, y) is the middle of the body; heading is the direction of
+     *    TRAVEL, always (atan2 of the velocity on the glass).
+     *  - facing / yaw say which way the HEAD points (+1 right), and may
+     *    disagree with the travel: a creature whose heading lies on the far
+     *    side of its facing is going BACKWARD (tank_fish_backward) - the
+     *    eel, the puffer and the squid backing a little, the lobster's
+     *    tail-flip, and every JET: an octopus or a squid jetting
+     *    (tank_fish_jetting) travels mantle first, its arms - its "head" for
+     *    facing - trailing, so facing is opposite the travel the whole jet.
+     *  - the body's axis is the heading taken on the facing side (the climb
+     *    or dive of the travel, the head where facing says); tank_fish_head
+     *    is where the mouth is, tank_body_half_len half the length the motion
+     *    keeps inside the glass (the eel 1.6 x a fish's for its size).
+     *  - the seahorse is upright (its axis vertical, the snout on the facing
+     *    side at the top); the crab is drawn face-on to the viewer - facing is
+     *    only the side it is walking toward (its legs' ripple), yaw eases to 0.
+     *  - jet is a phase 0..1 that wraps: the jet pulse (thrust while < 0.3,
+     *    then the glide), the octopus's / squid's fin or arm ripple between
+     *    jets, the eel's body wave, the seahorse's dorsal flutter, the
+     *    puffer's sculling, the crab's leg ripple (by distance walked), the
+     *    shark's tail beat, the angler's fin walk; the LOBSTER's only during a
+     *    tail-flip (sp_mode SPM_FLIP): each stroke runs 0..1, the abdomen
+     *    curled under while > 0.5, 0 when it walks.
+     *  - puff: the pufferfish's inflation; the CRAB's claws-up threat (0..1). */
     uint8_t species;        /* species_t */
     uint8_t variant;        /* 0..SP_VARIANTS-1 */
-    float  puff;            /* pufferfish: 0 flat .. 1 a spiny ball */
+    float  puff;            /* pufferfish: 0 flat .. 1 a spiny ball; crab: its claws raised 0..1 */
     float  ink;             /* octopus / squid: seconds the ink cloud has left */
-    float  jet;             /* jet pulse phase (octopus / squid), the eel's wave, the seahorse's fin */
+    float  jet;             /* a phase 0..1 (see THE CONVENTION above) */
     float  camo;            /* octopus: 0 its own colours .. 1 the colour it sits on */
     uint32_t camo_rgb;      /* ... that colour */
-    float  air_s;           /* eel: seconds until it needs a gulp of air (< 0 = rising for it) */
+    float  air_s;           /* eel: seconds until it needs a gulp of air; <= 0 = on the trip up for it
+                             * (the seconds of the trip so far, negative), reset to 60..120 back down */
     float  spark;           /* eel: seconds of a startle's spark left */
     float  lure;            /* anglerfish: lure glow 0..1 */
-    int8_t anchor;          /* seahorse: the frond its tail holds (bed * 16 + frond), -1 = none */
+    int8_t anchor;          /* seahorse: the frond its tail holds (bed * 16 + frond), -1 = none; anchored,
+                             * the tail grips the stem at (x + facing * 5 * size, y + 10 * size) */
+    uint8_t sp_mode;        /* the species' reflex in play (SPM_*): a jet, the eel's breath, the crab's claws, the flip */
+    float  sp_t;            /* its timer (and the walkers' stop-and-go, the seahorse's snick, the angler's lunge) */
+    float  sp_x;            /* the anglerfish's home spot along the floor (-1 = not yet) */
 } fish_t;
+/* fish_t.sp_mode (not saved) */
+enum { SPM_NONE, SPM_JET, SPM_CLING, SPM_RISE, SPM_GULP, SPM_SINK, SPM_CLAWS, SPM_SCUTTLE, SPM_FLIP, SPM_LUNGE };
 
 /* a pellet: it sinks ~43 s from the surface to the floor, then RESTS there
  * FOOD_FLOOR_S before it dissolves (2026-09-29, for the shrimp school - every
@@ -832,6 +865,17 @@ void  tank_set_species(tank_t *t, int slot, int species, int variant);
 int   tank_add_species_pair(tank_t *t, int species);
 int   tank_species_n(const tank_t *t, int species);
 float tank_species_size(const fish_t *f);   /* its base size: from its personality, so a load gets the same */
+/* the species' motion, for the renderer and the tests (see THE CONVENTION in
+ * fish_t). tank_ground_y: the top of what a floor walker stands on at x -
+ * the sand line, or the reef cluster's rock where it is placed (the crab,
+ * the lobster, the octopus crawl it; their middle stands tank_walk_off above
+ * it). */
+float tank_body_half_len(const fish_t *f);
+void  tank_fish_head(const fish_t *f, float *hx, float *hy);
+bool  tank_fish_backward(const fish_t *f);
+bool  tank_fish_jetting(const fish_t *f);
+float tank_ground_y(const tank_t *t, float x);
+float tank_walk_off(const fish_t *f);
 /* the keeper's say over a fish's identity (first-run setup, 2026-09-13; the
  * birth flow names an arrival, 2026-09-14). tank_set_name copies up to FISH_NAME_MAX
  * chars (empty = back to the preset's name); tank_set_look sets the body and
