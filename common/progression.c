@@ -316,6 +316,9 @@ uint32_t progression_loaded_release(void) { return s_loaded_release; }
 int64_t  progression_loaded_unix(void) { return s_loaded_unix; }
 void  progression_newborn_done(tank_t *t) { s_newborn = -1; progression_save(t); }
 
+static void apply_growth(fish_t *f);
+static void set_tms(tank_t *t, uint32_t bit);
+static const uint32_t POP_TMS[N_FISH_MAX + 1];
 static void set_ms(fish_t *f, uint32_t bit) { if (!(f->ms_bits & bit)) { f->ms_bits |= bit; mark_dirty(); } }
 /* ---- sand dollars ---- */
 const sd_item_t SD_ITEMS[SD_ITEM_COUNT] = {
@@ -326,7 +329,20 @@ const sd_item_t SD_ITEMS[SD_ITEM_COUNT] = {
     { SD_ITEM_CLUSTER, "REEF CLUSTER", "A MATURE REEF ON A ROCK,", "FILLS OUT, THEN IT BLOOMS",  SD_PRICE_CLUSTER },  /* 2026-09-24: the dearest; three looks on its page */
     { SD_ITEM_SHRIMP,  "SHRIMP",    "A SCHOOL OF CHERRY SHRIMP", "THEY EAT SCRAPS AND MULTIPLY", SD_PRICE_SHRIMP },
     { SD_ITEM_URCHIN,  "SEA URCHIN", "NIBBLES THE TALL GRASS,",  "EVEN WHILE THE TANK SLEEPS",  SD_PRICE_URCHIN },  /* 2026-10-02: the episode 5 promise, a resident like the snail */  /* 2026-09-29: a resident, like the snail; Strato: "should mention that they multiply" (28 chars, as the plant's) */
+    /* the species (2026-10-05, docs/species.md): a pair of juveniles each, in
+       species order; the words say what makes them them, and that they breed */
+    { SD_ITEM_SP_SEAHORSE, "SEAHORSES",   "A YOUNG PAIR. THEY HOLD",  "THE GRASS BY THE TAIL, BREED", SD_PRICE_SP_SEAHORSE },
+    { SD_ITEM_SP_OCTOPUS,  "OCTOPUSES",   "A YOUNG PAIR. THEY HIDE,", "TAKE ITS COLOR AND BREED",     SD_PRICE_SP_OCTOPUS },
+    { SD_ITEM_SP_PUFFER,   "PUFFERFISH",  "A YOUNG PAIR. STARTLED,",  "THEY PUFF UP. THEY BREED",     SD_PRICE_SP_PUFFER },
+    { SD_ITEM_SP_ANGLER,   "ANGLERFISH",  "A YOUNG PAIR WITH LURES",  "THAT GLOW AT NIGHT. BREEDS",   SD_PRICE_SP_ANGLER },
+    { SD_ITEM_SP_EEL,      "ELECTRIC EEL", "A YOUNG PAIR. THEY RISE", "FOR AIR, SPARK AND BREED",     SD_PRICE_SP_EEL },
+    { SD_ITEM_SP_SHARK,    "HAMMERHEADS", "A PAIR OF PUPS THAT NEVER", "STOP SWIMMING. THEY BREED",   SD_PRICE_SP_SHARK },
+    { SD_ITEM_SP_SQUID,    "SQUID",       "A YOUNG PAIR. THEY JET,",  "HOLD STATION, INK AND BREED",  SD_PRICE_SP_SQUID },
+    { SD_ITEM_SP_CRAB,     "CRABS",       "A YOUNG PAIR THAT WALKS",  "SIDEWAYS. THEY BREED TOO",     SD_PRICE_SP_CRAB },
+    { SD_ITEM_SP_LOBSTER,  "LOBSTERS",    "A YOUNG PAIR OF FLOOR",    "WALKERS. THEY BREED TOO",      SD_PRICE_SP_LOBSTER },
 };
+_Static_assert(SD_ITEM_SP_FIRST + SP_COUNT - 1 == SD_ITEM_COUNT, "a shop item per species, after the things");
+_Static_assert(SD_ITEM_COUNT <= 32, "sd_unlocks is 32 bits");
 static void sd_award(tank_t *t, int n) {
     if (n <= 0) return;
     t->sd_balance += n; t->sd_earned += n; s_sd_pending += n;
@@ -378,6 +394,18 @@ int progression_fish_value(const tank_t *t, int fish) {
 bool progression_fish_sellable(const tank_t *t, int fish) {
     return fish >= 0 && fish < t->n_fish && t->n_fish > FISH_KEEP_MIN && s_newborn < 0;
 }
+int progression_item_species(int item) {
+    return item >= SD_ITEM_SP_FIRST && item < SD_ITEM_COUNT ? 1 + item - SD_ITEM_SP_FIRST : -1;
+}
+bool progression_has_room(const tank_t *t) { return t->n_fish + 2 <= POP_CAP && t->n_fish + 2 <= N_FISH_MAX; }
+void progression_species_sync(tank_t *t) {
+    uint32_t was = t->sd_unlocks;
+    for (int sp = 1; sp < SP_COUNT; sp++) {
+        uint32_t bit = SD_ITEMS[SD_ITEM_SP_FIRST + sp - 1].bit;
+        if (tank_species_n(t, sp) > 0) t->sd_unlocks |= bit; else t->sd_unlocks &= ~bit;
+    }
+    if (t->sd_unlocks != was) mark_dirty();
+}
 bool progression_sell_fish(tank_t *t, int fish) {
     if (!progression_fish_sellable(t, fish)) return false;
     int worth = progression_fish_value(t, fish);
@@ -392,14 +420,37 @@ bool progression_sell_fish(tank_t *t, int fish) {
     s_arrival_pending = false; s_spawn_in = -1;
     s_sale_need = t->player_feedings + SELL_FRY_MEALS;
     sd_award(t, worth);
+    progression_species_sync(t);                           /* the last of a species gone: its pair is for sale again */
     tank_emit(TEV_CONFIRM, -1);
     progression_save(t);                                   /* a sale sticks at once */
+    return true;
+}
+/* a species' pair in the tank: two juveniles by the reef, their clocks
+   where a juvenile's are, nothing owed for the stage they were bought at */
+static bool add_pair(tank_t *t, int sp) {
+    if (sp <= SP_FISH || sp >= SP_COUNT || !progression_has_room(t)) return false;
+    int first = tank_add_species_pair(t, sp);
+    if (first < 0) return false;
+    for (int i = first; i < t->n_fish; i++) {
+        s_age[i] = STAGE_JUV_AGE; s_starve_s[i] = 0;
+        t->fish[i].ms_bits = MS_ARRIVED | MS_REACHED_JUV;
+        t->sd_paid_fish[i] = SD_PAID_JUV;                  /* bought grown that far: no stage pay for it */
+        apply_growth(&t->fish[i]);
+    }
+    if (t->n_fish <= N_FISH_MAX) set_tms(t, POP_TMS[t->n_fish]);
+    return true;
+}
+bool progression_spawn_pair(tank_t *t, int species) {
+    if (!add_pair(t, species)) return false;
+    progression_species_sync(t); progression_save(t);
     return true;
 }
 bool progression_buy(tank_t *t, int item) {
     if (item < 0 || item >= SD_ITEM_COUNT) return false;
     const sd_item_t *it = &SD_ITEMS[item];
     if ((t->sd_unlocks & it->bit) || t->sd_balance < it->price) return false;
+    int sp = progression_item_species(item);
+    if (sp > 0 && !add_pair(t, sp)) return false;          /* a pair of juveniles, by the reef - or no room */
     t->sd_balance -= it->price; t->sd_unlocks |= it->bit;
     if (it->bit == SD_ITEM_PLANT) tank_plant_place(t);
     if (it->bit == SD_ITEM_SNAIL) tank_snail_place(t);
@@ -449,17 +500,30 @@ static const uint32_t POP_TMS[N_FISH_MAX + 1] = { 0, 0, TMS_PAIR, TMS_TRIO, TMS_
 /* the parents: the two most trusting grown fish - or, with fewer than two
  * grown (at two fish no stage is gated), the most trusting of the rest fill
  * in, so there is always a pair to court (2026-09-24: the spawning needs
- * two fish in the grass; tank_add_fish already fell back to fish 0 and 1) */
+ * two fish in the grass; tank_add_fish already fell back to fish 0 and 1).
+ * Since the species (2026-10-05) a pair is two of ONE species: the ranking
+ * runs within each species, and the tank's pair is the species' best pair
+ * - the one whose weaker parent ranks highest (grown first, then trust),
+ * the classic fish winning a tie. No species with two = no pair (-1, -1):
+ * no courting, no arrival, until a pair is bought or one grows up. */
 static float parent_rank(const fish_t *f) { return (f->stage >= STAGE_ADULT ? 100.0f : 0.0f) + f->trust; }
 static void pick_parents(const tank_t *t, int *pa, int *pb) {
-    int a = -1, b = -1;
-    for (int i = 0; i < t->n_fish; i++) {
-        float r = parent_rank(&t->fish[i]);
-        if (a < 0 || r > parent_rank(&t->fish[a])) { b = a; a = i; }
-        else if (b < 0 || r > parent_rank(&t->fish[b])) b = i;
+    *pa = *pb = -1;
+    float best = -1;
+    for (int sp = 0; sp < SP_COUNT; sp++) {
+        int a = -1, b = -1;
+        for (int i = 0; i < t->n_fish; i++) {
+            if (t->fish[i].species != sp) continue;
+            float r = parent_rank(&t->fish[i]);
+            if (a < 0 || r > parent_rank(&t->fish[a])) { b = a; a = i; }
+            else if (b < 0 || r > parent_rank(&t->fish[b])) b = i;
+        }
+        if (b < 0) continue;
+        float r = parent_rank(&t->fish[b]);
+        if (r > best) { best = r; *pa = a; *pb = b; }
     }
-    *pa = a; *pb = b;
 }
+static bool have_pair(const tank_t *t) { int a, b; pick_parents(t, &a, &b); return a >= 0 && b >= 0; }
 
 /* the arrival itself: a fry in the nursery grass, traits inherited from the
  * parents; the stage clock starts from zero */
@@ -470,6 +534,7 @@ static void do_arrival(tank_t *t) {
     s_arrival_pending = false;
     s_spawn_in = -1; t->spawning = false; t->spawn_danced = 0;
     if (slot < 0) return;
+    progression_species_sync(t);             /* a surprise species is in the tank now: its pair is off the shelf */
     int nb = tank_nursery_bed(t);            /* born in the grass it was courted in */
     if (nb >= 0) {
         float x0, x1; tank_veg_bed(t, nb, &x0, &x1, NULL, NULL);
@@ -525,11 +590,22 @@ static int care_gates(const tank_t *t, gate_t g[CARE_GATES_MAX]) {
         GATE(FRY_REQ_FEED, (float)t->player_feedings, MEALS(80), t->player_feedings >= MEALS(80));
         GATE(FRY_REQ_TRUST, min_trust, 7.0f, min_trust >= 7.0f);
         break;
-    default:
+    case 5:
         GATE(FRY_REQ_GROW, age, (float)STAGE_ADULT_AGE, t->fish[last].stage >= STAGE_ADULT);
         GATE(FRY_REQ_FEED, (float)t->player_feedings, MEALS(140), t->player_feedings >= MEALS(140));
         GATE(FRY_REQ_TRUST, min_trust, 8.0f, min_trust >= 8.0f);
         break;
+    default: {
+        /* 6..9 (2026-10-05, the species' ten places): the five's gates, the
+           meals climbing ~+70 a place and the trust to 9 from eight - a
+           full tank is a lot of mouths, and every one of them must trust */
+        static const int meals[N_FISH_MAX] = { 0, 0, 0, 0, 0, 140, 200, 270, 350, 440 };
+        int nf = t->n_fish < N_FISH_MAX ? t->n_fish : N_FISH_MAX - 1;
+        float trust = nf >= 7 ? 9.0f : 8.0f;
+        GATE(FRY_REQ_GROW, age, (float)STAGE_ADULT_AGE, t->fish[last].stage >= STAGE_ADULT);
+        GATE(FRY_REQ_FEED, (float)t->player_feedings, MEALS(meals[nf]), t->player_feedings >= MEALS(meals[nf]));
+        GATE(FRY_REQ_TRUST, min_trust, trust, min_trust >= trust);
+        break; }
     }
     /* and a clean tank (Strato, 2026-09-16: "fish should not be able to
      * breed in a dirty tank. Some algae is OK but if a certain percentage of
@@ -584,7 +660,7 @@ const char *const *progression_fry_tip(int kind) {
 static const char *const STAGE_WORDS[4] = { "A FRY", "A JUVENILE", "AN ADULT", "AN ELDER" };
 int progression_next_fry(const tank_t *t, fry_req_t out[FRY_REQ_MAX], bool *staged) {
     if (staged) *staged = s_arrival_pending;
-    if (t->n_fish >= POP_CAP || t->n_fish >= N_FISH_MAX || t->n_fish < 2) return 0;
+    if (t->n_fish >= POP_CAP || t->n_fish >= N_FISH_MAX || t->n_fish < 2 || !have_pair(t)) return 0;   /* (no two of a kind: nothing to list) */
     gate_t g[CARE_GATES_MAX];
     int n = care_gates(t, g);
     for (int i = 0; i < n; i++) {
@@ -659,12 +735,13 @@ int progression_next_fry(const tank_t *t, fry_req_t out[FRY_REQ_MAX], bool *stag
 static bool arrival_earned(const tank_t *t) {
     if (t->n_fish >= POP_CAP || t->n_fish >= N_FISH_MAX) return false;
     if (tank_nursery_bed(t) < 0) return false;   /* no grass to be born in */
+    if (!have_pair(t)) return false;             /* no two of one species to court */
     int met, total;
     arrival_conditions(t, &met, &total);
     return met == total;
 }
 
-void progression_force_arrival(tank_t *t) { s_arrival_pending = true; do_arrival(t); }
+void progression_force_arrival(tank_t *t) { if (!have_pair(t)) return; s_arrival_pending = true; do_arrival(t); }
 void progression_woke(tank_t *t) { if (s_arrival_pending) do_arrival(t); }
 void progression_stage_arrival(tank_t *t) { (void)t; if (!s_arrival_pending) { s_arrival_pending = true; mark_dirty(); } }
 
@@ -816,6 +893,7 @@ static bool load_save(tank_t *t, int64_t *saved_unix) {
     s_arrival_pending = sv.arrival_pending; s_spawn_in = -1;
     s_sale_need = sv.sale_meals_need > 0 ? sv.sale_meals_need : 0;
     s_prev_night = t->night;
+    progression_species_sync(t);                     /* the species' bits from who is here (a save sold down past them) */
     return true;
 }
 

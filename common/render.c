@@ -2238,6 +2238,24 @@ static void slider(ctx_t *c, int x, int y, int w, float frac, uint32_t rgb,
 static void button(ctx_t *c, int x, int y, int W, int H, uint32_t fill, uint32_t edge, const char *label, int scale);   /* below */
 static void draw_text(ctx_t *c, int x, int y, int scale, uint32_t rgb, const char *s);                                  /* the pixel font, below */
 #define CARD_MORE_H 22
+static void draw_text_8px(ctx_t *c, int x, int y, uint32_t rgb, const char *s);                                       /* below */
+/* the card's species line (NULL for the classic fish): the first of
+   "SPECIES - DESIGN", "DESIGN SPECIES", "TOKEN - DESIGN" that fits the card */
+#define CARD_KIND_CHARS ((RENDER_CARD_W - 8) / 6)
+static const char *card_kind(const fish_t *f) {
+    static char line[48];
+    if (f->species <= SP_FISH || f->species >= SP_COUNT) return NULL;
+    const species_def_t *sp = &SPECIES[f->species];
+    const char *design = sp->var[f->variant % SP_VARIANTS].name;
+    char tok[16]; int i = 0;
+    for (; sp->token[i] && i < 15; i++) tok[i] = (char)(sp->token[i] >= 'a' && sp->token[i] <= 'z' ? sp->token[i] - 32 : sp->token[i]);
+    tok[i] = 0;
+    snprintf(line, sizeof line, "%s - %s", sp->name, design);
+    if ((int)strlen(line) > CARD_KIND_CHARS) snprintf(line, sizeof line, "%s %s", design, sp->name);
+    if ((int)strlen(line) > CARD_KIND_CHARS) snprintf(line, sizeof line, "%s - %s", tok, design);
+    if ((int)strlen(line) > CARD_KIND_CHARS) snprintf(line, sizeof line, "%s", sp->name);
+    return line;
+}
 static void card_draw(ctx_t c, const tank_t *t, int fish_idx) {
     const fish_t *f = &t->fish[fish_idx];
     /* card: top-left, bordered in the fish's own color (that's its "name").
@@ -2258,7 +2276,12 @@ static void card_draw(ctx_t c, const tank_t *t, int fish_idx) {
      * ambiguous", the keeper sees the fish's size, and the milestones page a
      * tap deeper names the stage. The colour swatch went with them: the
      * border is the fish's colour, and a 7-letter name needs the row.) */
-    draw_text(&c, X + 8, Y + 8, 2, 0xffffff, f->name);
+    /* a creature of a species (2026-10-05) says what it is under its name, in
+       the 8 px font: "SEAHORSE - GOLDEN" - or, too long for the card, the
+       design first, or the species' short word ("EEL - CHARCOAL") */
+    const char *kind = card_kind(f);
+    draw_text(&c, X + 8, Y + (kind ? 5 : 8), 2, 0xffffff, f->name);
+    if (kind) draw_text_8px(&c, X + 6, Y + 21, 0x9fd8e2, kind);
     fill_ellipse(&c, X + W - 14, Y + 14, 3.2f, 3.2f, 0xffffff, (int)(40 + 200 * f->goal.confidence));
 
     /* needs: 5 segments each. Hunger is shown as FULLNESS - a full belly is
@@ -2834,7 +2857,23 @@ static const badge_t *tank_badge(const tank_t *t, int k) {
     return &TANK_BADGES[0];
 }
 static int tank_pages(const tank_t *t) { return (tank_badge_n(t) + MSP_PER_ROW - 1) / MSP_PER_ROW; }
+/* the fish rows' pages (2026-10-05, the species' ten places): MSP_FISH_ROWS
+   rows a page - the fish, then the NEW FRY row while one can still come.
+   With more, a chevron in the tank row's arrow column, beside the rows (or
+   a sideways swipe across them), turns the page: toward the next, back from
+   the last, a pip per page under it. A modal opened on a row (or stepped to
+   one by its arrows) brings that row's page along. */
+static int g_ms_fpage;
+static int fish_rows(const tank_t *t, int nreq) { return t->n_fish + (nreq > 0); }
+static int fish_pages(const tank_t *t, int nreq) { int r = fish_rows(t, nreq); return r > MSP_FISH_ROWS ? (r + MSP_FISH_ROWS - 1) / MSP_FISH_ROWS : 1; }
+#define MSP_ROW_SP_MAX 1.15f   /* a creature of a species in its row: no bigger than this (the big ones are tank-scaled up to ~2) */
+#define MSP_FPG_Y (MSP_ROW_Y0 + (MSP_FISH_ROWS * MSP_ROW_H - MSP_ICON) / 2)   /* the pager's top: the rows' middle */
 static const char *const STAGE_WORDS[4] = { "FRY", "JUVENILE", "ADULT", "ELDER" };
+/* a fish's stage line: "ADULT", or for a creature of a species "ADULT SEAHORSE" */
+static void stage_line(char *out, size_t n, const fish_t *f) {
+    if (f->species > SP_FISH && f->species < SP_COUNT) snprintf(out, n, "%s %s", STAGE_WORDS[f->stage & 3], SPECIES[f->species].name);
+    else snprintf(out, n, "%s", STAGE_WORDS[f->stage & 3]);
+}
 /* the detail modal (a tap on a badge / name / strip): what to show until
  * the next tap. caption[0] == 0 means no modal. */
 static char g_ms_caption[72], g_ms_title[16];
@@ -2877,16 +2916,21 @@ static float g_ms_sell_clock;        /* the tank clock when SELL was armed */
  * at its own size and stage, in the order they arrived - then a dim
  * silhouette for each place still open. The count is in the words under it;
  * here it is seen (lit against dim, never by hue alone). */
-#define MSP_SCHOOL_PITCH 52
+#define MSP_SCHOOL_PITCH 52               /* up to six places; ten share the box's width (2026-10-05) */
 #define MSP_SCHOOL_SCALE 0.74f
 #define MSP_SCHOOL_MAX   1.02f            /* the size that still fits its place (a big elder) */
 static void ms_school(const tank_t *t, uint16_t *fb, int stride, int X, int Y, int W) {
+    int pitch = POP_CAP * MSP_SCHOOL_PITCH <= W - 16 ? MSP_SCHOOL_PITCH : (W - 16) / POP_CAP;
+    float k = pitch < MSP_SCHOOL_PITCH ? 1.3f * pitch / MSP_SCHOOL_PITCH : 1.0f;   /* the places shrink together */
+    /* more than six: every other one a little higher and lower, so a long eel
+       may reach past its place without touching its neighbour */
     for (int i = 0; i < POP_CAP; i++) {
-        float cx = X + (W - POP_CAP * MSP_SCHOOL_PITCH) / 2 + MSP_SCHOOL_PITCH / 2 + 4 + i * MSP_SCHOOL_PITCH;   /* (+4: a fish's centre sits ahead of its middle) */
+        float cx = X + (W - POP_CAP * pitch) / 2 + pitch / 2 + 4 * k + i * pitch;   /* (+4: a fish's centre sits ahead of its middle) */
+        float cy = Y + 50 + (pitch < MSP_SCHOOL_PITCH ? (i & 1 ? 9 : -9) : 0);
         if (i < t->n_fish) {
-            float sz = t->fish[i].size * MSP_SCHOOL_SCALE;
-            render_fish_portrait(fb, stride, cx, Y + 50, sz > MSP_SCHOOL_MAX ? MSP_SCHOOL_MAX : sz, &t->fish[i], t->clock + i * 0.9f);
-        } else render_fish_preview(fb, stride, cx, Y + 50, 0.9f * MSP_SCHOOL_SCALE, MSP_DIM, MSP_DIM, MSP_DIM, t->clock + i * 0.9f);
+            float sz = t->fish[i].size * MSP_SCHOOL_SCALE * k, mx = MSP_SCHOOL_MAX * k;
+            render_fish_portrait(fb, stride, cx, cy, sz > mx ? mx : sz, &t->fish[i], t->clock + i * 0.9f);   /* species preview: render agent */
+        } else render_fish_preview(fb, stride, cx, cy, 0.9f * MSP_SCHOOL_SCALE * k, MSP_DIM, MSP_DIM, MSP_DIM, t->clock + i * 0.9f);
     }
 }
 
@@ -3008,10 +3052,16 @@ void render_milestones(const tank_t *t, uint16_t *fb, int stride) {
     ctx_t c = ctx_page(fb, stride);
     for (int y = 0; y < TANK_H; y++)
         for (int x = 0; x < TANK_W; x++) fb[y * stride + x] = rgb565(MSP_INK, 1);
-    for (int i = 0; i < t->n_fish; i++) {
+    fry_req_t req[FRY_REQ_MAX]; bool staged;
+    int nreq = progression_next_fry(t, req, &staged);
+    int fpages = fish_pages(t, nreq);
+    if (g_ms_fpage >= fpages) g_ms_fpage = fpages - 1;           /* (a sale took the last page's rows) */
+    const int r0 = g_ms_fpage * MSP_FISH_ROWS;                  /* this page's first row */
+    for (int i = r0; i < t->n_fish && i < r0 + MSP_FISH_ROWS; i++) {
         const fish_t *f = &t->fish[i];
-        int top = MSP_ROW_Y0 + i * MSP_ROW_H;
-        render_fish_preview(fb, stride, MSP_FISH_X, top + MSP_ROW_MID, f->size, f->color, f->fin, f->accent, t->clock);
+        int top = MSP_ROW_Y0 + (i - r0) * MSP_ROW_H;
+        float rs = f->species && f->size > MSP_ROW_SP_MAX ? MSP_ROW_SP_MAX : f->size;   /* (a grown hammerhead or eel would leave its row) */
+        render_fish_preview(fb, stride, MSP_FISH_X, top + MSP_ROW_MID, rs, f->color, f->fin, f->accent, t->clock);   /* species preview: render agent */
         draw_text(&c, 92, top + 2, 2, 0xffffff, f->name);
         static const int GX[4] = { 96, 111, 129, 151 };   /* each glyph's own pitch: a 4 px gap as they grow */
         for (int s = 0; s < 4; s++)          /* growth strip: fry -> elder, lit up to the stage reached */
@@ -3026,10 +3076,8 @@ void render_milestones(const tank_t *t, uint16_t *fb, int stride) {
        still grow - what the next arrival needs, as badges that light up when
        met (the fry-to-be a silhouette at the left, a tick per gate under
        its name, a filling bar under each badge still owed) */
-    fry_req_t req[FRY_REQ_MAX]; bool staged;
-    int nreq = progression_next_fry(t, req, &staged);
-    if (nreq > 0) {
-        int top = MSP_ROW_Y0 + t->n_fish * MSP_ROW_H;
+    if (nreq > 0 && t->n_fish >= r0 && t->n_fish < r0 + MSP_FISH_ROWS) {
+        int top = MSP_ROW_Y0 + (t->n_fish - r0) * MSP_ROW_H;
         uint32_t fry_rgb = staged ? MSP_TEAL : MSP_DIM;
         render_fish_preview(fb, stride, MSP_FISH_X, top + MSP_ROW_MID, 0.55f, fry_rgb, fry_rgb, fry_rgb, t->clock);
         draw_text(&c, 92, top + 2, 2, MSP_TEAL, "NEW FRY");
@@ -3055,8 +3103,11 @@ void render_milestones(const tank_t *t, uint16_t *fb, int stride) {
         draw_text(&c, MSP_SD_X + (MSP_ICON - text_w(bal, 2)) / 2, MSP_TANK_Y + 34, 2, 0xffffff, bal);
     }
     draw_text(&c, 92, MSP_TANK_Y + 2, 2, MSP_TEAL, "TANK");
-    for (int k = 0; k < POP_CAP; k++)        /* population strip: who is here, who could still arrive */
-        fish_glyph(&c, 96 + k * 14, MSP_TANK_Y + 30, 2.8f, k < t->n_fish ? MSP_TEAL : MSP_DIM);
+    if (POP_CAP <= 6)                        /* population strip: who is here, who could still arrive */
+        for (int k = 0; k < POP_CAP; k++) fish_glyph(&c, 96 + k * 14, MSP_TANK_Y + 30, 2.8f, k < t->n_fish ? MSP_TEAL : MSP_DIM);
+    else                                     /* ten (2026-10-05): two rows of five, smaller, clear of the badges */
+        for (int k = 0; k < POP_CAP; k++)
+            fish_glyph(&c, 96 + (k % 5) * 14, MSP_TANK_Y + 25 + (k / 5) * 11, 2.3f, k < t->n_fish ? MSP_TEAL : MSP_DIM);
     int nb = tank_badge_n(t), np = tank_pages(t);
     if (g_ms_tpage >= np) g_ms_tpage = 0;
     for (int j = 0; j < MSP_PER_ROW; j++) {
@@ -3077,6 +3128,19 @@ void render_milestones(const tank_t *t, uint16_t *fb, int stride) {
                      rect_edge(&c, ax - 4, ay - 4, aw + 8, MSP_ICON + 8, 0x3f6a72); }
         for (int p = 0; p < np; p++)        /* a pip per page under it, the current one lit */
             rect_fill(&c, ax + aw / 2 - np * 3 + p * 6 + 1, MSP_TANK_Y + 40, 4, 2, p == g_ms_tpage ? MSP_TEAL : MSP_DIM);
+    }
+    if (fpages > 1) {   /* the fish rows' pager: the tank row's arrow, beside the rows; the two-tone ring
+                           while another page holds a fish badge not seen yet */
+        bool last = g_ms_fpage == fpages - 1, fresh = false;
+        for (int i = 0; i < t->n_fish; i++)
+            for (int k = 0; k < 6; k++)
+                if (i / MSP_FISH_ROWS != g_ms_fpage && (t->fish[i].ms_bits & ~t->fish[i].ms_seen & FISH_BADGES[k].bit)) fresh = true;
+        int ax = MSP_TPG_X + 4, ay = MSP_FPG_Y, aw = 16;
+        ms_chevron(&c, last ? ax + 2 : ax + aw - 2, ay + MSP_ICON / 2, last, 0xffffff);
+        if (fresh) { rect_edge(&c, ax - 3, ay - 3, aw + 6, MSP_ICON + 6, MSP_TEAL);
+                     rect_edge(&c, ax - 4, ay - 4, aw + 8, MSP_ICON + 8, 0x3f6a72); }
+        for (int p = 0; p < fpages; p++)
+            rect_fill(&c, ax + aw / 2 - fpages * 3 + p * 6 + 1, ay + MSP_ICON + 6, 4, 2, p == g_ms_fpage ? MSP_TEAL : MSP_DIM);
     }
     /* the way out: a CLOSE button in the prompt's calm dress (a tap anywhere
        else never drops the page - too much to tap for that) */
@@ -3114,7 +3178,7 @@ void render_milestones(const tank_t *t, uint16_t *fb, int stride) {
             int worth = progression_fish_value(t, g_ms_row);
             if (!can) g_ms_sell_armed = false; else g_ms_sell_asked = false;
             snprintf(g_ms_title, sizeof g_ms_title, "%s", f->name);
-            snprintf(g_ms_caption, sizeof g_ms_caption, "%s", STAGE_WORDS[f->stage & 3]);
+            stage_line(g_ms_caption, sizeof g_ms_caption, f);
             if (g_ms_sell_armed) snprintf(g_ms_sub, sizeof g_ms_sub, "TAP AGAIN TO SELL");
             else if (can) snprintf(g_ms_sub, sizeof g_ms_sub, "WORTH %d SAND DOLLARS", worth);
             else if (g_ms_sell_asked) snprintf(g_ms_sub, sizeof g_ms_sub, t->n_fish <= FISH_KEEP_MIN ? "KEEP AT LEAST TWO FISH" : "NAME THE NEW FRY FIRST");
@@ -3209,8 +3273,13 @@ int render_milestones_tap(const tank_t *t, float x, float y) {
     fry_req_t req[FRY_REQ_MAX]; bool staged;
     int nreq = progression_next_fry(t, req, &staged);
     if (y >= MSP_ROW_Y0 - 2 && y < MSP_ROW_Y0 + MSP_FISH_ROWS * MSP_ROW_H) {
+        int fpages = fish_pages(t, nreq);
+        if (fpages > 1 && x >= MSP_TPG_X) {          /* the rows' pager: the next page, wrapping */
+            g_ms_fpage = (g_ms_fpage + 1) % fpages; return MS_TAP_KEPT; }
+        if (g_ms_fpage >= fpages) g_ms_fpage = fpages - 1;
         row = (int)((y - MSP_ROW_Y0) / MSP_ROW_H);
         if (row < 0) row = 0;
+        row += g_ms_fpage * MSP_FISH_ROWS;
         if (row == t->n_fish && nreq > 0) fry_row = true;   /* the NEW FRY row */
         else if (row >= t->n_fish) return MS_TAP_NONE;      /* an empty row */
     } else if (y >= MSP_TANK_Y - 6 && y < MSP_CLOSE_Y - 4) tank_row = true;   /* down to the button strip: fingers near the
@@ -3237,6 +3306,7 @@ static int ms_open(const tank_t *t, int row, bool tank_row, bool fry_row, int k,
                    const fry_req_t *req, int nreq, bool staged) {
     g_ms_caption2[0] = 0; g_ms_sub[0] = 0; g_ms_fry = false; g_ms_kind = -1; g_ms_tip = false; g_ms_sell_armed = false; g_ms_sell_asked = false;
     g_ms_row = row; g_ms_k = k; g_ms_tankrow = tank_row; g_ms_fryrow = fry_row;
+    if (!tank_row && row >= 0) g_ms_fpage = row / MSP_FISH_ROWS;   /* the page follows the modal's row */
     if (fry_row) {
         if (k < 0) {                                 /* the name: the tally, and when it comes */
             int met = 0; for (int i = 0; i < nreq; i++) met += req[i].met;
@@ -3273,7 +3343,7 @@ static int ms_open(const tank_t *t, int row, bool tank_row, bool fry_row, int k,
         const fish_t *f = &t->fish[row];
         if (k < 0) {
             snprintf(g_ms_title, sizeof g_ms_title, "%s", f->name);
-            snprintf(g_ms_caption, sizeof g_ms_caption, "%s", STAGE_WORDS[f->stage & 3]);
+            stage_line(g_ms_caption, sizeof g_ms_caption, f);
             g_ms_lit = true; g_ms_icon = NULL; g_ms_fish = row;
         } else {
             uint32_t bit = FISH_BADGES[k].bit; bool on = (f->ms_bits & bit) != 0;
@@ -3289,6 +3359,14 @@ static int ms_open(const tank_t *t, int row, bool tank_row, bool fry_row, int k,
    treat the release as they did before). */
 bool render_milestones_swipe(const tank_t *t, float x, float y, float dx) {
     (void)x; y -= PAGE_Y;
+    if (!g_ms_caption[0] && y >= MSP_ROW_Y0 - 2 && y < MSP_ROW_Y0 + MSP_FISH_ROWS * MSP_ROW_H) {   /* across the fish rows: their page */
+        fry_req_t req[FRY_REQ_MAX]; bool staged;
+        int fp = fish_pages(t, progression_next_fry(t, req, &staged));
+        if (fp < 2) return false;
+        int p = g_ms_fpage + (dx < 0 ? 1 : -1);
+        if (p >= 0 && p < fp) g_ms_fpage = p;
+        return true;
+    }
     if (g_ms_caption[0] || tank_pages(t) < 2 || y < MSP_TANK_Y - 6 || y >= MSP_CLOSE_Y - 4) return false;
     int p = g_ms_tpage + (dx < 0 ? 1 : -1);
     if (p >= 0 && p < tank_pages(t)) g_ms_tpage = p;
@@ -3297,7 +3375,7 @@ bool render_milestones_swipe(const tank_t *t, float x, float y, float dx) {
 /* the modal down, the page (and the tank row's page) kept */
 static void ms_close(void) { g_ms_sell_armed = false; g_ms_sell_asked = false; g_ms_kind = -1; g_ms_tip = false; g_ms_caption[0] = 0; g_ms_caption2[0] = 0; g_ms_title[0] = 0; g_ms_sub[0] = 0; g_ms_icon = NULL; g_ms_fish = -1; g_ms_fry = false;
                                      g_ms_row = -1; g_ms_k = -1; g_ms_tankrow = false; g_ms_fryrow = false; }
-void render_milestones_leave(void) { ms_close(); g_ms_tpage = 0; }
+void render_milestones_leave(void) { ms_close(); g_ms_tpage = 0; g_ms_fpage = 0; }
 void render_milestones_show_fish(const tank_t *t, int fish) {
     if (fish >= 0 && fish < t->n_fish) ms_open(t, fish, false, false, -1, NULL, 0, false);
 }
@@ -3317,7 +3395,15 @@ bool render_milestones_arrow(const tank_t *t, bool right, int *x, int *y) {
 }
 void render_milestones_row(int row, int *name_x, int *y) {
     if (name_x) *name_x = PAGE_X + 100;
-    if (y)      *y      = PAGE_Y + MSP_ROW_Y0 + row * MSP_ROW_H + MSP_ROW_MID;
+    if (y)      *y      = PAGE_Y + MSP_ROW_Y0 + row % MSP_FISH_ROWS * MSP_ROW_H + MSP_ROW_MID;
+}
+int  render_milestones_fish_page(void) { return g_ms_fpage; }
+bool render_milestones_pager(const tank_t *t, int *x, int *y) {
+    fry_req_t req[FRY_REQ_MAX]; bool staged;
+    if (fish_pages(t, progression_next_fry(t, req, &staged)) < 2) return false;
+    if (x) *x = PAGE_X + MSP_TPG_X + 12;
+    if (y) *y = PAGE_Y + MSP_FPG_Y + MSP_ICON / 2;
+    return true;
 }
 
 /* ---- announcement modal (notice.h, 2026-09-15) ----
@@ -3399,7 +3485,14 @@ void render_notice(const tank_t *t, uint16_t *fb, int stride, int kind, int fish
 static int  g_shp_modal = -1;        /* the item whose modal is up, or -1 */
 static bool g_shp_earn;              /* the HOW TO EARN modal is up */
 static bool g_shp_sell_armed;        /* SELL tapped once: the next tap on it sells */
-static const icon_t *shop_icon(int item) { return item == 0 ? &icon_shop_plant : item == 1 ? &icon_shop_snail : item == 2 ? &icon_shop_castle : item == 3 ? &icon_shop_coral : item == 4 ? &icon_shop_cluster : item == 5 ? &icon_shop_shrimp : &icon_shop_urchin; }
+static const icon_t *shop_icon(int item) {
+    static const icon_t *const SP_ICONS[SP_COUNT - 1] = {   /* the species' pairs (2026-10-05), in species order */
+        &icon_shop_seahorse, &icon_shop_octopus, &icon_shop_puffer, &icon_shop_angler, &icon_shop_eel,
+        &icon_shop_shark, &icon_shop_squid, &icon_shop_crab, &icon_shop_lobster };
+    if (progression_item_species(item) > 0) return SP_ICONS[progression_item_species(item) - 1];
+    return item == 0 ? &icon_shop_plant : item == 1 ? &icon_shop_snail : item == 2 ? &icon_shop_castle : item == 3 ? &icon_shop_coral : item == 4 ? &icon_shop_cluster : item == 5 ? &icon_shop_shrimp : &icon_shop_urchin; }
+/* a species' pair needs two free places: with no room its UNLOCK reads NO ROOM, dim */
+static bool shop_no_room(const tank_t *t, int item) { return progression_item_species(item) > 0 && !progression_has_room(t); }
 /* pages (2026-09-23, the fourth item): SHP_PER_PAGE rows fit between the
  * coin and the foot buttons once the filler caption went (HOW TO EARN says
  * the same). With more items than a page holds, arrows at the header's
@@ -3434,12 +3527,13 @@ void render_shop(const tank_t *t, uint16_t *fb, int stride) {
     for (int i = g_shp_page * SHP_PER_PAGE; i < SD_ITEM_COUNT && i < (g_shp_page + 1) * SHP_PER_PAGE; i++) {
         const sd_item_t *it = &SD_ITEMS[i];
         int top = SHP_ROW_Y0 + (i - g_shp_page * SHP_PER_PAGE) * SHP_ROW_DY;
-        bool owned = (t->sd_unlocks & it->bit) != 0, can = t->sd_balance >= it->price;
+        bool owned = (t->sd_unlocks & it->bit) != 0, room = !shop_no_room(t, i), can = t->sd_balance >= it->price && room;
         if (owned) blit_icon(&c, 32, top, shop_icon(i), 255); else blit_icon_locked(&c, 32, top, shop_icon(i));   /* (the rows are where the bowl is wide: their own column) */
         draw_text(&c, 76, top + 2, 2, 0xffffff, it->name);
         if (owned) draw_text(&c, 76, top + 20, 2, MSP_TEAL, "IN THE TANK");
         else price_tag(&c, 76, top + 20, it->price, can ? MSP_TEAL : MSP_DIM);
         if (owned)     button(&c, SHP_BTN_X, top, SHP_BTN_W, SHP_BTN_H, MSP_INK, MSP_DIM, "IN TANK", 2);
+        else if (!room) button(&c, SHP_BTN_X, top, SHP_BTN_W, SHP_BTN_H, 0x1c2f36, MSP_DIM, "NO ROOM", 2);
         else if (can) { button(&c, SHP_BTN_X, top, SHP_BTN_W, SHP_BTN_H, MSP_TEAL, MSP_TEAL, "UNLOCK", 2);
                         draw_text(&c, SHP_BTN_X + (SHP_BTN_W - text_w("UNLOCK", 2)) / 2, top + (SHP_BTN_H - 14) / 2, 2, MSP_INK, "UNLOCK"); }
         else           button(&c, SHP_BTN_X, top, SHP_BTN_W, SHP_BTN_H, 0x1c2f36, MSP_DIM, "UNLOCK", 2);
@@ -3462,7 +3556,7 @@ void render_shop(const tank_t *t, uint16_t *fb, int stride) {
     }
     const sd_item_t *it = &SD_ITEMS[g_shp_modal];
     const int Y = SHP_MODAL_Y, H = SHP_MODAL_H;
-    bool owned = (t->sd_unlocks & it->bit) != 0, can = t->sd_balance >= it->price;
+    bool owned = (t->sd_unlocks & it->bit) != 0, room = !shop_no_room(t, g_shp_modal), can = t->sd_balance >= it->price && room;
     rect_fill(&c, X, Y, W, H, 0x04141a);
     rect_edge(&c, X, Y, W, H, MSP_TEAL); rect_edge(&c, X + 1, Y + 1, W - 2, H - 2, 0x1c2f36);
     blit_icon_scaled(&c, X + (W - 64) / 2, Y + 14, shop_icon(g_shp_modal), 2, true);
@@ -3479,14 +3573,21 @@ void render_shop(const tank_t *t, uint16_t *fb, int stride) {
                                 button(&c, SHP_TWO_X1, by, MSP_HOW_W, MSP_HOW_H, MSP_TEAL, MSP_TEAL, sell, 2);
                                 draw_text(&c, SHP_TWO_X1 + (MSP_HOW_W - text_w(sell, 2)) / 2, by + (MSP_HOW_H - 14) / 2, 2, MSP_INK, sell); }
         else button(&c, SHP_TWO_X1, by, MSP_HOW_W, MSP_HOW_H, 0x1c2f36, MSP_DIM, "SELL", 2);
+    } else if (owned && progression_item_species(g_shp_modal) > 0) {   /* a species here: for sale again once none are left */
+        int sp = progression_item_species(g_shp_modal), n = tank_species_n(t, sp);
+        char line[32]; snprintf(line, sizeof line, "%d IN THE TANK", n);
+        draw_text(&c, X + (W - text_w(line, 2)) / 2, Y + 164, 2, MSP_TEAL, line);
+        draw_text(&c, X + (W - text_w("BACK WHEN NONE ARE LEFT", 2)) / 2, by + 8, 2, MSP_DIM, "BACK WHEN NONE ARE LEFT");
     } else if (owned) draw_text(&c, X + (W - text_w("IN THE TANK", 2)) / 2, by + 8, 2, MSP_TEAL, "IN THE TANK");   /* the snail: a permanent resident */
     else {
         char line[32]; snprintf(line, sizeof line, "%d", it->price);
         int pw = 20 + text_w(line, 2);
         price_tag(&c, X + (W - pw) / 2, Y + 164, it->price, can ? 0xffffff : MSP_DIM);
-        if (!can) { snprintf(line, sizeof line, "YOU HAVE %d", (int)t->sd_balance);
-                    draw_text(&c, X + (W - text_w(line, 2)) / 2, Y + 184, 2, MSP_DIM, line); }
-        if (can) { button(&c, bx, by, MSP_HOW_W, MSP_HOW_H, MSP_TEAL, MSP_TEAL, "UNLOCK", 2);
+        if (!room) draw_text(&c, X + (W - text_w("THE TANK HAS NO ROOM FOR 2", 2)) / 2, Y + 184, 2, MSP_DIM, "THE TANK HAS NO ROOM FOR 2");
+        else if (!can) { snprintf(line, sizeof line, "YOU HAVE %d", (int)t->sd_balance);
+                         draw_text(&c, X + (W - text_w(line, 2)) / 2, Y + 184, 2, MSP_DIM, line); }
+        if (!room) button(&c, bx, by, MSP_HOW_W, MSP_HOW_H, 0x1c2f36, MSP_DIM, "NO ROOM", 2);
+        else if (can) { button(&c, bx, by, MSP_HOW_W, MSP_HOW_H, MSP_TEAL, MSP_TEAL, "UNLOCK", 2);
                    draw_text(&c, bx + (MSP_HOW_W - text_w("UNLOCK", 2)) / 2, by + (MSP_HOW_H - 14) / 2, 2, MSP_INK, "UNLOCK"); }
         else button(&c, bx, by, MSP_HOW_W, MSP_HOW_H, 0x1c2f36, MSP_DIM, "UNLOCK", 2);
     }
@@ -3496,7 +3597,7 @@ int render_shop_tap(const tank_t *t, float x, float y) {
     if (g_shp_earn) { g_shp_earn = false; return SHOP_TAP_KEPT; }
     if (g_shp_modal >= 0) {
         int item = g_shp_modal; const sd_item_t *it = &SD_ITEMS[item];
-        bool owned = (t->sd_unlocks & it->bit) != 0, can = t->sd_balance >= it->price;
+        bool owned = (t->sd_unlocks & it->bit) != 0, can = t->sd_balance >= it->price && !shop_no_room(t, item);
         const int bx = SHP_MODAL_X + (SHP_MODAL_W - MSP_HOW_W) / 2, by = SHP_MODAL_Y + SHP_MODAL_H - 12 - MSP_HOW_H;
         bool row = y >= by - MSP_HOW_SLOP_UP && y < by + MSP_HOW_H + MSP_HOW_SLOP_DN;
         bool on_btn = row && x >= bx - MSP_HOW_SLOP_X && x < bx + MSP_HOW_W + MSP_HOW_SLOP_X;

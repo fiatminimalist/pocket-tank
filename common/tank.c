@@ -335,6 +335,10 @@ void tank_set_species(tank_t *t, int slot, int species, int variant) {
     f->color = v->color; f->fin = v->fin; f->accent = v->accent;
     tank_set_name(t, slot, NULL);                      /* the species' default name */
 }
+float tank_fish_hit_r(const fish_t *f) {
+    float r = tank_species(f)->hit_r * f->size;
+    return r > TANK_HIT_MIN_R ? r : TANK_HIT_MIN_R;
+}
 int tank_species_n(const tank_t *t, int species) {
     int n = 0;
     for (int i = 0; i < t->n_fish; i++) n += t->fish[i].species == species;

@@ -17,6 +17,7 @@
  *                          shows for a few seconds; with a card up it is
  *                          always there - click it for the battery page),
  *                          4 ($) the shop page, D +50 sand dollars,
+ *                          5 a pair of the next species (free; the shop sells them),
  *                          T (the watch build) wear it the other way round;
  *                          click fish = stats; tap the water surface = feed;
  *                          drag down from the top = feed; hold >= 3 s = finger
@@ -310,6 +311,128 @@ static int selftest_spawn(void) {
 }
 
 /* population + progression + persistence, headless and fast */
+/* the species (2026-10-05, docs/species.md), in --selftest-pop: breeding is
+ * within a species (the best pair of one kind courts), a tank without two of
+ * a kind has no fry to list or court, a classic pair's fry now and then
+ * hatches as a new species, the gates harden to ten, and the milestones page
+ * pages its rows past six */
+static int selftest_species_pop(void) {
+    static uint16_t fb[TANK_W * TANK_H];
+    tank_init(&tank, 314); progression_fresh(&tank); progression_setup_done(&tank); tank.trickle_off = true;
+    tank_veg_set(&tank, 0, 0.6f);
+    if (!progression_spawn_pair(&tank, SP_SEAHORSE)) { printf("FAIL: no seahorses\n"); return 1; }
+    for (int i = 0; i < 2; i++) { progression_set_age(&tank, i, STAGE_JUV_AGE + 60); tank.fish[i].trust = 9; }   /* the fish: trusting juveniles */
+    for (int i = 2; i < 4; i++) { progression_set_age(&tank, i, STAGE_ADULT_AGE + 60); tank.fish[i].trust = 2; } /* the seahorses: grown, wary */
+    progression_force_arrival(&tank);
+    {   const fish_t *f = &tank.fish[4];
+        if (tank.n_fish != 5 || f->species != SP_SEAHORSE || tank.fish[f->parent_a].species != SP_SEAHORSE || tank.fish[f->parent_b].species != SP_SEAHORSE) {
+            printf("FAIL: the grown seahorses' fry is a %s of %d/%d\n", SPECIES[f->species].token, f->parent_a, f->parent_b); return 1; } }
+    printf("selftest-pop: species: the grown pair's fry is theirs - a %s %s, by %s and %s\n", SPECIES[SP_SEAHORSE].var[tank.fish[4].variant].name,
+           SPECIES[SP_SEAHORSE].token, tank.fish[tank.fish[4].parent_a].name, tank.fish[tank.fish[4].parent_b].name);
+    setup_begin_birth(&tank, 4); render_setup(&tank, fb, TANK_W, 1.0f); setup_cancel(&tank);   /* "A NEW SEAHORSE!" (drawn, not read) */
+    progression_newborn_done(&tank);
+    for (int i = 0; i < 2; i++) { progression_set_age(&tank, i, STAGE_ADULT_AGE + 60); tank.fish[i].trust = 9; }
+    progression_force_arrival(&tank);
+    if (tank.n_fish != 6 || tank.fish[5].parent_a > 1 || tank.fish[5].parent_b > 1) { printf("FAIL: the grown fish did not court (%d/%d)\n", tank.fish[5].parent_a, tank.fish[5].parent_b); return 1; }
+    progression_newborn_done(&tank);
+    /* one of a kind each: no pair, so no checklist, no courting, no fry */
+    while (tank.n_fish > 2) {
+        int k = tank.n_fish - 1;
+        if (tank.n_fish == 3) { k = 0; while (tank.fish[k].species != SP_FISH) k++; }   /* down to one fish and one seahorse */
+        else if (tank_species_n(&tank, SP_SEAHORSE) == 1 && tank.fish[k].species == SP_SEAHORSE) k = 0;
+        if (!progression_sell_fish(&tank, k)) { printf("FAIL: could not sell down\n"); return 1; }
+    }
+    if (tank_species_n(&tank, SP_FISH) != 1 || tank_species_n(&tank, SP_SEAHORSE) != 1) { printf("FAIL: sold down to %d fish + %d seahorses\n", tank_species_n(&tank, SP_FISH), tank_species_n(&tank, SP_SEAHORSE)); return 1; }
+    {   fry_req_t req[FRY_REQ_MAX]; bool staged;
+        tank.player_feedings = 500; tank.hold_approaches = 5;
+        for (int i = 0; i < 2; i++) tank.fish[i].trust = 10;
+        for (int i = 0; i < 120; i++) { tank_tick(&tank, 1.0f / 60.0f, advisor_rules); progression_tick(&tank, 1.0f / 60.0f); }
+        progression_force_arrival(&tank);
+        if (progression_next_fry(&tank, req, &staged) != 0 || tank.courting || tank.n_fish != 2 || progression_arrival_pending()) {
+            printf("FAIL: a fish and a seahorse court (%d gates, courting %d, %d fish)\n", progression_next_fry(&tank, req, &staged), tank.courting, tank.n_fish); return 1; }
+    }
+    printf("selftest-pop: species: one fish + one seahorse: no checklist, no courting, no fry\n");
+    /* the surprise: a classic pair's fry hatches as a new species now and then (SP_MUTATE_P) */
+    {
+        int births = 0, mutants = 0, first_sp = -1;
+        for (int seed = 1; seed <= 100; seed++) {   /* 400 births: ~16 surprises expected */
+            tank_init(&tank, (uint32_t)seed); progression_fresh(&tank); progression_setup_done(&tank); tank_veg_set(&tank, 0, 0.6f);
+            for (int i = 0; i < 2; i++) { progression_set_age(&tank, i, STAGE_ADULT_AGE + 60); tank.fish[i].trust = 9; }
+            for (int b = 0; b < 4; b++) {
+                progression_force_arrival(&tank); progression_newborn_done(&tank); births++;
+                const fish_t *f = &tank.fish[tank.n_fish - 1];
+                if (f->species != SP_FISH) {
+                    if (tank.fish[f->parent_a].species != SP_FISH || tank.fish[f->parent_b].species != SP_FISH) { printf("FAIL: a surprise from a mixed pair\n"); return 1; }
+                    if (!(tank.sd_unlocks & SD_ITEMS[SD_ITEM_SP_FIRST + f->species - 1].bit)) { printf("FAIL: the surprise's pair is still on the shelf\n"); return 1; }
+                    if (!mutants++) first_sp = f->species;
+                    setup_begin_birth(&tank, tank.n_fish - 1); render_setup(&tank, fb, TANK_W, 1.0f); setup_cancel(&tank);   /* "A SURPRISE!" */
+                }
+            }
+        }
+        printf("selftest-pop: species: %d classic births, %d hatched as a new species (the first a %s; %.0f%% expected)\n", births, mutants,
+               first_sp > 0 ? SPECIES[first_sp].token : "-", SP_MUTATE_P * 100);
+        if (mutants < births / 100 || mutants > births / 10) { printf("FAIL: %d surprises in %d births\n", mutants, births); return 1; }
+    }
+    /* the gates to ten: the meals climb with every place and the trust bar rises */
+    {
+        tank_init(&tank, 77); progression_fresh(&tank); progression_setup_done(&tank); tank_veg_set(&tank, 0, 0.6f);
+        progression_spawn_pair(&tank, SP_CRAB); progression_spawn_pair(&tank, SP_LOBSTER);
+        int last_meals = 0; float last_trust = 0;
+        while (tank.n_fish < POP_CAP) {
+            fry_req_t req[FRY_REQ_MAX]; bool staged;
+            int n = progression_next_fry(&tank, req, &staged), meals = -1, trust = -1;
+            for (int i = 0; i < n; i++) {
+                if (req[i].kind == FRY_REQ_FEED) sscanf(req[i].words2, "%d", &meals);
+                if (req[i].kind == FRY_REQ_TRUST) sscanf(req[i].words2, "OF AT LEAST %d", &trust);
+            }
+            if (tank.n_fish >= 5 && (meals <= last_meals || trust < last_trust || trust < 8)) {
+                printf("FAIL: at %d the gates are %d meals, trust %d (after %d, %.0f)\n", tank.n_fish, meals, trust, last_meals, last_trust); return 1; }
+            if (tank.n_fish >= 5) printf("selftest-pop: species: the next fry at %d creatures: %d meals, trust %d\n", tank.n_fish, meals, trust);
+            last_meals = meals; last_trust = (float)trust;
+            for (int i = 0; i < tank.n_fish; i++) { progression_set_age(&tank, i, STAGE_ADULT_AGE + 60); tank.fish[i].trust = 9; }
+            int n0 = tank.n_fish;
+            progression_force_arrival(&tank); progression_newborn_done(&tank);
+            if (tank.n_fish != n0 + 1) { printf("FAIL: no arrival at %d\n", n0); return 1; }
+        }
+        fry_req_t req[FRY_REQ_MAX];
+        if (progression_next_fry(&tank, req, NULL) != 0 || progression_has_room(&tank)) { printf("FAIL: a full tank of %d lists a fry or has room\n", tank.n_fish); return 1; }
+        int before = tank.n_fish; progression_force_arrival(&tank);
+        if (tank.n_fish != before) { printf("FAIL: an arrival past the cap\n"); return 1; }
+    }
+    /* the milestones page with ten: two pages of rows, the pager and the swipe, a modal brings its row's page */
+    {
+        if (tank.n_fish != N_FISH_MAX) { printf("FAIL: the tank is %d, not %d\n", tank.n_fish, N_FISH_MAX); return 1; }
+        int px, py, nx, ny, fish;
+        render_milestones_leave(); render_milestones(&tank, fb, TANK_W);
+        if (!render_milestones_pager(&tank, &px, &py) || render_milestones_fish_page() != 0) { printf("FAIL: ten creatures and no pager\n"); return 1; }
+        if (render_milestones_tap(&tank, (float)px, (float)py) != MS_TAP_KEPT || render_milestones_fish_page() != 1) { printf("FAIL: the pager did not turn the page\n"); return 1; }
+        render_milestones(&tank, fb, TANK_W);
+        render_milestones_row(6, &nx, &ny);
+        if (render_milestones_tap(&tank, (float)nx, (float)ny) != MS_TAP_KEPT || !render_milestones_card(&tank, &fish, NULL, NULL, NULL) || fish != 6) {
+            printf("FAIL: page 2's first row is not creature 6's card (%d)\n", fish); return 1; }
+        render_milestones(&tank, fb, TANK_W);
+        int ax, ay; render_milestones_arrow(&tank, true, &ax, &ay);
+        for (int i = 0; i < 4; i++) { render_milestones_tap(&tank, (float)ax, (float)ay); render_milestones(&tank, fb, TANK_W); }   /* 6 -> 10 wraps to 0 */
+        if (!render_milestones_card(&tank, &fish, NULL, NULL, NULL) || fish != 0 || render_milestones_fish_page() != 0) {
+            printf("FAIL: the card's arrows did not bring page 1 back (fish %d, page %d)\n", fish, render_milestones_fish_page()); return 1; }
+        render_milestones_tap(&tank, (float)PG_X(MS_OFF_X), (float)PG_Y(MSP_FRY_MODAL_Y + 90));   /* closes the card */
+        render_milestones_row(0, &nx, &ny);
+        if (!render_milestones_swipe(&tank, (float)nx, (float)ny, -80) || render_milestones_fish_page() != 1) { printf("FAIL: a swipe across the rows did not page\n"); return 1; }
+        render_milestones_swipe(&tank, (float)nx, (float)ny, -80);
+        if (render_milestones_fish_page() != 1) { printf("FAIL: a swipe paged past the last\n"); return 1; }
+        render_milestones_swipe(&tank, (float)nx, (float)ny, 80);
+        if (render_milestones_fish_page() != 0) { printf("FAIL: a swipe back did not page back\n"); return 1; }
+        if (render_milestones_tap(&tank, (float)PG_X(MS_NAME_X), (float)PG_Y(MSP_TANK_Y + 10)) != MS_TAP_KEPT) { printf("FAIL: TANK's tally\n"); return 1; }
+        render_milestones(&tank, fb, TANK_W);                       /* the school of ten in the tally */
+        render_milestones_leave();
+        /* a tap on a creature: its own reach (the hammerhead's is a pup's ninety px, a fry's at least a fingertip) */
+        for (int i = 0; i < tank.n_fish; i++)
+            if (tank_fish_hit_r(&tank.fish[i]) < TANK_HIT_MIN_R) { printf("FAIL: creature %d's reach %.0f\n", i, tank_fish_hit_r(&tank.fish[i])); return 1; }
+        printf("selftest-pop: species: ten on the milestones page - two pages of rows, the pager, the swipe, a card's arrows bring its page\n");
+    }
+    return 0;
+}
+
 static int selftest_pop(void) {
     setenv("POCKET_TANK_SAVE", "/dev/null/pocket-tank-selftest.sav", 1);
     tank_init(&tank, 98);
@@ -717,6 +840,7 @@ static int selftest_pop(void) {
         printf("  notices wait for the welcome: %d held through it, up %d frames after DONE; a covered one steps aside and returns quietly\n", held, up_at);
     }
     if (selftest_spawn()) return 1;
+    if (selftest_species_pop()) return 1;
     (void)system(cmd);                            /* leave no test save behind */
     return 0;
 }
@@ -1067,33 +1191,47 @@ static int selftest_sleep(void) {
  * tail reading as the defaults - and again after a save and a reload. */
 #ifndef _MSC_VER
 #include <dirent.h>
-static const size_t SAVE_CUTS[] = { 448, 1112, 1304, 1408, 1432, 1440, 1456, 1480, 1608, 1616, 1624, 1640, 1656, 1664, 1672, 1680, 1688 };
+static const size_t SAVE_CUTS[] = { 448, 1112, 1304, 1408, 1432, 1440, 1456, 1480, 1608, 1616, 1624, 1640, 1656, 1664, 1672, 1680, 1688,
+                                    2092 };      /* (2092: fish 7..10's tail without the struct's closing pad) */
 #define SAVE_NOW 2096                    /* today's sizeof(save_t): fish 7..10, 2026-10-05 (2092 + the int64's alignment) */
 static uint32_t sv_u32(const uint8_t *e, size_t off) { uint32_t v; memcpy(&v, e + off, 4); return v; }
 static float    sv_f32(const uint8_t *e, size_t off) { float v; memcpy(&v, e + off, 4); return v; }
 static int name_cmp(const void *a, const void *b) { return strcmp(*(char *const *)a, *(char *const *)b); }
+/* where fish i lives in the file (progression.c's sv_fish): the core's arrays
+   for 0..5, its fish_ext record (100 B from 1692) for 6..9 */
+typedef struct { size_t fs, name, body, seen, parent; } sv_at_t;
+static sv_at_t sv_at(int i) {
+    if (i < 6) return (sv_at_t){ 40 + 68 * (size_t)i, 1308 + (FISH_NAME_MAX + 1) * (size_t)i, 1356 + 4 * (size_t)i, 1408 + 4 * (size_t)i, 1437 + 2 * (size_t)i };
+    size_t b = 1692 + 100 * (size_t)(i - 6);
+    return (sv_at_t){ b, b + 68, b + 76, b + 84, b + 88 };
+}
 
 /* the loaded tank vs e (the save's bytes in today's layout, zeros past the cut) */
 static int saves_check(const char *what, const uint8_t *e, float bubble_default) {
     #define SV_FAIL(...) do { printf("FAIL: %s: ", what); printf(__VA_ARGS__); printf("\n"); return 1; } while (0)
     int n = e[23];
+    if (e[1688] > n && e[1688] <= N_FISH_MAX) n = e[1688];   /* the true count (2026-10-05): the tail's, past the core's six */
     if (tank.n_fish != n && !(e[22] && tank.n_fish == n + 1)) SV_FAIL("%d fish, want %d", tank.n_fish, n);
     if (progression_setup_pending() != (e[1304] != 0)) SV_FAIL("setup pending %d", progression_setup_pending());
+    uint32_t sp_bits = 0;                                /* the species' shop bits follow who is here (progression_species_sync) */
     for (int i = 0; i < n; i++) {
-        const fish_t *f = &tank.fish[i]; const uint8_t *fs = e + 40 + 68 * i;
+        const fish_t *f = &tank.fish[i]; const sv_at_t at = sv_at(i); const uint8_t *fs = e + at.fs;
         uint32_t ms = sv_u32(fs, 64) & ~MS_RETIRED_MASK;
-        char want[FISH_NAME_MAX + 1] = { 0 }; const char *nm = (const char *)e + 1308 + (FISH_NAME_MAX + 1) * i;
+        int sp = fs[2] < SP_COUNT ? fs[2] : SP_FISH;
+        if (sp > SP_FISH) sp_bits |= SD_ITEMS[SD_ITEM_SP_FIRST + sp - 1].bit;
+        char want[FISH_NAME_MAX + 1] = { 0 }; const char *nm = (const char *)e + at.name;
         for (int k = 0; k < FISH_NAME_MAX && nm[k]; k++) want[k] = (char)tolower((unsigned char)nm[k]);
-        if (!want[0]) snprintf(want, sizeof want, "%s", tank_roster_name(fs[0] % tank_roster_count()));
+        if (!want[0]) snprintf(want, sizeof want, "%s", sp ? SPECIES[sp].names[i % 4] : tank_roster_name(fs[0] % tank_roster_count()));
         if (f->preset != fs[0] % tank_roster_count()) SV_FAIL("fish %d preset %d, want %d", i, f->preset, fs[0]);
+        if (f->species != sp || (sp && f->variant != fs[3] % SP_VARIANTS)) SV_FAIL("fish %d is %s design %d, want %s / %d", i, SPECIES[f->species % SP_COUNT].token, f->variant, SPECIES[sp].token, fs[3]);
         if (strcmp(f->name, want)) SV_FAIL("fish %d is %s, want %s", i, f->name, want);
         if (f->trust != sv_f32(fs, 8) || progression_age_s(&tank, i) != sv_f32(fs, 44))
             SV_FAIL("fish %d trust %.2f age %.0f s, want %.2f / %.0f", i, f->trust, progression_age_s(&tank, i), sv_f32(fs, 8), sv_f32(fs, 44));
         if (f->eaten != (int32_t)sv_u32(fs, 56) || f->eaten_player != (int32_t)sv_u32(fs, 60)) SV_FAIL("fish %d meals %d/%d", i, f->eaten, f->eaten_player);
-        if (f->ms_bits != ms || f->ms_seen != (sv_u32(e, 1408 + 4 * i) & ms))
-            SV_FAIL("fish %d badges %03x seen %03x, want %03x / %03x", i, f->ms_bits, f->ms_seen, ms, sv_u32(e, 1408 + 4 * i) & ms);
-        if (sv_u32(e, 1356 + 4 * i) && f->color != sv_u32(e, 1356 + 4 * i)) SV_FAIL("fish %d color %06x", i, f->color);
-        int pa = e[1437 + 2 * i] - 1; if (pa >= n) pa = -1;
+        if (f->ms_bits != ms || f->ms_seen != (sv_u32(e, at.seen) & ms))
+            SV_FAIL("fish %d badges %03x seen %03x, want %03x / %03x", i, f->ms_bits, f->ms_seen, ms, sv_u32(e, at.seen) & ms);
+        if (sv_u32(e, at.body) && f->color != sv_u32(e, at.body)) SV_FAIL("fish %d color %06x", i, f->color);
+        int pa = e[at.parent] - 1; if (pa >= n) pa = -1;
         if (f->parent_a != pa) SV_FAIL("fish %d parent %d, want %d", i, f->parent_a, pa);
     }
     int nb = e[1436] && e[1436] <= n ? e[1436] - 1 : -1;
@@ -1112,7 +1250,7 @@ static int saves_check(const char *what, const uint8_t *e, float bubble_default)
     if (tank.light_tip_seen != (e[1684] != 0)) SV_FAIL("the lights-out notice's mark %d", tank.light_tip_seen);
     if (tank.light_idle_s != (idle ? idle : LIGHT_IDLE_S) || tank.light_auto != (e[1478] != 0)) SV_FAIL("light settings %d s auto %d", tank.light_idle_s, tank.light_auto);
     if (tank.sd_balance != (int32_t)sv_u32(e, 1480) || tank.sd_earned != (int32_t)sv_u32(e, 1484) ||
-        tank.sd_unlocks != (sv_u32(e, 1488) & ((1u << SD_ITEM_COUNT) - 1))) SV_FAIL("sand dollars %d (earned %d), unlocks %02x", tank.sd_balance, tank.sd_earned, tank.sd_unlocks);
+        tank.sd_unlocks != ((sv_u32(e, 1488) & ((1u << SD_ITEM_COUNT) - 1) & ((1u << SD_ITEM_SP_FIRST) - 1)) | sp_bits)) SV_FAIL("sand dollars %d (earned %d), unlocks %02x", tank.sd_balance, tank.sd_earned, tank.sd_unlocks);
     if (tank.snail_grazed != (int32_t)sv_u32(e, 1612)) SV_FAIL("the snail's tally %d", (int)tank.snail_grazed);
     if (sv_f32(e, 1616) > 0 && (tank.castle_x != sv_f32(e, 1616) || tank.castle_z != (e[1620] == DECOR_Z_BACK + 1 ? DECOR_Z_BACK : DECOR_Z_FRONT)))
         SV_FAIL("castle at %.0f depth %d", tank.castle_x, tank.castle_z);
@@ -1194,6 +1332,39 @@ static int selftest_saves(void) {
         for (int i = 0; i < tank.n_fish && wl < sizeof who - 12; i++) wl += snprintf(who + wl, sizeof who - wl, "%s%s", i ? " " : "", tank.fish[i].name);
         printf("selftest-saves: %s: %d fish (%s), %d sand dollars - loads at %s, and again after a save\n",
                names[k], tank.n_fish, who, (int)tank.sd_balance, cuts);
+    }
+    /* the species' ten (2026-10-05): a save with more than six creatures keeps
+     * the core's count at six (what an older build loads) and the true count
+     * in the tail; an older build's view of it - the core alone, the species
+     * bytes read as the pad they were - is a valid tank of six classic fish;
+     * a ten-creature tank saved today writes it that way again */
+    {
+        int tens = 0;
+        for (int k = 0; k < nf; k++) {
+            char path[600]; snprintf(path, sizeof path, "%s/%s", dir, names[k]);
+            FILE *f = fopen(path, "rb"); size_t len = f ? fread(file, 1, sizeof file, f) : 0; if (f) fclose(f);
+            if (len < 1692 || file[1688] <= 6) continue;
+            tens++;
+            if (file[23] != 6 || file[1688] > N_FISH_MAX) { printf("FAIL: %s: the core holds %d fish, the tail %d (want 6 and <= %d)\n", names[k], file[23], file[1688], N_FISH_MAX); return 1; }
+            int species = 0; for (int i = 0; i < file[1688]; i++) species += file[sv_at(i).fs + 2] != 0;
+            if (!species) { printf("FAIL: %s: no creature of a species in it\n", names[k]); return 1; }
+            memset(e, 0, sizeof e); memcpy(e, file, 1688);
+            for (int i = 0; i < 6; i++) e[40 + 68 * i + 2] = e[40 + 68 * i + 3] = 0;   /* an older build: the species bytes are its pad */
+            memcpy(cut, e, 1688);
+            if (saves_load("an older build's view of the species' ten (the core, the pad zeroed)", cut, 1688, e)) return 1;
+            if (tank.n_fish != 6 || tank_species_n(&tank, SP_FISH) != 6) { printf("FAIL: the older view is %d fish, %d classic\n", tank.n_fish, tank_species_n(&tank, SP_FISH)); return 1; }
+            /* and today's build, the whole file: ten back, the save rewritten as six + the tail */
+            memset(e, 0, sizeof e); memcpy(e, file, len);
+            if (saves_load("the species' ten, whole", file, len, e)) return 1;
+            FILE *g = fopen(getenv("POCKET_TANK_SAVE"), "rb"); size_t gl = g ? fread(cut, 1, sizeof cut, g) : 0; if (g) fclose(g);
+            if (gl != SAVE_NOW || cut[23] != 6 || cut[1688] != tank.n_fish || tank.n_fish != file[1688]) { printf("FAIL: the ten re-saved as %zu bytes, core %d, tail %d (tank %d)\n", gl, cut[23], cut[1688], tank.n_fish); return 1; }
+            for (int i = 0; i < tank.n_fish; i++)
+                if (tank.fish[i].species != file[sv_at(i).fs + 2] || tank.fish[i].variant != file[sv_at(i).fs + 3]) { printf("FAIL: creature %d came back %d/%d\n", i, tank.fish[i].species, tank.fish[i].variant); return 1; }
+            loads += 2;
+            printf("selftest-saves: %s: %d creatures (%d of a species) - the core says 6, the tail %d; an older build's view is 6 classic fish; re-saved the same way\n",
+                   names[k], tank.n_fish, species, file[1688]);
+        }
+        if (!tens) { printf("FAIL: no fixture with more than six creatures (the species' ten)\n"); return 1; }
     }
     /* a rollback: a NEWER build's save (today's layout + 200 bytes of tail
      * this build never heard of) loads its head, and the next save writes
@@ -2689,7 +2860,67 @@ static int snapshot(const char *prefix, int seconds) {
         snprintf(path, sizeof path, "%s_shop2.ppm", prefix); write_ppm(path, fb);
         render_shop_leave();
     }
-    printf("snapshot: %d fish, wrote %s_{tank,card,card1,milestones,milestones_shrimp{,2},milestones_fry,confirm,setup_*}.ppm\n", tank.n_fish, prefix);
+    /* the species (2026-10-05): the ten as a mixed tank - the milestones
+       page's two pages and the tally, a creature's card, the shop's species
+       pages with room and without, a pair's modal, the birth flow's
+       announcement for a species' fry and for a surprise */
+    {
+        static tank_t keep; keep = tank;
+        static const int SPS[8] = { SP_SEAHORSE, SP_EEL, SP_OCTOPUS, SP_SHARK, SP_CRAB, SP_LOBSTER, SP_SQUID, SP_ANGLER };
+        while (tank.n_fish < N_FISH_MAX) tank_add_fish(&tank, 0, 1);
+        for (int i = 0; i < tank.n_fish; i++) { tank.fish[i].ms_seen = tank.fish[i].ms_bits; if (i >= 2) tank.fish[i].stage = (stage_t)(i % 4); }
+        for (int i = 2; i < tank.n_fish; i++) { tank_set_species(&tank, i, SPS[i - 2], i); tank.fish[i].x = 80 + 32 * i; tank.fish[i].y = 120 + 20 * (i % 5); }
+        tank_set_species(&tank, 8, SP_ANGLER, 3); tank.fish[9].parent_a = 8; tank.fish[9].parent_b = 8;   /* an anglerfish fry of anglerfish */
+        render_milestones_leave(); render_milestones(&tank, fb, TANK_W);
+        snprintf(path, sizeof path, "%s_species_milestones.ppm", prefix); write_ppm(path, fb);
+        int px, py;
+        if (render_milestones_pager(&tank, &px, &py)) render_milestones_tap(&tank, (float)px, (float)py);
+        render_milestones(&tank, fb, TANK_W);
+        snprintf(path, sizeof path, "%s_species_milestones2.ppm", prefix); write_ppm(path, fb);
+        { int nx, ny; render_milestones_row(7, &nx, &ny); render_milestones_tap(&tank, (float)nx, (float)ny); }   /* the lobster's card */
+        render_milestones(&tank, fb, TANK_W);
+        snprintf(path, sizeof path, "%s_species_ms_card.ppm", prefix); write_ppm(path, fb);
+        render_milestones_leave(); render_milestones_tap(&tank, PG_X(100), PG_Y(MS_TANK_Y));
+        render_milestones(&tank, fb, TANK_W);
+        snprintf(path, sizeof path, "%s_species_tally.ppm", prefix); write_ppm(path, fb);
+        render_milestones_leave();
+        render_set_card_cache(card_buf);
+        for (int k = 0; k < 3; k++) {                         /* the cards: a seahorse, an eel (the long design line), an anglerfish */
+            int who = k == 0 ? 2 : k == 1 ? 3 : 9;
+            tank.fish[who].x = 300; tank.fish[who].y = 200;
+            render_tank(&tank, fb, TANK_W); render_stats_card(&tank, who, fb, TANK_W);
+            snprintf(path, sizeof path, "%s_species_card%d.ppm", prefix, k); write_ppm(path, fb);
+        }
+        tank.sd_balance = 260; tank.sd_unlocks &= (1u << SD_ITEM_SP_FIRST) - 1; progression_species_sync(&tank);
+        render_shop_leave(); render_shop_tap(&tank, PG_X(SHOP_NEXT_X), PG_Y(SHOP_ARROW_Y)); render_shop_tap(&tank, PG_X(SHOP_NEXT_X), PG_Y(SHOP_ARROW_Y));
+        render_shop(&tank, fb, TANK_W);
+        snprintf(path, sizeof path, "%s_species_shop3_full.ppm", prefix); write_ppm(path, fb);
+        render_shop_tap(&tank, PG_X(SHOP_ROW_X), PG_Y(SHOP_ROW_Y(1))); render_shop(&tank, fb, TANK_W);   /* the squid: here, back when none are left */
+        snprintf(path, sizeof path, "%s_species_shop_here.ppm", prefix); write_ppm(path, fb);
+        render_shop_tap(&tank, PG_X(SHOP_ROW_X), PG_Y(SHOP_ROW_Y(1)));
+        render_shop_tap(&tank, PG_X(SHOP_ROW_X), PG_Y(SHOP_ROW_Y(0))); render_shop(&tank, fb, TANK_W);   /* the pufferfish: no room */
+        snprintf(path, sizeof path, "%s_species_shop_noroom.ppm", prefix); write_ppm(path, fb);
+        render_shop_leave();
+        tank.n_fish = 6; progression_species_sync(&tank);   /* room: four of them step out */
+        render_shop_tap(&tank, PG_X(SHOP_NEXT_X), PG_Y(SHOP_ARROW_Y)); render_shop_tap(&tank, PG_X(SHOP_NEXT_X), PG_Y(SHOP_ARROW_Y));
+        render_shop(&tank, fb, TANK_W);
+        snprintf(path, sizeof path, "%s_species_shop3.ppm", prefix); write_ppm(path, fb);
+        render_shop_tap(&tank, PG_X(SHOP_NEXT_X), PG_Y(SHOP_ARROW_Y)); render_shop(&tank, fb, TANK_W);
+        snprintf(path, sizeof path, "%s_species_shop4.ppm", prefix); write_ppm(path, fb);
+        render_shop_tap(&tank, PG_X(SHOP_ROW_X), PG_Y(SHOP_ROW_Y(0))); render_shop(&tank, fb, TANK_W);   /* the crabs' modal */
+        snprintf(path, sizeof path, "%s_species_shop_modal.ppm", prefix); write_ppm(path, fb);
+        render_shop_leave();
+        tank.n_fish = N_FISH_MAX;
+        setup_begin_birth(&tank, 9); render_tank(&tank, fb, TANK_W); render_setup(&tank, fb, TANK_W, 1.0f);   /* a species' fry: the eel's parents are an eel... */
+        snprintf(path, sizeof path, "%s_species_born.ppm", prefix); write_ppm(path, fb);
+        setup_cancel(&tank);
+        tank.fish[9].parent_a = 0; tank.fish[9].parent_b = 1;   /* ... a classic pair's: the surprise */
+        setup_begin_birth(&tank, 9); render_tank(&tank, fb, TANK_W); render_setup(&tank, fb, TANK_W, 1.0f);
+        snprintf(path, sizeof path, "%s_species_surprise.ppm", prefix); write_ppm(path, fb);
+        setup_cancel(&tank);
+        tank = keep;
+    }
+    printf("snapshot: %d fish, wrote %s_{tank,card,card1,milestones,milestones_shrimp{,2},milestones_fry,confirm,setup_*,species_*}.ppm\n", tank.n_fish, prefix);
     return 0;
 }
 
@@ -3067,7 +3298,7 @@ static int selftest_shop(void) {
            walls; BEHIND the fish and the grass pass in front of it; the spot and
            the depth survive a save */
         {
-            if (SD_ITEM_COUNT != 7 || SD_ITEMS[2].bit != SD_ITEM_CASTLE || SD_ITEMS[2].price != SD_PRICE_CASTLE) { printf("FAIL: the castle is not the third item\n"); return 1; }
+            if (SD_ITEM_COUNT != 16 || SD_ITEMS[2].bit != SD_ITEM_CASTLE || SD_ITEMS[2].price != SD_PRICE_CASTLE) { printf("FAIL: the castle is not the third item\n"); return 1; }
             if (!tank_decor_placeable(2) || tank_decor_z_count(2) != 2 || tank_decor_z_at(2, 0) != DECOR_Z_BACK || tank_decor_z_at(2, 1) != DECOR_Z_FRONT
                 || tank_decor_z_index(2, DECOR_Z_FRONT) != 1 || tank_decor_z_index(2, DECOR_Z_BACK) != 0) { printf("FAIL: the castle's depths\n"); return 1; }
             tank.sd_balance = SD_PRICE_CASTLE - 1;
@@ -3242,7 +3473,8 @@ static int selftest_shop(void) {
         tank.sd_unlocks &= ~SD_ITEM_CLUSTER; tank.sd_balance = SD_PRICE_CLUSTER;
         int r = shop_tap(SHOP_BTN_X, SHOP_BTN_Y);
         if (r != SHOP_TAP_BUY + 4) { printf("FAIL: UNLOCK in the cluster's modal returned %d\n", r); return 1; }
-        if (shop_tap(SHOP_ROW_X, SHOP_ROW_Y(3)) != SHOP_TAP_NONE) { printf("FAIL: page 2 has a fourth row (the cluster, the shrimp and the urchin only)\n"); return 1; }
+        if (shop_tap(SHOP_ROW_X, SHOP_ROW_Y(3)) != SHOP_TAP_KEPT) { printf("FAIL: page 2's fourth row (the seahorses, 2026-10-05) did not open a modal\n"); return 1; }
+        shop_tap(SHOP_ROW_X, SHOP_ROW_Y(3));                           /* (any tap closes its modal) */
         if (shop_tap(SHOP_ROW_X, SHOP_ROW_Y(2)) != SHOP_TAP_KEPT) { printf("FAIL: page 2 row 2 (the urchin) did not open a modal\n"); return 1; }
         render_shop(&tank, fb, TANK_W);
         shop_tap(SHOP_ROW_X, SHOP_ROW_Y(0));                           /* (any tap closes its modal) */
@@ -3616,6 +3848,107 @@ static int selftest_shop(void) {
         if (setup_active() || (tank.sd_unlocks & SD_ITEM_CASTLE) || tank.sd_balance != 30) { printf("FAIL: the page's second SELL (balance %d)\n", tank.sd_balance); return 1; }
         progression_sd_take_award();
         printf("selftest-shop: selling back: the castle for 30 (armed, then sold; earnings untouched), bought again at %d, MOVE beside SELL, the snail unsellable, the hold's hit test, the page's SELL\n", SD_PRICE_CASTLE);
+    }
+    /* the species' pairs (2026-10-05, docs/species.md): an item per species
+       after the things, each a pair of juveniles of that species by the reef;
+       refused without room for two (the row and the modal say NO ROOM); the
+       bit is "some are in the tank" - set by the purchase, cleared when the
+       last of them is sold, so the pair is for sale again; a surprise hatched
+       in the tank takes its pair off the shelf too; the save keeps it all */
+    {
+        static uint16_t fb[TANK_W * TANK_H];
+        const char *sav = getenv("POCKET_TANK_SAVE");
+        char keep[700]; snprintf(keep, sizeof keep, "cp %s %s.keep", sav, sav);
+        progression_save(&tank); (void)system(keep);           /* the tank so far, for the blocks after this one */
+        tank_init(&tank, 9191); progression_fresh(&tank); progression_setup_done(&tank); tank.trickle_off = true;
+        if (SHP_PAGES != 4) { printf("FAIL: %d shop pages for %d items\n", SHP_PAGES, SD_ITEM_COUNT); return 1; }
+        for (int sp = 1; sp < SP_COUNT; sp++) {
+            int item = SD_ITEM_SP_FIRST + sp - 1; const sd_item_t *it = &SD_ITEMS[item];
+            if (progression_item_species(item) != sp || it->bit != 1u << item || tank_decor_placeable(item)
+                || strlen(it->name) > 12 || strlen(it->words) > 25 || strlen(it->words2) > 28 || it->price < 100 || it->price > 400) {
+                printf("FAIL: the %s item (%d): '%s' '%s' '%s' at %d\n", SPECIES[sp].token, item, it->name, it->words, it->words2, it->price); return 1; }
+        }
+        if (progression_item_species(6) != -1 || progression_item_species(SD_ITEM_COUNT) != -1) { printf("FAIL: a thing reads as a species\n"); return 1; }
+        int sold_out = 0, refused = 0;
+        for (int sp = 1; sp < SP_COUNT; sp++) {
+            int item = SD_ITEM_SP_FIRST + sp - 1; const sd_item_t *it = &SD_ITEMS[item];
+            if (!progression_has_room(&tank)) {
+                /* no room: the sale is refused, the page says so, nothing changes */
+                int n0 = tank.n_fish; tank.sd_balance = it->price;
+                if (progression_buy(&tank, item) || tank.n_fish != n0 || tank.sd_balance != it->price || (tank.sd_unlocks & it->bit)) {
+                    printf("FAIL: the %s sold with no room (%d fish)\n", it->name, tank.n_fish); return 1; }
+                render_shop_leave();
+                for (int p = 0; p < item / SHP_PER_PAGE; p++) shop_tap(SHOP_NEXT_X, SHOP_ARROW_Y);
+                render_shop(&tank, fb, TANK_W);
+                if (shop_tap(SHOP_ROW_X, SHOP_ROW_Y(item % SHP_PER_PAGE)) != SHOP_TAP_KEPT) { printf("FAIL: the %s row did not open\n", it->name); return 1; }
+                render_shop(&tank, fb, TANK_W);
+                if (shop_tap(SHOP_BTN_X, SHOP_BTN_Y) != SHOP_TAP_KEPT) { printf("FAIL: the %s modal's NO ROOM button sold\n", it->name); return 1; }
+                render_shop_leave();
+                refused++;
+                /* make room: the oldest pair bought goes, both of them, and its item is for sale again */
+                int gone = tank.fish[2].species, gi = SD_ITEM_SP_FIRST + gone - 1;
+                if (!(tank.sd_unlocks & SD_ITEMS[gi].bit)) { printf("FAIL: the %s are here but their bit is down\n", SD_ITEMS[gi].name); return 1; }
+                while (tank_species_n(&tank, gone) > 0) {
+                    int k = 0; while (tank.fish[k].species != gone) k++;
+                    if (!progression_sell_fish(&tank, k)) { printf("FAIL: could not sell a %s\n", SPECIES[gone].token); return 1; }
+                    if (tank_species_n(&tank, gone) > 0 && !(tank.sd_unlocks & SD_ITEMS[gi].bit)) { printf("FAIL: the %s bit fell with one left\n", SPECIES[gone].token); return 1; }
+                }
+                if (tank.sd_unlocks & SD_ITEMS[gi].bit) { printf("FAIL: none of the %s left and its bit still up\n", SPECIES[gone].token); return 1; }
+                sold_out++;
+            }
+            int n0 = tank.n_fish;
+            tank.sd_balance = it->price - 1;
+            if (progression_buy(&tank, item)) { printf("FAIL: the %s sold short\n", it->name); return 1; }
+            tank.sd_balance = it->price;
+            render_shop_leave();
+            for (int p = 0; p < item / SHP_PER_PAGE; p++) shop_tap(SHOP_NEXT_X, SHOP_ARROW_Y);
+            render_shop(&tank, fb, TANK_W);
+            shop_tap(SHOP_ROW_X, SHOP_ROW_Y(item % SHP_PER_PAGE)); render_shop(&tank, fb, TANK_W);
+            int r = shop_tap(SHOP_BTN_X, SHOP_BTN_Y);
+            if (r != SHOP_TAP_BUY + item) { printf("FAIL: the %s modal's UNLOCK returned %d\n", it->name, r); return 1; }
+            render_shop_leave();
+            if (!progression_buy(&tank, item) || tank.n_fish != n0 + 2 || tank.sd_balance != 0 || !(tank.sd_unlocks & it->bit)) {
+                printf("FAIL: buying the %s (%d fish, balance %d)\n", it->name, tank.n_fish, tank.sd_balance); return 1; }
+            for (int i = n0; i < tank.n_fish; i++) {
+                const fish_t *f = &tank.fish[i];
+                if (f->species != sp || f->stage != STAGE_JUV || f->variant >= SP_VARIANTS || f->parent_a != -1 || !(f->ms_bits & MS_ARRIVED)
+                    || progression_age_s(&tank, i) < STAGE_JUV_AGE || f->bold < SPECIES[sp].bold_lo - 1e-4f || f->bold > SPECIES[sp].bold_hi + 1e-4f) {
+                    printf("FAIL: the %s pair's %d: species %d stage %d design %d bold %.2f\n", it->name, i, f->species, f->stage, f->variant, f->bold); return 1; }
+            }
+            SHOP_TICK(2);
+            if (tank.sd_balance != 0) { printf("FAIL: a bought juvenile paid its stage (%d)\n", tank.sd_balance); return 1; }
+            tank.sd_balance = it->price;
+            if (progression_buy(&tank, item)) { printf("FAIL: the %s sold twice while some are here\n", it->name); return 1; }
+            tank.sd_balance = 0;
+        }
+        if (refused < 1 || sold_out < 1) { printf("FAIL: the no-room leg never ran (%d)\n", refused); return 1; }
+        /* a surprise species in the tank: its pair leaves the shelf (load syncs the bits) */
+        {
+            int sq = SD_ITEM_SP_FIRST + SP_SQUID - 1;
+            tank_t probe = tank; probe.sd_unlocks &= ~SD_ITEMS[sq].bit;
+            progression_species_sync(&probe);
+            if (!(probe.sd_unlocks & SD_ITEMS[sq].bit) != !tank_species_n(&tank, SP_SQUID)) { printf("FAIL: the sync and the squid disagree\n"); return 1; }
+        }
+        /* the save: every creature's species and design, the bits, the true count */
+        tank_t before = tank;
+        progression_save(&tank);
+        tank_init(&tank, 4) ; progression_boot(&tank); tank.trickle_off = true;
+        if (tank.n_fish != before.n_fish || tank.sd_unlocks != before.sd_unlocks) { printf("FAIL: the species' tank came back %d fish, unlocks %x (was %d, %x)\n", tank.n_fish, tank.sd_unlocks, before.n_fish, before.sd_unlocks); return 1; }
+        for (int i = 0; i < tank.n_fish; i++)
+            if (tank.fish[i].species != before.fish[i].species || tank.fish[i].variant != before.fish[i].variant || tank.fish[i].color != before.fish[i].color
+                || strcmp(tank.fish[i].name, before.fish[i].name) || fabsf(tank.fish[i].base_size - before.fish[i].base_size) > 1e-4f) {
+                printf("FAIL: creature %d came back %s/%d %06x '%s' (was %s/%d %06x '%s')\n", i, SPECIES[tank.fish[i].species].token, tank.fish[i].variant, tank.fish[i].color,
+                       tank.fish[i].name, SPECIES[before.fish[i].species].token, before.fish[i].variant, before.fish[i].color, before.fish[i].name); return 1; }
+        /* the shop's rows with a full tank: NO ROOM on every pair not in it */
+        if (tank.n_fish + 2 <= POP_CAP) { while (progression_has_room(&tank)) {
+            int sp = 1; while (sp < SP_COUNT && tank_species_n(&tank, sp)) sp++;
+            if (sp >= SP_COUNT || !progression_spawn_pair(&tank, sp)) break; } }
+        printf("selftest-shop: the species: %d pairs (%d..%d sand dollars) - each two juveniles of its kind, refused without room (%d times: NO ROOM), "
+               "for sale again once the last of them is sold; %d creatures saved and reloaded with their designs\n",
+               SP_COUNT - 1, SD_PRICE_SP_CRAB, SD_PRICE_SP_SHARK, refused, before.n_fish);
+        char back[700]; snprintf(back, sizeof back, "mv %s.keep %s", sav, sav);
+        (void)system(back);
+        tank_init(&tank, 4242); progression_boot(&tank); tank.trickle_off = true; progression_sd_take_award();
     }
     /* the save carries it all */
     {
@@ -4231,14 +4564,16 @@ int main(int argc, char **argv) {
                 /* MS_TAP_KEPT: a badge / name opened the detail modal, or the modal closed; anything else: nothing */
             }
             else if (now_ms - press_ms < 350 && dx * dx + dy * dy < 24 * 24) {
-                /* same hit test as the device: 38 px against the press-time
-                   fish snapshot AND the current position, whichever is closer */
-                int best = -1; float bd = 38 * 38;
+                /* same hit test as the device: each creature's own reach
+                   (tank_fish_hit_r) against the press-time fish snapshot AND
+                   the current position, whichever is closer */
+                int best = -1; float bd = 1.0f;
                 for (int i = 0; i < tank.n_fish; i++) {
                     float ax = press_fx[i] - press_x, ay = press_fy[i] - press_y;
                     float bx = tank.fish[i].x - press_x, by = tank.fish[i].y - press_y;
                     float d2a = ax * ax + ay * ay, d2b = bx * bx + by * by;
-                    float d2 = d2a < d2b ? d2a : d2b;
+                    float r = tank_fish_hit_r(&tank.fish[i]);
+                    float d2 = (d2a < d2b ? d2a : d2b) / (r * r);
                     if (d2 < bd) { bd = d2; best = i; }
                 }
                 /* a click ON the open card (its MORE button, or any of it): the
@@ -4318,6 +4653,15 @@ int main(int argc, char **argv) {
             printf("shop: %s (%d sand dollars)\n", shop_view ? "up" : "closed", tank.sd_balance);
         }
         fourdown = k[SDL_SCANCODE_4];
+        {   /* 5 (2026-10-05): a pair of juveniles of the next species, free (the shop sells them; this is for a look) */
+            static bool fivedown; static int next_sp = 1;
+            if (k[SDL_SCANCODE_5] && !fivedown && !setup_up) {
+                if (progression_spawn_pair(&tank, next_sp)) printf("species: a pair of %s by the reef (free; %d of %d places)\n", SD_ITEMS[SD_ITEM_SP_FIRST + next_sp - 1].name, tank.n_fish, POP_CAP);
+                else printf("species: no room for two (%d of %d places)\n", tank.n_fish, POP_CAP);
+                next_sp = next_sp % (SP_COUNT - 1) + 1;
+            }
+            fivedown = k[SDL_SCANCODE_5];
+        }
         if (k[SDL_SCANCODE_C] && !cdown) {         /* the castle (2026-09-16): granted for a look, free; again takes it away */
             if (tank.sd_unlocks & SD_ITEM_CASTLE) tank.sd_unlocks &= ~SD_ITEM_CASTLE;
             else { tank.sd_unlocks |= SD_ITEM_CASTLE; tank_castle_place(&tank); }

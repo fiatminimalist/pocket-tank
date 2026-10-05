@@ -831,6 +831,10 @@ const species_def_t *tank_species(const fish_t *f);
 void  tank_set_species(tank_t *t, int slot, int species, int variant);
 int   tank_add_species_pair(tank_t *t, int species);
 int   tank_species_n(const tank_t *t, int species);
+/* a tap's reach around a creature (the touch ports, the sim): its species'
+ * hit_r at its size, never under a fingertip's TANK_HIT_MIN_R */
+#define TANK_HIT_MIN_R 32.0f
+float tank_fish_hit_r(const fish_t *f);
 float tank_species_size(const fish_t *f);   /* its base size: from its personality, so a load gets the same */
 /* the keeper's say over a fish's identity (first-run setup, 2026-09-13; the
  * birth flow names an arrival, 2026-09-14). tank_set_name copies up to FISH_NAME_MAX
@@ -856,7 +860,15 @@ void  tank_set_bubble_x(tank_t *t, float x);
  * (progression_buy) and tank.c gives them their place. A bought thing is in
  * the tank for good. */
 enum { SD_ITEM_PLANT = 1u << 0, SD_ITEM_SNAIL = 1u << 1, SD_ITEM_CASTLE = 1u << 2, SD_ITEM_CORAL = 1u << 3, SD_ITEM_CLUSTER = 1u << 4, SD_ITEM_SHRIMP = 1u << 5,
-       SD_ITEM_URCHIN = 1u << 6, SD_ITEM_COUNT = 7 };
+       SD_ITEM_URCHIN = 1u << 6,
+       /* the species (2026-10-05, docs/species.md): a pair of juveniles each, in
+          species order (item SD_ITEM_SP_FIRST + species - 1). The bit means the
+          species is in the tank: it clears when the last of them is sold, and
+          the item can be bought again (progression_species_sync). */
+       SD_ITEM_SP_SEAHORSE = 1u << 7, SD_ITEM_SP_OCTOPUS = 1u << 8, SD_ITEM_SP_PUFFER = 1u << 9, SD_ITEM_SP_ANGLER = 1u << 10,
+       SD_ITEM_SP_EEL = 1u << 11, SD_ITEM_SP_SHARK = 1u << 12, SD_ITEM_SP_SQUID = 1u << 13, SD_ITEM_SP_CRAB = 1u << 14,
+       SD_ITEM_SP_LOBSTER = 1u << 15, SD_ITEM_COUNT = 16 };
+#define SD_ITEM_SP_FIRST 7         /* the item index of the first species pair (the seahorses) */
 /* per-fish paid bits (sd_paid_fish) */
 enum { SD_PAID_JUV = 1u << 0, SD_PAID_ADULT = 1u << 1, SD_PAID_ELDER = 1u << 2, SD_PAID_TRUST = 1u << 3 };
 #define PX_PER_INCH 24.0f          /* the tank reads as ~15 in tall; a fish ~1.7 in */
