@@ -4180,7 +4180,7 @@ static float sheet_size(int sp, stage_t st) {
     float base = sp ? (d->size_lo + d->size_hi) * 0.5f : 0.97f;
     return base * SCALE[st];
 }
-typedef struct { int sp, v; stage_t st; float x, y, heading, yaw, yaw_tail, speed, puff, ink, jet, camo, spark, lure; bool rest; } sheet_fish_t;
+typedef struct { int sp, v; stage_t st; float x, y, heading, yaw, yaw_tail, speed, puff, ink, jet, camo, spark, lure; bool rest; int mode, anchor; } sheet_fish_t;
 static void sheet_tank(void) {
     tank_init(&tank, 2024);
     tank_new_population(&tank);
@@ -4198,7 +4198,8 @@ static void sheet_put(int slot, const sheet_fish_t *q) {
     f->stage = q->st; f->size = sheet_size(q->sp, q->st);
     f->x = q->x * TANK_W / 448.0f; f->y = q->y * TANK_H / 368.0f;
     f->heading = q->heading; tank_fish_face(f);
-    if (q->yaw != 0 || q->yaw_tail != 0) { f->yaw = q->yaw; f->yaw_tail = q->yaw_tail; }
+    if (q->yaw != 0 || q->yaw_tail != 0) { f->yaw = q->yaw; f->yaw_tail = q->yaw_tail; f->facing = q->yaw < 0 ? -1 : 1; }
+    f->sp_mode = (uint8_t)q->mode; f->anchor = (int8_t)(q->anchor - 1);   /* (anchor: the frond + 1, 0 = none) */
     f->speed = f->target_speed = q->speed;
     f->puff = q->puff; f->ink = q->ink; f->jet = q->jet; f->camo = q->camo; f->spark = q->spark; f->lure = q->lure;
     f->camo_rgb = CLUSTER_SCHEMES[0].coral;
@@ -4239,10 +4240,10 @@ static int species_sheet(const char *prefix) {
         { .sp = SP_PUFFER, .v = 1, .st = STAGE_ADULT, .x = 250, .y = 60, .speed = 5, .puff = 1.0f },
         { .sp = SP_PUFFER, .v = 2, .st = STAGE_ADULT, .x = 360, .y = 60, .heading = 3.14159265f, .speed = 5, .puff = 1.0f },
         { .sp = SP_OCTOPUS, .v = 0, .st = STAGE_ADULT, .x = 60, .y = 160, .speed = 6 },                                   /* crawling */
-        { .sp = SP_OCTOPUS, .v = 1, .st = STAGE_ADULT, .x = 170, .y = 160, .heading = 3.14159265f + 0.2f, .speed = 60, .jet = 1.0f },    /* jetting, up-left */
+        { .sp = SP_OCTOPUS, .v = 1, .st = STAGE_ADULT, .x = 170, .y = 160, .heading = 3.14159265f + 0.2f, .yaw = 1, .yaw_tail = 1, .speed = 60, .jet = 0.15f, .mode = SPM_JET },   /* jetting up-left, mantle first, mid-thrust */
         { .sp = SP_OCTOPUS, .v = 2, .st = STAGE_ADULT, .x = 290, .y = 165, .speed = 4, .camo = 1.0f },                   /* camouflaged on the reef's orange */
         { .sp = SP_OCTOPUS, .v = 3, .st = STAGE_ADULT, .x = 390, .y = 165, .speed = 4, .camo = 0.5f },                   /* half */
-        { .sp = SP_SQUID, .v = 0, .st = STAGE_ADULT, .x = 90, .y = 270, .heading = 3.14159265f, .yaw = 1, .yaw_tail = 1, .speed = 50, .jet = 2.0f },              /* jetting mantle first (facing right, going left) */
+        { .sp = SP_SQUID, .v = 0, .st = STAGE_ADULT, .x = 90, .y = 270, .heading = 3.14159265f, .yaw = 1, .yaw_tail = 1, .speed = 50, .jet = 0.6f, .mode = SPM_JET },   /* jetting mantle first (facing right, going left), gliding */
         { .sp = SP_SHARK, .v = 0, .st = STAGE_ADULT, .x = 300, .y = 270, .yaw = 0.08f, .yaw_tail = 0.85f, .speed = 25 },                           /* mid-turn, head-on */
     };
     static const sheet_fish_t S2[] = {
@@ -4252,7 +4253,7 @@ static int species_sheet(const char *prefix) {
         { .sp = SP_EEL, .v = 3, .st = STAGE_ADULT, .x = 330, .y = 160, .heading = 3.14159265f - 0.4f, .speed = 30 },                    /* diving left */
         { .sp = SP_CRAB, .v = 0, .st = STAGE_ADULT, .x = 60, .y = 340, .puff = 1.0f },                                /* threat: claws up */
         { .sp = SP_CRAB, .v = 2, .st = STAGE_ADULT, .x = 150, .y = 340, .speed = 12 },                                    /* scuttling */
-        { .sp = SP_LOBSTER, .v = 0, .st = STAGE_ADULT, .x = 255, .y = 335, .speed = 30, .jet = 0.9f },                     /* the tail-flip */
+        { .sp = SP_LOBSTER, .v = 0, .st = STAGE_ADULT, .x = 255, .y = 335, .heading = 3.14159265f, .yaw = 1, .yaw_tail = 1, .speed = 30, .jet = 0.8f, .mode = SPM_FLIP },   /* the tail-flip: backward */
         { .sp = SP_LOBSTER, .v = 3, .st = STAGE_ADULT, .x = 370, .y = 340, .heading = 3.14159265f, .speed = 8 },                        /* walking left */
         { .sp = SP_SEAHORSE, .v = 1, .st = STAGE_ADULT, .x = 60, .y = 250, .speed = 25 },                                 /* leaning into its swim */
         { .sp = SP_SQUID, .v = 2, .st = STAGE_ADULT, .x = 220, .y = 250, .heading = 3.14159265f, .yaw = -1, .yaw_tail = -1, .speed = 5 },                        /* hovering, facing left */
@@ -4266,6 +4267,7 @@ static int species_sheet(const char *prefix) {
         { .sp = SP_SEAHORSE, .v = 2, .st = STAGE_ADULT, .x = 400, .y = 200, .rest = true },        /* asleep */
         { .sp = SP_PUFFER, .v = 3, .st = STAGE_ADULT, .x = 250, .y = 190, .heading = 3.14159265f, .rest = true },
         { .sp = SP_OCTOPUS, .v = 1, .st = STAGE_ADULT, .x = 100, .y = 190, .speed = 5, .rest = true },
+        { .sp = SP_SEAHORSE, .v = 0, .st = STAGE_ADULT, .x = 400, .y = 120, .anchor = 1 },                         /* holding its frond (awake) */
     };
     struct { const sheet_fish_t *f; int n; bool night; } sets[3] = {
         { S1, (int)(sizeof S1 / sizeof S1[0]), false }, { S2, (int)(sizeof S2 / sizeof S2[0]), false }, { S3, (int)(sizeof S3 / sizeof S3[0]), true } };
@@ -4278,7 +4280,8 @@ static int species_sheet(const char *prefix) {
     /* ink: an octopus and a squid startled where they were, then away - the cloud stays */
     {
         sheet_tank();
-        sheet_fish_t a = { .sp = SP_OCTOPUS, .v = 0, .st = STAGE_ADULT, .x = 150, .y = 200, .heading = PI, .speed = 60, .ink = 3.0f }, b = { .sp = SP_SQUID, .v = 3, .st = STAGE_ADULT, .x = 360, .y = 200, .heading = PI, .yaw = 1, .yaw_tail = 1, .speed = 50, .ink = 3.0f };
+        sheet_fish_t a = { .sp = SP_OCTOPUS, .v = 0, .st = STAGE_ADULT, .x = 150, .y = 200, .heading = PI, .yaw = 1, .yaw_tail = 1, .speed = 60, .ink = 3.0f, .jet = 0.5f, .mode = SPM_JET },
+                     b = { .sp = SP_SQUID, .v = 3, .st = STAGE_ADULT, .x = 360, .y = 200, .heading = PI, .yaw = 1, .yaw_tail = 1, .speed = 50, .ink = 3.0f, .jet = 0.5f, .mode = SPM_JET };
         sheet_put(0, &a); sheet_put(1, &b);
         sheet_render(fb, NULL);
         for (int f = 0; f < 3; f++) {
@@ -4325,7 +4328,7 @@ static int species_px_check(void) {
         for (int v = 0; v < SP_VARIANTS; v++) {
             sheet_tank();
             sheet_render(ref, NULL);
-            sheet_fish_t q = { sp, v, STAGE_JUV, 224, 200, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0.5f, false };
+            sheet_fish_t q = { .sp = sp, .v = v, .st = STAGE_JUV, .x = 224, .y = 200, .speed = 10, .lure = 0.5f };
             sheet_put(0, &q);
             sheet_render(fb, NULL);
             int n = 0; for (int i = 0; i < TANK_W * TANK_H; i++) n += fb[i] != ref[i];
