@@ -13,11 +13,18 @@
 #include <stddef.h>
 
 /* open model + tokenizer; alloc is the run-state allocator (PSRAM on device).
- * Detects the schema from the tokenizer (a " trust" token = v3). */
+ * Detects the schema from the tokenizer (" trust" = v3, " bored" = v4,
+ * " species" = v5: the creature's species word after its stage). */
 bool advisor_core_init(const uint8_t *model_bin, size_t model_len,
                        const uint8_t *tok_bin, size_t tok_len,
                        void *(*alloc)(size_t), uint32_t seed);
-int  advisor_core_schema(void);                 /* 2 or 3; 0 if not loaded */
+int  advisor_core_schema(void);                 /* 2..5; 0 if no tokenizer is loaded */
+/* the encoder alone (tests: ./fishsim --selftest-encoder): load a tokenizer
+ * without a model, so advisor_core_encode speaks its schema. Inference stays
+ * off until advisor_core_init. */
+bool advisor_core_init_encoder(const uint8_t *tok_bin, size_t tok_len);
+/* how many words of a line the loaded tokenizer does not know (-1: none loaded) */
+int  advisor_core_unknown_words(const char *line);
 const q4_config_t *advisor_core_config(void);
 q4_model_t *advisor_core_model(void);           /* for q4_model_bench */
 

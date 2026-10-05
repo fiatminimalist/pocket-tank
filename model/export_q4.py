@@ -65,6 +65,12 @@ def main():
 
     p = model.params
     hidden = model.layers[0].feed_forward.w1.weight.shape[0]
+    # the device engine (common/llm/q4_model.c model_layout_valid) refuses a model
+    # whose dim or FFN hidden dim is not a multiple of the group size - say so
+    # here, not as a "bad model" at boot (dim 384 -> hidden 1024 is fine; a toy
+    # dim 128 -> hidden 352 is not)
+    if p.dim % gs or hidden % gs:
+        sys.exit(f"dim {p.dim} / hidden {hidden} not multiples of {gs}: q4_model.c would refuse this model")
     n_kv = p.n_heads if p.n_kv_heads is None else p.n_kv_heads
     with open(a.filepath, "wb") as f:
         f.write(struct.pack("I", 0x616B3432))
