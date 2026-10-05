@@ -30,7 +30,10 @@
  *   ./fishsim --battery N  the pretend battery starts at N% (default 72)
  *   ./fishsim --greedy     greedy decoding instead of sampling
  *   ./fishsim --selftest   headless reflex-layer check, no window
- *   ./fishsim --selftest-llm [min]   headless LLM path (real-time if min > 0)
+ *   ./fishsim --selftest-llm [min]   headless LLM path (real-time if min > 0); POCKET_MODEL /
+ *                                    POCKET_TOKENIZER override model/out's pair (a v5 candidate)
+ *   ./fishsim --selftest-encoder [tok]  headless state-line check for every species against a
+ *                                    tokenizer (default the shipped firmware/main/tokenizer.bin)
  *   ./fishsim --selftest-pop         headless population/arrival/save check
  *   ./fishsim --selftest-card [pfx]  headless fish card: RENAME and SELL (pfx: also writes its pages as PPMs)
  *   ./fishsim --selftest-sleep       headless sleep metabolism + ravenous begging
@@ -2229,14 +2232,22 @@ static void frame_cb(lv_timer_t *timer) {
  * minutes > 0 runs REAL-TIME pacing for that long (the honest measurement of
  * survival-reflex overrides); minutes == 0 is the fast smoke test. */
 static int selftest_llm(int minutes) {
-    if (!advisor_llm_init("../model/out/model_q4.bin", "../model/out/tokenizer.bin")) {
-        printf("FAIL: model.bin/tokenizer.bin not found under ../model/out/\n");
+    /* a candidate model (docs/retrain-v5.md) without touching model/out */
+    const char *mp = getenv("POCKET_MODEL") ? getenv("POCKET_MODEL") : "../model/out/model_q4.bin";
+    const char *tp = getenv("POCKET_TOKENIZER") ? getenv("POCKET_TOKENIZER") : "../model/out/tokenizer.bin";
+    if (!advisor_llm_init(mp, tp)) {
+        printf("FAIL: model/tokenizer not loadable (%s, %s)\n", mp, tp);
         return 1;
     }
     tank_init(&tank, 4321);
     tank_new_population(&tank);
     while (tank.n_fish < 4) tank_add_fish(&tank, 0, 1);   /* the 4-fish tank the soak numbers refer to */
     for (int i = 2; i < 4; i++) tank.fish[i].stage = STAGE_ADULT;
+    if (advisor_core_schema() >= 5) {             /* a species model meets species (a v4 tank stays the v4 run) */
+        tank_add_species_pair(&tank, SP_ANGLER);
+        tank_add_species_pair(&tank, SP_SQUID);
+        tank_add_species_pair(&tank, SP_CRAB);
+    }
     if (getenv("POCKET_CURIOUS")) {               /* reproduce a state: POCKET_CURIOUS=9 = the
                                                      device after days of the old economy */
         for (int i = 0; i < tank.n_fish; i++) { tank.fish[i].curiosity = (float)atof(getenv("POCKET_CURIOUS")); tank.fish[i].hunger = 3; }
@@ -2313,6 +2324,52 @@ static int selftest_llm(int minutes) {
     printf("census: explore - %.1f distinct zones per fish-minute | longest one-goal stretch %.0f s | mean bored %.1f\n",
            zone_windows ? (double)zones_sum / zone_windows : 0.0, longest_streak, bored_sum / (ticks * tank.n_fish));
     return changes >= 4 ? 0 : 1;                  /* a live brain redirects fish */
+}
+
+/* --selftest-encoder [tokenizer.bin]: the state line for every species,
+ * against a tokenizer alone (advisor_core_init_encoder - no model needed).
+ * Every word must be in the tokenizer's vocabulary; a schema-5 vocab (one
+ * with " species") must hear `stage <x> species <token> trust`, and any
+ * older one must never see the word. The lines print as `ENC <line>` for
+ * model/encoder_agree.py, which checks them against gen_traces.py's encoder:
+ *   ./fishsim --selftest-encoder /tmp/tok5.bin | python3 ../model/encoder_agree.py */
+static int selftest_encoder(const char *tok_path) {
+    if (!tok_path) tok_path = "../firmware/main/tokenizer.bin";    /* the shipped one (tracked) */
+    FILE *fp = fopen(tok_path, "rb");
+    if (!fp) { printf("FAIL: no tokenizer at %s\n", tok_path); return 1; }
+    static uint8_t buf[8192];
+    size_t len = fread(buf, 1, sizeof buf, fp); fclose(fp);
+    if (!advisor_core_init_encoder(buf, len)) { printf("FAIL: %s is not an advisor tokenizer\n", tok_path); return 1; }
+    int schema = advisor_core_schema(), fails = 0, lines = 0, maxw = 0;
+    printf("selftest-encoder: %s is schema v%d\n", tok_path, schema);
+    tank_init(&tank, 777);
+    tank_new_population(&tank);
+    while (tank.n_fish < N_FISH_MAX) tank_add_fish(&tank, 0, 1);
+    for (int i = 1; i < tank.n_fish && i < SP_COUNT; i++) tank_set_species(&tank, i, i, i);   /* fish 0 stays the classic fish */
+    for (int round = 0; round < 6; round++) {
+        tank.night = round == 4;
+        for (int k = 0; k < 900; k++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
+        for (int i = 0; i < tank.n_fish; i++) {
+            char line[400], want[96];
+            advisor_core_encode(&tank, i, line, sizeof line);
+            const fish_t *f = &tank.fish[i];
+            snprintf(want, sizeof want, " stage %s species %s trust ", STAGE_NAMES[f->stage], tank_species(f)->token);
+            int words = 0;
+            for (const char *c = line; *c; c++) words += (c == line || c[-1] == ' ') && *c != ' ';
+            if (words > maxw) maxw = words;
+            const char *why = NULL;
+            if (advisor_core_unknown_words(line) != 0) why = "a word the tokenizer does not know";
+            else if (schema >= 5 && !strstr(line, want)) why = "no `stage <x> species <token> trust`";
+            else if (schema < 5 && strstr(line, "species")) why = "`species` sent to a pre-v5 tokenizer";
+            else if (words + 2 > 60) why = "over advisor_core_infer's 60-token prompt";
+            if (why) { fails++; printf("FAIL (%s): %s\n", why, line); }
+            if (schema >= 5) printf("ENC %s\n", line);
+            lines++;
+        }
+    }
+    printf("selftest-encoder: %d lines, %d species, longest %d words (+ \"->\" + BOS = %d prompt tokens), %d failures\n",
+           lines, tank.n_fish < SP_COUNT ? tank.n_fish : SP_COUNT, maxw, maxw + 2, fails);
+    return fails ? 1 : 0;
 }
 
 /* --snapshot <prefix> [seconds]: run headless (rules brain, all 6 fish, fast
@@ -4672,6 +4729,8 @@ int main(int argc, char **argv) {
         if (strcmp(argv[a], "--selftest-tend") == 0) return selftest_tend();
         if (strcmp(argv[a], "--selftest-update") == 0) return selftest_update();
         if (strcmp(argv[a], "--selftest-species") == 0) return selftest_species();
+        if (strcmp(argv[a], "--selftest-encoder") == 0)
+            return selftest_encoder(a + 1 < argc ? argv[a + 1] : NULL);
         if (strcmp(argv[a], "--selftest-llm") == 0)
             return selftest_llm(a + 1 < argc ? atoi(argv[a + 1]) : 0);
     }
