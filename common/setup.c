@@ -680,7 +680,8 @@ void render_setup(const tank_t *t, uint16_t *fb, int stride, float clock) {
         panel(fb, stride);
         char ncap[40]; name_caption(ncap, sizeof ncap, t);
         text_c(fb, stride, CX, SETUP_Y + (grid ? 12 : 7), 2, C_CAPT, ncap);
-        if (grid) render_fish_preview(fb, stride, SETUP_X + 88, SETUP_Y + 72, 2.0f, f->color, f->fin, f->accent, clock);
+        if (grid) render_creature_preview(fb, stride, SETUP_X + 88, SETUP_Y + 72, 2.0f * 22 / fmaxf(22, render_species_half_len(f->species)),
+                                          f->species, f->variant, f->color, f->fin, f->accent, clock);   /* an eel fits the box (2026-10-05) */
         const int SL = 22, NX = grid ? SETUP_X + 160 : CX - FISH_NAME_MAX * SL / 2 + 2, NY = grid ? SETUP_Y + 58 : SETUP_TOP_BTN_Y + (SETUP_BTN_H - 28) / 2;
         int n = name_len(f);
         for (int i = 0; i < FISH_NAME_MAX; i++) {
@@ -714,7 +715,7 @@ void render_setup(const tank_t *t, uint16_t *fb, int stride, float clock) {
            bright with the chevrons, the rest dimmed; slots past the first
            blank are just faint underlines */
         const fish_t *f = &t->fish[page_fish()];
-        fish_ring(fb, stride, f, 17 * f->size + 6, f->color);
+        fish_ring(fb, stride, f, render_fish_ring_r(f) + 6, f->color);
         render_rect_blend(fb, stride, -PAGE_X, SETUP_SLOT_Y - SETUP_ARROW_GAP - 2, TANK_W, SETUP_SLOT_H + 2 * SETUP_ARROW_GAP + 36, C_PANEL, 150);
         char ncap[40]; name_caption(ncap, sizeof ncap, t);
         text_c(fb, stride, CX, SETUP_Y + 7, 2, C_CAPT, ncap);
@@ -741,7 +742,7 @@ void render_setup(const tank_t *t, uint16_t *fb, int stride, float clock) {
            grown-up look - that is the surprise); a row of body swatches; the
            accent a "?" that its first growth spurt answers */
         const fish_t *f = &t->fish[page_fish()];
-        fish_ring(fb, stride, f, 17 * f->size + 6, f->color);
+        fish_ring(fb, stride, f, render_fish_ring_r(f) + 6, f->color);
         render_rect_blend(fb, stride, -PAGE_X, SETUP_SW_Y - 30, TANK_W, SETUP_ACC_Y + SETUP_SW_H + 16 - (SETUP_SW_Y - 30), C_PANEL, 110);
         char cap[FISH_NAME_MAX + 16]; snprintf(cap, sizeof cap, "A COLOR FOR %s", f->name);
         text_c(fb, stride, CX, SETUP_Y + 7, 2, C_CAPT, cap);
@@ -772,7 +773,7 @@ void render_setup(const tank_t *t, uint16_t *fb, int stride, float clock) {
            wherever it hatched (no stage - it stays in the grass it was born
            in), its parents are named, one button leads on */
         const fish_t *f = &t->fish[page_fish()];
-        float r = 17 * f->size + 6 + 3 * sinf(clock * 3);          /* a ring that breathes */
+        float r = render_fish_ring_r(f) + 6 + 3 * sinf(clock * 3);          /* a ring that breathes */
         fish_ring(fb, stride, f, r, f->color);
         fish_ring(fb, stride, f, r + 8, C_EDGE);
         render_rect_blend(fb, stride, -PAGE_X, 92, TANK_W, 116, C_PANEL, 150);
@@ -806,7 +807,9 @@ void render_setup(const tank_t *t, uint16_t *fb, int stride, float clock) {
         text_c(fb, stride, CX, SETUP_Y + 20, 3, C_TEXT, f->name);
         float ps = f->size * 2.0f;                                   /* a portrait, twice life size (a fry) ... */
         if (ps > 1.2f) ps = 1.2f;                                    /* ... but a juvenile's ring must clear the name */
-        render_ring(fb, stride, CX, SETUP_FAM_PORTRAIT_Y, 17 * ps + 6, f->color);
+        float ru = render_fish_ring_r(f) / f->size;                  /* a long creature (an eel) to the same ring (2026-10-05) */
+        if (ps * ru > 1.2f * 17) ps = 1.2f * 17 / ru;
+        render_ring(fb, stride, CX, SETUP_FAM_PORTRAIT_Y, ru * ps + 6, f->color);
         render_fish_portrait(fb, stride, CX, SETUP_FAM_PORTRAIT_Y, ps, f, clock);
         int y = SETUP_FAM_ROW_Y, vx = SETUP_FAM_VALUE_X;
         render_text(fb, stride, SETUP_FAM_LABEL_X, y, 2, C_CAPT, "BODY");

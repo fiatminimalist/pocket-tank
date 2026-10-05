@@ -334,6 +334,14 @@ void render_glyph(uint16_t *fb, int stride, int x, int y, int scale, uint32_t rg
  * swimming on `clock` - the setup's live preview of a colour choice */
 void render_fish_preview(uint16_t *fb, int stride, float x, float y, float size,
                          uint32_t body, uint32_t fin, uint32_t accent, float clock);
+/* any species' creature (2026-10-05): its design's pattern is `variant`,
+ * the colours as given; render_fish_preview is the classic fish's */
+void render_creature_preview(uint16_t *fb, int stride, float x, float y, float size, int species, int variant,
+                             uint32_t body, uint32_t fin, uint32_t accent, float clock);
+/* a species' half-length at size 1, px (the classic fish 22, the eel 46) -
+ * to fit a creature in a box - and the selection ring's radius round a fish */
+float render_species_half_len(int species);
+float render_fish_ring_r(const fish_t *f);
 /* the same, but AS THE FISH IS: its own stage (a fry shows no markings yet,
  * an elder its long tail), calm and fed - the birth flow's portrait */
 void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size, const fish_t *who, float clock);

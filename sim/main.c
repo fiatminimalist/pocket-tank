@@ -44,6 +44,7 @@
  *   ./fishsim --selftest-battery     headless battery page: stretches, sleep, learned rates, estimates, the pill
  *   ./fishsim --selftest-saves       headless update promise: every save in testdata/saves, whole and cut to older builds' lengths
  *   ./fishsim --bench                headless render-cost profile (veg, card)
+ *   ./fishsim --species-sheet <pfx>  headless: every species x design x stage as PPMs, their states, their draw cost
  *   (key Z: jump through 7 h of device-style sleep; key G: grow the canopy +
  *    algae now to try the chores - press again to cycle; key Y: the urchin)
  */
@@ -159,7 +160,9 @@ static void film_just_over(tank_t *t, float share) {
 }
 
 /* ---------- headless selftest ---------- */
+static int species_px_check(void);   /* below, with the species sheet */
 static int selftest(void) {
+    if (species_px_check()) return 1;
     tank_init(&tank, 1234);
     tank_new_population(&tank);
     print_roster(&tank);
@@ -4221,6 +4224,182 @@ static int bench(void) {
     return 0;
 }
 
+/* --species-sheet <prefix> (2026-10-05, docs/species.md): every species in
+ * every design, a juvenile and an adult facing each way (<prefix>_<token>_a /
+ * _b.ppm), then their states - the puffer's puff, the octopus crawling,
+ * jetting, camouflaged and inked, the squid jetting, a hammerhead mid-turn,
+ * the eel's spark, the crab's threat, the lobster's tail-flip, the lure at
+ * night (<prefix>_states_N.ppm) - drawn by render_tank itself, the way the
+ * tank draws them. Then a cost per species against the classic fish's. */
+static float sheet_size(int sp, stage_t st) {
+    static const float SCALE[4] = { 0.55f, 0.78f, 1.04f, 1.23f };   /* progression.c's stage_scale */
+    const species_def_t *d = &SPECIES[sp];
+    float base = sp ? (d->size_lo + d->size_hi) * 0.5f : 0.97f;
+    return base * SCALE[st];
+}
+typedef struct { int sp, v; stage_t st; float x, y, heading, yaw, yaw_tail, speed, puff, ink, jet, camo, spark, lure; bool rest; int mode, anchor; } sheet_fish_t;
+static void sheet_tank(void) {
+    tank_init(&tank, 2024);
+    tank_new_population(&tank);
+    tank.n_fish = 0;
+    for (int b = 0; b < VEG_BEDS; b++) tank_veg_set(&tank, b, VEG_NUB);   /* the grass out of the way: the creatures in full */
+    memset(tank.algae, 0, sizeof tank.algae);
+    for (int i = 0; i < MAX_FOOD; i++) tank.food[i].alive = false;
+    for (int i = 0; i < MAX_BUBBLE; i++) tank.bubble[i].y = -50;
+    tank.night = false; tank.clock = 10.0f;
+}
+static void sheet_put(int slot, const sheet_fish_t *q) {
+    tank_make_fish(&tank, slot, 0, 0.5f, 0.5f, q->st);
+    if (q->sp) tank_set_species(&tank, slot, q->sp, q->v);
+    fish_t *f = &tank.fish[slot];
+    f->stage = q->st; f->size = sheet_size(q->sp, q->st);
+    f->x = q->x * TANK_W / 448.0f; f->y = q->y * TANK_H / 368.0f;
+    f->heading = q->heading; tank_fish_face(f);
+    if (q->yaw != 0 || q->yaw_tail != 0) { f->yaw = q->yaw; f->yaw_tail = q->yaw_tail; f->facing = q->yaw < 0 ? -1 : 1; }
+    f->sp_mode = (uint8_t)q->mode; f->anchor = (int8_t)(q->anchor - 1);   /* (anchor: the frond + 1, 0 = none) */
+    f->speed = f->target_speed = q->speed;
+    f->puff = q->puff; f->ink = q->ink; f->jet = q->jet; f->camo = q->camo; f->spark = q->spark; f->lure = q->lure;
+    f->camo_rgb = CLUSTER_SCHEMES[0].coral;
+    f->hunger = 3; f->stress = 0.5f; f->goal.id = q->rest ? GOAL_REST : GOAL_EXPLORE;
+    if (slot + 1 > tank.n_fish) tank.n_fish = slot + 1;
+}
+static void sheet_render(uint16_t *fb, const char *path) {
+    static uint16_t scene[TANK_W * TANK_H];
+    render_set_scene_cache(scene);
+    render_set_vignette_cache(vig_buf);
+    render_set_dirty_mask(dirty_buf);
+    render_tank(&tank, fb, TANK_W);
+    if (path) write_ppm(path, fb);
+}
+static int species_sheet(const char *prefix) {
+    static uint16_t fb[TANK_W * TANK_H];
+    char path[512]; int files = 0;
+    const float PI = 3.14159265f;
+    for (int sp = 1; sp < SP_COUNT; sp++)
+        for (int half = 0; half < 2; half++) {
+            sheet_tank();
+            float len = render_species_half_len(sp) * sheet_size(sp, STAGE_ADULT) * 2;
+            int cols = len > 100 ? 2 : 4, rows = 8 / cols;
+            for (int i = 0; i < 8; i++) {
+                int col = i % cols, row = i / cols, v = i % 4;
+                stage_t st = i < 4 ? STAGE_JUV : STAGE_ADULT;
+                bool right = (i < 4) != (half == 1);
+                bool floor = sp == SP_CRAB || sp == SP_LOBSTER;
+                sheet_fish_t q = { .sp = sp, .v = v, .st = st, .x = 448.0f * (col + 0.5f) / cols, .y = 40 + (floor ? 18 : 0) + 290.0f * (row + 0.5f) / rows, .heading = right ? 0 : PI, .speed = sp == SP_SHARK ? 20 : 6, .lure = 0.4f };
+                sheet_put(i, &q);
+            }
+            snprintf(path, sizeof path, "%s_%s_%c.ppm", prefix, SPECIES[sp].token, 'a' + half); sheet_render(fb, path); files++;
+        }
+    /* the states */
+    static const sheet_fish_t S1[] = {      /* puff, the octopus's poses, the squid, a turn */
+        { .sp = SP_PUFFER, .v = 0, .st = STAGE_ADULT, .x = 60, .y = 60, .speed = 5 },
+        { .sp = SP_PUFFER, .v = 0, .st = STAGE_ADULT, .x = 150, .y = 60, .speed = 5, .puff = 0.5f },
+        { .sp = SP_PUFFER, .v = 1, .st = STAGE_ADULT, .x = 250, .y = 60, .speed = 5, .puff = 1.0f },
+        { .sp = SP_PUFFER, .v = 2, .st = STAGE_ADULT, .x = 360, .y = 60, .heading = 3.14159265f, .speed = 5, .puff = 1.0f },
+        { .sp = SP_OCTOPUS, .v = 0, .st = STAGE_ADULT, .x = 60, .y = 160, .speed = 6 },                                   /* crawling */
+        { .sp = SP_OCTOPUS, .v = 1, .st = STAGE_ADULT, .x = 170, .y = 160, .heading = 3.14159265f + 0.2f, .yaw = 1, .yaw_tail = 1, .speed = 60, .jet = 0.15f, .mode = SPM_JET },   /* jetting up-left, mantle first, mid-thrust */
+        { .sp = SP_OCTOPUS, .v = 2, .st = STAGE_ADULT, .x = 290, .y = 165, .speed = 4, .camo = 1.0f },                   /* camouflaged on the reef's orange */
+        { .sp = SP_OCTOPUS, .v = 3, .st = STAGE_ADULT, .x = 390, .y = 165, .speed = 4, .camo = 0.5f },                   /* half */
+        { .sp = SP_SQUID, .v = 0, .st = STAGE_ADULT, .x = 90, .y = 270, .heading = 3.14159265f, .yaw = 1, .yaw_tail = 1, .speed = 50, .jet = 0.6f, .mode = SPM_JET },   /* jetting mantle first (facing right, going left), gliding */
+        { .sp = SP_SHARK, .v = 0, .st = STAGE_ADULT, .x = 300, .y = 270, .yaw = 0.08f, .yaw_tail = 0.85f, .speed = 25 },                           /* mid-turn, head-on */
+    };
+    static const sheet_fish_t S2[] = {
+        { .sp = SP_SHARK, .v = 3, .st = STAGE_ADULT, .x = 100, .y = 60, .heading = 3.14159265f, .yaw = -0.35f, .yaw_tail = -0.9f, .speed = 25 },
+        { .sp = SP_SHARK, .v = 2, .st = STAGE_ADULT, .x = 320, .y = 70, .heading = -0.45f, .speed = 30 },                               /* climbing */
+        { .sp = SP_EEL, .v = 0, .st = STAGE_ADULT, .x = 120, .y = 150, .speed = 30, .spark = 1.0f },                    /* the spark */
+        { .sp = SP_EEL, .v = 3, .st = STAGE_ADULT, .x = 330, .y = 160, .heading = 3.14159265f - 0.4f, .speed = 30 },                    /* diving left */
+        { .sp = SP_CRAB, .v = 0, .st = STAGE_ADULT, .x = 60, .y = 340, .puff = 1.0f },                                /* threat: claws up */
+        { .sp = SP_CRAB, .v = 2, .st = STAGE_ADULT, .x = 150, .y = 340, .speed = 12 },                                    /* scuttling */
+        { .sp = SP_LOBSTER, .v = 0, .st = STAGE_ADULT, .x = 255, .y = 335, .heading = 3.14159265f, .yaw = 1, .yaw_tail = 1, .speed = 30, .jet = 0.8f, .mode = SPM_FLIP },   /* the tail-flip: backward */
+        { .sp = SP_LOBSTER, .v = 3, .st = STAGE_ADULT, .x = 370, .y = 340, .heading = 3.14159265f, .speed = 8 },                        /* walking left */
+        { .sp = SP_SEAHORSE, .v = 1, .st = STAGE_ADULT, .x = 60, .y = 250, .speed = 25 },                                 /* leaning into its swim */
+        { .sp = SP_SQUID, .v = 2, .st = STAGE_ADULT, .x = 220, .y = 250, .heading = 3.14159265f, .yaw = -1, .yaw_tail = -1, .speed = 5 },                        /* hovering, facing left */
+    };
+    static const sheet_fish_t S3[] = {      /* night: the lure, the firefly, the spark, the sleepers */
+        { .sp = SP_ANGLER, .v = 0, .st = STAGE_ADULT, .x = 70, .y = 300 },
+        { .sp = SP_ANGLER, .v = 1, .st = STAGE_ADULT, .x = 190, .y = 300, .heading = 3.14159265f, .lure = 0.5f },
+        { .sp = SP_ANGLER, .v = 3, .st = STAGE_ADULT, .x = 320, .y = 300, .lure = 1.0f },
+        { .sp = SP_SQUID, .v = 1, .st = STAGE_ADULT, .x = 90, .y = 80, .speed = 5 },
+        { .sp = SP_EEL, .v = 1, .st = STAGE_ADULT, .x = 300, .y = 90, .heading = 3.14159265f, .speed = 30, .spark = 1.0f },
+        { .sp = SP_SEAHORSE, .v = 2, .st = STAGE_ADULT, .x = 400, .y = 200, .rest = true },        /* asleep */
+        { .sp = SP_PUFFER, .v = 3, .st = STAGE_ADULT, .x = 250, .y = 190, .heading = 3.14159265f, .rest = true },
+        { .sp = SP_OCTOPUS, .v = 1, .st = STAGE_ADULT, .x = 100, .y = 190, .speed = 5, .rest = true },
+        { .sp = SP_SEAHORSE, .v = 0, .st = STAGE_ADULT, .x = 400, .y = 120, .anchor = 1 },                         /* holding its frond (awake) */
+    };
+    struct { const sheet_fish_t *f; int n; bool night; } sets[3] = {
+        { S1, (int)(sizeof S1 / sizeof S1[0]), false }, { S2, (int)(sizeof S2 / sizeof S2[0]), false }, { S3, (int)(sizeof S3 / sizeof S3[0]), true } };
+    for (int k = 0; k < 3; k++) {
+        sheet_tank();
+        tank.night = sets[k].night;
+        for (int i = 0; i < sets[k].n; i++) sheet_put(i, &sets[k].f[i]);
+        snprintf(path, sizeof path, "%s_states_%d.ppm", prefix, k + 1); sheet_render(fb, path); files++;
+    }
+    /* ink: an octopus and a squid startled where they were, then away - the cloud stays */
+    {
+        sheet_tank();
+        sheet_fish_t a = { .sp = SP_OCTOPUS, .v = 0, .st = STAGE_ADULT, .x = 150, .y = 200, .heading = PI, .yaw = 1, .yaw_tail = 1, .speed = 60, .ink = 3.0f, .jet = 0.5f, .mode = SPM_JET },
+                     b = { .sp = SP_SQUID, .v = 3, .st = STAGE_ADULT, .x = 360, .y = 200, .heading = PI, .yaw = 1, .yaw_tail = 1, .speed = 50, .ink = 3.0f, .jet = 0.5f, .mode = SPM_JET };
+        sheet_put(0, &a); sheet_put(1, &b);
+        sheet_render(fb, NULL);
+        for (int f = 0; f < 3; f++) {
+            tank.fish[0].x -= 25; tank.fish[0].ink -= 0.5f; tank.fish[1].x -= 22; tank.fish[1].ink -= 0.5f; tank.clock += 0.5f;
+            sheet_render(fb, NULL);
+        }
+        snprintf(path, sizeof path, "%s_states_4.ppm", prefix); sheet_render(fb, path); files++;
+    }
+    /* the previews (the setup's, the pages'): every species at 1.6x, as a page asks, fitted by its half-length */
+    {
+        sheet_tank(); sheet_render(fb, NULL);
+        for (int sp = 0; sp < SP_COUNT; sp++) {
+            const species_def_t *d = &SPECIES[sp];
+            float sz = 1.6f * 22 / fmaxf(22, render_species_half_len(sp));
+            render_creature_preview(fb, TANK_W, PAGE_W * (0.25f + 0.5f * (sp & 1)), PAGE_H * (0.1f + 0.18f * (sp / 2)), sz, sp, sp % 4,
+                                    d->var[sp % 4].color, d->var[sp % 4].fin, d->var[sp % 4].accent, 3.0f);
+        }
+        snprintf(path, sizeof path, "%s_previews.ppm", prefix); write_ppm(path, fb); files++;
+    }
+    printf("species-sheet: wrote %d PPMs, %s_*.ppm\n", files, prefix);
+    /* the cost: each species drawn 4000 times at its adult size against the classic fish */
+    double base = 0; int base_area = 1;
+    for (int sp = 0; sp < SP_COUNT; sp++) {
+        const species_def_t *d = &SPECIES[sp];
+        int64_t t0 = bench_clock_us();
+        for (int i = 0; i < 4000; i++)
+            render_creature_preview(fb, TANK_W, 224, 184, sheet_size(sp, STAGE_ADULT), sp, i & 3, d->var[i & 3].color, d->var[i & 3].fin, d->var[i & 3].accent, i * 0.016f);
+        double us = (double)(bench_clock_us() - t0) / 4000;
+        memset(fb, 0, sizeof fb);                    /* its area: a long creature costs its length */
+        render_creature_preview(fb, TANK_W, 224, 184, sheet_size(sp, STAGE_ADULT), sp, 0, d->var[0].color, d->var[0].fin, d->var[0].accent, 1.0f);
+        int area = 0; for (int i = 0; i < TANK_W * TANK_H; i++) area += fb[i] != 0;
+        if (!sp) { base = us; base_area = area; }
+        printf("  %-12s %6.2f us a draw  (%.1fx the fish)  %5d px (%.1fx)\n", d->name, us, us / base, area, (double)area / base_area);
+    }
+    return 0;
+}
+
+/* --selftest's look at the species (2026-10-05): every species and design
+ * draws a creature - a non-trivial number of pixels - in the tank and in a
+ * preview (the cards, the pages) */
+static int species_px_check(void) {
+    static uint16_t fb[TANK_W * TANK_H], ref[TANK_W * TANK_H];
+    for (int sp = 1; sp < SP_COUNT; sp++)
+        for (int v = 0; v < SP_VARIANTS; v++) {
+            sheet_tank();
+            sheet_render(ref, NULL);
+            sheet_fish_t q = { .sp = sp, .v = v, .st = STAGE_JUV, .x = 224, .y = 200, .speed = 10, .lure = 0.5f };
+            sheet_put(0, &q);
+            sheet_render(fb, NULL);
+            int n = 0; for (int i = 0; i < TANK_W * TANK_H; i++) n += fb[i] != ref[i];
+            const species_def_t *d = &SPECIES[sp];
+            memset(fb, 0, sizeof fb);
+            render_creature_preview(fb, TANK_W, PAGE_W / 2.0f, PAGE_H / 2.0f, 1.5f, sp, v, d->var[v].color, d->var[v].fin, d->var[v].accent, 1.0f);
+            int m = 0; for (int i = 0; i < TANK_W * TANK_H; i++) m += fb[i] != 0;
+            if (n < 120 || m < 400) { printf("FAIL: the %s (design %d) drew %d px in the tank, %d in its preview\n", d->name, v, n, m); return 1; }
+        }
+    tank.n_fish = 0;
+    printf("selftest: every species draws, in every design (tank and preview)\n");
+    return 0;
+}
+
 /* --selftest-card [prefix] (2026-10-01): the milestones page's fish card -
  * RENAME (the letter wheel, CANCEL / DONE, the way back to the card) and SELL
  * (two taps, the doubled tap refused, the price by stage, the slots moving
@@ -4719,6 +4898,7 @@ int main(int argc, char **argv) {
             return snapshot(argv[a + 1], a + 2 < argc ? atoi(argv[a + 2]) : 20);
         if (strcmp(argv[a], "--selftest") == 0) return selftest();
         if (strcmp(argv[a], "--bench") == 0) return bench();
+        if (strcmp(argv[a], "--species-sheet") == 0 && a + 1 < argc) return species_sheet(argv[a + 1]);
         if (strcmp(argv[a], "--selftest-hunger") == 0) return selftest_hunger();
         if (strcmp(argv[a], "--selftest-shop") == 0) return selftest_shop();
         if (strcmp(argv[a], "--selftest-battery") == 0) return selftest_battery();
