@@ -36,6 +36,7 @@
  *   ./fishsim --selftest-sleep       headless sleep metabolism + ravenous begging
  *   ./fishsim --selftest-tend        headless canopy/algae/hold-attract check
  *   ./fishsim --selftest-hunger      headless hunger economy (untended tank never ravenous)
+ *   ./fishsim --selftest-species     headless species motion: each creature's way of moving, measured
  *   ./fishsim --selftest-shop        headless sand dollars: awards, the shop, the plant, the snail, the save
  *   ./fishsim --selftest-battery     headless battery page: stretches, sleep, learned rates, estimates, the pill
  *   ./fishsim --selftest-saves       headless update promise: every save in testdata/saves, whole and cut to older builds' lengths
@@ -4355,6 +4356,301 @@ static int selftest_card(const char *prefix) {
     return 0;
 }
 
+/* --selftest-species (2026-10-05, the motion pass): each species moves the way
+ * docs/species.md says, measured over simulated minutes in seeded tanks - the
+ * hammerhead never slows below its floor, the seahorse is slow and vertical
+ * and rests on a frond, the octopus dens and takes the colour, the jets
+ * pulse, the puffer puffs and lets it out, the eel goes up for air, the
+ * angler sits low, the crab and the lobster keep to the ground (the crab
+ * sideways and stop-and-go, the lobster's tail-flip backward), the small
+ * keep clear of the big, the whole body stays inside this board's glass, a
+ * non-fish pair dances, and a night's sleep breaks nothing. The model is
+ * the rules brain (advisor_rules), or one goal forced for one species. */
+static goal_id_t g_sp_goal = GOAL_COUNT;     /* GOAL_COUNT = the rules brain for everyone */
+static int g_sp_only = -1;                   /* ... the forced goal for this species only (-1 = all of them) */
+static goal_t advisor_sp(const tank_t *t, int i, bool request) {
+    if (g_sp_goal < GOAL_COUNT && (g_sp_only < 0 || t->fish[i].species == g_sp_only)) {
+        goal_t g = { 0 }; g.id = g_sp_goal; g.urgency = 4; g.confidence = 1; g.runner_up = GOAL_COUNT;
+        return g;
+    }
+    return advisor_rules(t, i, request);
+}
+/* two classic fish (the yardstick) and a pair of the species in slots 2, 3 */
+static void sp_tank(uint32_t seed, int species) {
+    tank_init(&tank, seed); tank_new_population(&tank);
+    for (int i = 0; i < tank.n_fish; i++) tank.fish[i].stage = STAGE_ADULT;
+    if (species > 0) tank_add_species_pair(&tank, species);
+    g_sp_goal = GOAL_COUNT; g_sp_only = -1;
+}
+/* the body's two ends (fish_t's convention) inside the glass */
+static bool sp_inside(const fish_t *f) {
+    if (f->species == SP_FISH) return !isnan(f->x) && !isnan(f->y);   /* the classic fish keeps its own (older) bounds */
+    float hl = tank_body_half_len(f) * 0.85f, ax, ay;
+    if (f->species == SP_SEAHORSE) { ax = 0; ay = 1; }
+    else if (f->species == SP_CRAB) { ax = 1; ay = 0; }
+    else { float a = atan2f(sinf(f->heading), (f->facing ? f->facing : 1) * fabsf(cosf(f->heading))); ax = cosf(a); ay = sinf(a); }
+    for (int k = -1; k <= 1; k += 2) {
+        float px = f->x + ax * hl * k, py = f->y + ay * hl * k, qx = px, qy = py;
+        tank_glass_clamp(&qx, &qy, 0);
+        if (fabsf(qx - px) > 2 || fabsf(qy - py) > 2 || isnan(px) || isnan(py)) {
+            printf("selftest-species: the %s end (%.0f, %.0f) is outside (in: %.0f, %.0f)\n", k < 0 ? "tail" : "head", px, py, qx, qy);
+            return false;
+        }
+    }
+    return true;
+}
+#define SP_DT (1.0f / 25.0f)
+#define SP_FAIL(...) do { printf("FAIL: selftest-species: " __VA_ARGS__); printf("\n"); return 1; } while (0)
+/* one tick, every creature checked inside the glass */
+static int sp_tick(void) {
+    tank_tick(&tank, SP_DT, advisor_sp);
+    for (int i = 0; i < tank.n_fish; i++)
+        if (!sp_inside(&tank.fish[i])) { printf("FAIL: selftest-species: %s (slot %d) out of the glass at (%.0f, %.0f) heading %.2f facing %d mode %d goal %d (t %.1f s)\n",
+                                               SPECIES[tank.fish[i].species].name, i, tank.fish[i].x, tank.fish[i].y, tank.fish[i].heading,
+                                               tank.fish[i].facing, tank.fish[i].sp_mode, tank.fish[i].goal.id, tank.clock); return 1; }
+    return 0;
+}
+/* a minute's travel stats for slots [a, b] */
+typedef struct { float dist, dx, dy, speed_sum, speed_min; int n; } sp_trav_t;
+static int sp_run(float seconds, sp_trav_t *tr, int a, int b) {
+    int ticks = (int)(seconds / SP_DT);
+    for (int k = 0; k < 2; k++) tr[k] = (sp_trav_t){ 0, 0, 0, 0, 1e9f, 0 };
+    for (int i = 0; i < ticks; i++) {
+        float px[N_FISH_MAX], py[N_FISH_MAX];
+        for (int j = 0; j < tank.n_fish; j++) { px[j] = tank.fish[j].x; py[j] = tank.fish[j].y; }
+        if (sp_tick()) return 1;
+        for (int j = 0; j < tank.n_fish; j++) {
+            sp_trav_t *r = &tr[j >= a && j <= b ? 1 : 0];
+            float dx = fabsf(tank.fish[j].x - px[j]), dy = fabsf(tank.fish[j].y - py[j]);
+            r->dx += dx; r->dy += dy; r->dist += sqrtf(dx * dx + dy * dy);
+            r->speed_sum += tank.fish[j].speed; r->n++;
+            if (i > 5 / SP_DT && tank.fish[j].speed < r->speed_min) r->speed_min = tank.fish[j].speed;
+        }
+    }
+    return 0;
+}
+/* the triple tap at (x, y) (below the feeding strip) */
+static void sp_spook(float x, float y) { for (int k = 0; k < 3; k++) tank_touch_tap(&tank, x, y); }
+static bool sp_on_ground(const fish_t *f, float tol) { return fabsf(f->y - (tank_ground_y(&tank, f->x) - tank_walk_off(f))) <= tol; }
+
+static int selftest_species(void) {
+    sp_trav_t tr[2];
+
+    /* the classic fish's yardstick, and the seahorse: slow, more up-and-down than along */
+    sp_tank(501, SP_SEAHORSE);
+    if (sp_run(180, tr, 2, 3)) return 1;
+    float fish_v = tr[0].speed_sum / tr[0].n, fish_ratio = tr[0].dy / tr[0].dx, fish_dist = tr[0].dist / 2;
+    float sh_v = tr[1].speed_sum / tr[1].n, sh_ratio = tr[1].dy / tr[1].dx;
+    printf("species: fish       mean %.1f px/s, |dy|/|dx| %.2f, %.0f px in 3 min (the yardstick)\n", fish_v, fish_ratio, fish_dist);
+    if (sh_v > fish_v * 0.5f) SP_FAIL("the seahorse swims %.1f px/s against the fish's %.1f", sh_v, fish_v);
+    if (sh_ratio < fish_ratio * 1.2f) SP_FAIL("the seahorse's |dy|/|dx| %.2f is no more vertical than the fish's %.2f", sh_ratio, fish_ratio);
+    g_sp_goal = GOAL_REST; g_sp_only = SP_SEAHORSE;
+    for (int i = 0; i < 120 / SP_DT; i++) if (sp_tick()) return 1;
+    for (int k = 2; k <= 3; k++) {
+        const fish_t *f = &tank.fish[k];
+        if (f->anchor < 0) SP_FAIL("seahorse %d rested 120 s without a frond", k);
+        float bx; tank_veg_frond(&tank, f->anchor >> 4, f->anchor & 15, &bx);
+        if (fabsf(f->x + f->facing * 5 * f->size - bx) > 10 || f->speed > 1) SP_FAIL("seahorse %d is not on its frond (x %.0f, the stem %.0f, speed %.1f)", k, f->x, bx, f->speed);
+    }
+    if (tank.fish[2].anchor == tank.fish[3].anchor) SP_FAIL("both seahorses hold the one frond");
+    printf("species: seahorse   mean %.1f px/s, |dy|/|dx| %.2f; at rest anchored to fronds %d and %d\n", sh_v, sh_ratio, tank.fish[2].anchor, tank.fish[3].anchor);
+
+    /* the octopus: dens by the reef cluster and takes its colour; jets in pulses */
+    sp_tank(502, SP_OCTOPUS);
+    tank.sd_unlocks |= SD_ITEM_CLUSTER; tank_cluster_place(&tank);
+    g_sp_goal = GOAL_REST; g_sp_only = SP_OCTOPUS;
+    for (int i = 0; i < 90 / SP_DT; i++) if (sp_tick()) return 1;
+    for (int k = 2; k <= 3; k++) {
+        const fish_t *f = &tank.fish[k];
+        if (f->camo < 0.8f || !sp_on_ground(f, 3) || fabsf(f->x - tank_decor_x(&tank, 4)) > CLUSTER_HALF_W)
+            SP_FAIL("octopus %d at rest: camo %.2f, y %.0f (ground %.0f), x %.0f (the cluster %.0f)", k, f->camo, f->y, tank_ground_y(&tank, f->x), f->x, tank_decor_x(&tank, 4));
+        if (f->camo_rgb != CLUSTER_SCHEMES[tank_cluster_scheme(&tank)].coral) SP_FAIL("octopus %d took 0x%06x, not the cluster's", k, (unsigned)f->camo_rgb);
+    }
+    float oc_camo = tank.fish[2].camo;
+    int jet_species[2] = { SP_OCTOPUS, SP_SQUID }; float jet_cv[2]; int jet_pulses[2];
+    for (int s = 0; s < 2; s++) {
+        if (s) sp_tank(503, SP_SQUID);
+        g_sp_goal = GOAL_DART_PLAY; g_sp_only = jet_species[s];
+        for (int i = 0; i < 3 / SP_DT; i++) if (sp_tick()) return 1;
+        float sum = 0, sum2 = 0, prev = tank.fish[2].speed; int n = 0, rises = 0; bool up = false;
+        for (int i = 0; i < 30 / SP_DT; i++) {
+            if (sp_tick()) return 1;
+            float v = tank.fish[2].speed; sum += v; sum2 += v * v; n++;
+            if (!tank_fish_jetting(&tank.fish[2])) SP_FAIL("%s at play is not jetting", SPECIES[jet_species[s]].name);
+            if (v > prev + 0.01f && !up) { up = true; rises++; } else if (v < prev - 0.01f) up = false;
+            prev = v;
+        }
+        float mean = sum / n, sd = sqrtf(fmaxf(0, sum2 / n - mean * mean));
+        jet_cv[s] = sd / mean; jet_pulses[s] = rises;
+        if (jet_cv[s] < 0.3f || rises < 25 || rises > 50) SP_FAIL("%s's jets: speed %.0f +- %.0f, %d pulses in 30 s", SPECIES[jet_species[s]].name, mean, sd, rises);
+        if (tank.fish[2].facing * cosf(tank.fish[2].heading) > 0.2f && tank.fish[2].speed > 10)
+            SP_FAIL("%s jets arms first (facing %d, heading %.2f)", SPECIES[jet_species[s]].name, tank.fish[2].facing, tank.fish[2].heading);
+    }
+    printf("species: octopus    denned by the cluster, camo %.2f in its colours; dart: %d jet pulses in 30 s (speed cv %.2f)\n", oc_camo, jet_pulses[0], jet_cv[0]);
+
+    /* the squid's little school: station beside its own kind */
+    g_sp_goal = GOAL_FOLLOW_FRIEND; g_sp_only = SP_SQUID;
+    for (int i = 0; i < 60 / SP_DT; i++) if (sp_tick()) return 1;
+    float sq_gap = tank_dist(tank.fish[2].x, tank.fish[2].y, tank.fish[3].x, tank.fish[3].y);
+    if (sq_gap > 60) SP_FAIL("the squid pair holds %.0f px apart following each other", sq_gap);
+    /* ... and a startle inks and jets */
+    g_sp_goal = GOAL_COUNT;
+    { fish_t *f = &tank.fish[2]; float x0 = f->x, y0 = f->y; sp_spook(f->x + 10, f->y);
+      for (int i = 0; i < 1.0f / SP_DT; i++) if (sp_tick()) return 1;
+      if (f->ink <= 0 || tank_dist(f->x, f->y, x0, y0) < 25) SP_FAIL("a spooked squid: ink %.1f, moved %.0f px", f->ink, tank_dist(f->x, f->y, x0, y0)); }
+    printf("species: squid      dart: %d jet pulses in 30 s (cv %.2f); schooled %.0f px apart; a startle inks and jets\n", jet_pulses[1], jet_cv[1], sq_gap);
+
+    /* the pufferfish: a ball at once, held, let out slowly */
+    sp_tank(504, SP_PUFFER);
+    for (int i = 0; i < 20 / SP_DT; i++) if (sp_tick()) return 1;
+    { fish_t *f = &tank.fish[2]; float y = fmaxf(f->y, tank_glass_top(f->x) + FEED_ZONE_Y + 10);
+      sp_spook(f->x, y);
+      for (int i = 0; i < 0.6f / SP_DT; i++) if (sp_tick()) return 1;
+      float p1 = f->puff, xa = f->x, ya = f->y;
+      for (int i = 0; i < 3 / SP_DT; i++) if (sp_tick()) return 1;
+      float p4 = f->puff, drift = tank_dist(f->x, f->y, xa, ya);
+      for (int i = 0; i < 18 / SP_DT; i++) if (sp_tick()) return 1;
+      if (p1 < 0.9f || p4 < 0.9f || f->puff > 0.05f || drift > 30)
+          SP_FAIL("the puffer: puff %.2f at 0.6 s, %.2f at 3.6 s, %.2f at 21.6 s; drifted %.0f px puffed", p1, p4, f->puff, drift);
+      printf("species: puffer     puff %.2f at 0.6 s, %.2f at 3.6 s (drifted %.0f px), %.2f at 21.6 s\n", p1, p4, drift, f->puff); }
+    if (sp_run(120, tr, 2, 3)) return 1;
+    printf("species: puffer     mean %.1f px/s (fish %.1f)\n", tr[1].speed_sum / tr[1].n, tr[0].speed_sum / tr[0].n);
+
+    /* the anglerfish: low, still, short walks */
+    sp_tank(505, SP_ANGLER);
+    { int low = 0, n = 0; float lure_lo = 1, lure_hi = 0;
+      for (int i = 0; i < 20 / SP_DT; i++) if (sp_tick()) return 1;        /* down to the low water first */
+      if (sp_run(1, tr, 2, 3)) return 1;
+      float dist = 0, fd = 0;
+      for (int i = 0; i < 180 / SP_DT; i++) {
+          float px[4], py[4]; for (int j = 0; j < 4; j++) { px[j] = tank.fish[j].x; py[j] = tank.fish[j].y; }
+          if (sp_tick()) return 1;
+          for (int j = 0; j < 4; j++) {
+              float d = tank_dist(px[j], py[j], tank.fish[j].x, tank.fish[j].y);
+              if (j >= 2) { dist += d / 2; n++; low += tank.fish[j].y >= TANK_BOT * (2 / 3.0f) - 6 || tank.fish[j].sp_mode == SPM_LUNGE;
+                            lure_lo = fminf(lure_lo, tank.fish[j].lure); lure_hi = fmaxf(lure_hi, tank.fish[j].lure); }
+              else fd += d / 2;
+          }
+      }
+      float lowp = 100.0f * low / n;
+      if (dist > fd * 0.25f || lowp < 90) SP_FAIL("the angler went %.0f px in 3 min (the fish %.0f), low %.0f%% of the time", dist, fd, lowp);
+      tank_toggle_light(&tank);                                    /* night: the lure brightens */
+      for (int i = 0; i < 10 / SP_DT; i++) if (sp_tick()) return 1;
+      if (tank.fish[2].lure < lure_hi - 0.15f && tank.fish[2].lure < 0.7f) SP_FAIL("the angler's lure %.2f in the dark (%.2f..%.2f by day)", tank.fish[2].lure, lure_lo, lure_hi);
+      printf("species: angler     %.0f px in 3 min (fish %.0f), in the low third %.0f%% of the time; lure %.2f..%.2f by day, %.2f at night\n",
+             dist, fd, lowp, lure_lo, lure_hi, tank.fish[2].lure); }
+
+    /* the electric eel: up for air every minute or two */
+    sp_tank(506, SP_EEL);
+    { int surfaced = 0; float first = -1, top_min = 1e9f; bool reset = false;
+      for (int i = 0; i < 200 / SP_DT; i++) {
+          if (sp_tick()) return 1;
+          for (int k = 2; k <= 3; k++) {
+              fish_t *f = &tank.fish[k]; float hx, hy; tank_fish_head(f, &hx, &hy);
+              float gap = hy - tank_glass_top(hx); if (gap < top_min) top_min = gap;
+              if (f->sp_mode == SPM_GULP && f->sp_t > 1.18f) { surfaced++; if (first < 0) first = i * SP_DT; }
+              if (surfaced && f->sp_mode == SPM_NONE && f->air_s > 50) reset = true;
+          }
+      }
+      if (!surfaced || !reset || top_min > 25) SP_FAIL("the eels: %d gulps in 200 s (first at %.0f s), head %.0f px under the glass at best, air reset %d", surfaced, first, top_min, reset);
+      printf("species: eel        %d gulps of air in 200 s (the first at %.0f s, the head %.0f px from the glass), the timer reset\n", surfaced, first, top_min); }
+    { fish_t *f = &tank.fish[2]; f->sp_mode = SPM_NONE; f->air_s = 100;
+      sp_spook(f->x, fmaxf(f->y, tank_glass_top(f->x) + FEED_ZONE_Y + 10));
+      if (sp_tick()) return 1;
+      if (f->spark <= 0) SP_FAIL("a spooked eel made no spark"); }
+
+    /* the hammerhead: never below its floor of speed, mid-water; the small keep clear */
+    sp_tank(507, SP_SHARK);
+    tank_add_species_pair(&tank, SP_SEAHORSE);
+    { int near = 0, n = 0; float dmin = 1e9f, smin = 1e9f, ysum = 0; int ny = 0;
+      for (int i = 0; i < 240 / SP_DT; i++) {
+          if (sp_tick()) return 1;
+          if (i < 5 / SP_DT) continue;
+          for (int k = 2; k <= 3; k++) { smin = fminf(smin, tank.fish[k].speed); ysum += tank.fish[k].y; ny++; }
+          for (int a = 0; a < tank.n_fish; a++) {
+              if (SPECIES[tank.fish[a].species].big) continue;
+              for (int k = 2; k <= 3; k++) {
+                  float d = tank_dist(tank.fish[a].x, tank.fish[a].y, tank.fish[k].x, tank.fish[k].y);
+                  dmin = fminf(dmin, d); near += d < 30; n++;
+              }
+          }
+      }
+      float nearp = 100.0f * near / n, ymean = ysum / ny;
+      if (smin < SPECIES[SP_SHARK].min_speed - 0.01f) SP_FAIL("the hammerhead slowed to %.1f px/s (its floor %.0f)", smin, SPECIES[SP_SHARK].min_speed);
+      if (nearp > 5) SP_FAIL("a small one was within 30 px of a hammerhead %.1f%% of the time", nearp);
+      if (ymean < TANK_BOT * 0.2f || ymean > TANK_BOT * 0.8f) SP_FAIL("the hammerheads cruise at y %.0f on average", ymean);
+      printf("species: shark      never under %.1f px/s (floor %.0f), mean depth %.0f; small ones within 30 px %.1f%% of the time (closest %.0f)\n",
+             smin, SPECIES[SP_SHARK].min_speed, ymean, nearp, dmin); }
+
+    /* the crab: the ground, sideways, stop-and-go; claws up and a scuttle on a startle */
+    for (int s = SP_CRAB; s <= SP_LOBSTER; s++) {
+        sp_tank(508 + s, s);
+        tank.sd_unlocks |= SD_ITEM_CLUSTER; tank_cluster_place(&tank);   /* a rock to climb */
+        int on = 0, n = 0, stops = 0; bool moving = false; float hx = 0, vy = 0;
+        for (int i = 0; i < 180 / SP_DT; i++) {
+            float px = tank.fish[2].x, py = tank.fish[2].y;
+            if (sp_tick()) return 1;
+            for (int k = 2; k <= 3; k++) { on += sp_on_ground(&tank.fish[k], 2); n++; }
+            hx += fabsf(tank.fish[2].x - px); vy += fabsf(tank.fish[2].y - py);
+            float v = tank.fish[2].speed;
+            if (moving && v < 0.5f) { moving = false; stops++; } else if (v > 3) moving = true;
+        }
+        float onp = 100.0f * on / n;
+        if (onp < 97) SP_FAIL("the %s was on the ground %.0f%% of the time", SPECIES[s].name, onp);
+        if (hx < vy * (s == SP_CRAB ? 5 : 2)) SP_FAIL("the %s went %.0f px along and %.0f up and down", SPECIES[s].name, hx, vy);
+        if (s == SP_CRAB) {
+            if (stops < 30) SP_FAIL("the crab stopped only %d times in 3 min", stops);
+            fish_t *f = &tank.fish[2];
+            f->x = TANK_FX0 + TANK_FW * 0.55f; f->y = tank_ground_y(&tank, f->x) - tank_walk_off(f); f->speed = 0;   /* room to run */
+            float x0 = f->x;
+            sp_spook(f->x + 15, f->y - 10);
+            for (int i = 0; i < 0.5f / SP_DT; i++) if (sp_tick()) return 1;
+            float claws = f->puff, x05 = f->x;
+            for (int i = 0; i < 2.5f / SP_DT; i++) if (sp_tick()) return 1;
+            if (claws < 0.9f || fabsf(x05 - x0) > 5 || x0 - f->x < 50) SP_FAIL("the crab's startle: claws %.2f, %.0f px in the display, %.0f px away after", claws, x05 - x0, x0 - f->x);
+            printf("species: crab       on the ground %.0f%%, %.0f px along / %.0f up-down, %d stops in 3 min; claws %.2f, then %.0f px away\n", onp, hx, vy, stops, claws, x0 - f->x);
+        } else {
+            fish_t *f = &tank.fish[2];
+            f->x = TANK_FX0 + TANK_FW * 0.3f; f->y = tank_ground_y(&tank, f->x) - tank_walk_off(f); f->speed = 0;   /* room behind it */
+            float x0 = f->x, y0 = f->y, xmin = x0, ymin = y0;
+            sp_spook(f->x - 20, f->y - 10);                         /* it faces the tap, and flips away from it */
+            int face = f->facing; bool curled = false;
+            for (int i = 0; i < 1.2f / SP_DT; i++) {
+                if (sp_tick()) return 1;
+                curled |= f->jet > 0.5f && f->sp_mode == SPM_FLIP;
+                xmin = face > 0 ? fminf(xmin, f->x) : fmaxf(xmin, f->x); ymin = fminf(ymin, f->y);
+            }
+            float back = (xmin - x0) * face;
+            for (int i = 0; i < 4 / SP_DT; i++) if (sp_tick()) return 1;
+            if (face != -1 || back > -40 || !curled || !sp_on_ground(f, 2)) SP_FAIL("the lobster's flip: facing %d, %.0f px along its facing, curled %d, back on the ground %d", face, back, curled, sp_on_ground(f, 2));
+            printf("species: lobster    on the ground %.0f%%, %.0f px along / %.0f up-down; the tail-flip: %.0f px backward (rose %.0f px), then the floor again\n", onp, hx, vy, -back, y0 - ymin);
+        }
+    }
+
+    /* a non-fish pair's dance counts: seahorses rise together, hammerheads pass in lanes */
+    { const int pairs[3] = { SP_SEAHORSE, SP_SHARK, SP_CRAB };
+      for (int s = 0; s < 3; s++) {
+          sp_tank(520 + s, pairs[s]);
+          tank_veg_set(&tank, 0, 0.3f);
+          tank.court_a = 2; tank.court_b = 3; tank.courting = true; tank.spawning = true; tank.spawn_danced = 0;
+          for (int i = 0; i < 90 / SP_DT; i++) if (sp_tick()) return 1;
+          if (tank.spawn_danced < 20) SP_FAIL("a %s pair danced %.0f s of 90 at the nursery", SPECIES[pairs[s]].name, tank.spawn_danced);
+          printf("species: courtship  a %s pair danced %.0f s of 90\n", SPECIES[pairs[s]].name, tank.spawn_danced);
+      } }
+
+    /* everyone together, ten of them, a night's sleep and the wake */
+    sp_tank(530, SP_EEL);
+    tank_add_species_pair(&tank, SP_OCTOPUS); tank_add_species_pair(&tank, SP_CRAB); tank_add_species_pair(&tank, SP_SQUID);
+    if (tank.n_fish != 10) SP_FAIL("ten places, %d creatures", tank.n_fish);
+    for (int i = 0; i < 60 / SP_DT; i++) if (sp_tick()) return 1;
+    sp_spook(TANK_W * 0.5f, TANK_BOT * 0.6f);
+    for (int i = 0; i < 5 / SP_DT; i++) if (sp_tick()) return 1;
+    tank_tick_sleep(&tank, 6 * 3600);
+    for (int i = 0; i < 60 / SP_DT; i++) if (sp_tick()) return 1;
+    printf("species: ten creatures, a startle, a 6 h sleep and the wake: all inside the glass. selftest-species ok\n");
+    return 0;
+}
+
 int main(int argc, char **argv) {
     for (int a = 1; a < argc; a++)
         if (strcmp(argv[a], "--greedy") == 0) advisor_core_sample = false;
@@ -4375,6 +4671,7 @@ int main(int argc, char **argv) {
         if (strcmp(argv[a], "--selftest-sleep") == 0) return selftest_sleep();
         if (strcmp(argv[a], "--selftest-tend") == 0) return selftest_tend();
         if (strcmp(argv[a], "--selftest-update") == 0) return selftest_update();
+        if (strcmp(argv[a], "--selftest-species") == 0) return selftest_species();
         if (strcmp(argv[a], "--selftest-llm") == 0)
             return selftest_llm(a + 1 < argc ? atoi(argv[a + 1]) : 0);
     }
