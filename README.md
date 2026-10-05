@@ -152,7 +152,8 @@ or not, and at a quarter speed while the tank sleeps; a stage reached in
 the night is the morning's surprise.
 
 **Arrivals.** Take good care of the pair and the tank earns more fish, up to
-five, one at a time. Each arrival has conditions (trust, feedings, a fish
+ten creatures, one at a time (the gates get harder as the tank fills: more
+meals, more trust). Each arrival has conditions (trust, feedings, a fish
 grown up, a hold-approach) and the tank *tells* you when it's close: the two
 most trusting adults dive into the sea grass and circle low through it.
 Once every condition is met, the pair goes down into the grass within half
@@ -362,6 +363,21 @@ sells. You get 20% of the price back, the piece leaves the tank, and it is
 in the shop again at full price. The snail and the shrimp are not for
 sale; they are permanent residents.
 
+**New species.** Nine creatures join the classic fish, each a pair of
+juveniles in the shop, from the crabs (140) to the hammerheads (400):
+seahorses, octopuses, pufferfish, anglerfish, electric eels, hammerheads,
+squid, crabs and lobsters. Each comes in four designs, has its own
+temperament, and moves like the real animal: the seahorse holds the grass by
+its tail, the octopus takes the colour of its den, the pufferfish puffs up,
+the anglerfish's lure glows, the eel rises for air, the hammerhead never
+stops, the crab walks sideways. They breed within their kind: the best
+grown pair of one species courts and the fry is theirs, and now and then a
+classic pair's fry hatches as something else entirely, a surprise. A pair
+needs two free places in the tank (the shop says NO ROOM otherwise), and a
+species is for sale again once the last of it has been sold. The milestones
+page pages its rows past six; the card names the species and the design.
+The whole design is in [docs/species.md](docs/species.md).
+
 ![The shop](docs/media/sim-shop.png)
 ![Unlocking the snail](docs/media/sim-shop-modal.png)
 ![The sword plant and the snail on the glass, a +5 just earned](docs/media/sim-tank-shop.png)
@@ -514,7 +530,8 @@ algae, and stroke sideways through a bed to trim it. Keys: **F** feed at the
 mouse, **N** light, **A** auto light, **H** handle the tank (moving the
 mouse over the window counts too), **L** switch
 between the rule stub and the LLM brain, **U** overlays, **M** milestones,
-**4** the shop, **D** fifty sand dollars to try it, **W** the shrimp school
+**4** the shop, **D** fifty sand dollars to try it, **5** a pair of the
+next species (free, for a look), **W** the shrimp school
 (again adds one),
 **X** the reset prompt, **S** the first-run setup (or drops a birth's pages), **R** force an arrival
 (the birth flow opens), **Z** jump through seven
@@ -753,8 +770,12 @@ seven-minute prompt check before an overnight run is always worth it.
   updates over Wi-Fi with signed, per-board images, a sea urchin that keeps
   the grass down, a snail that cleans overnight, a sponge and scissors, and
   fish you can rename or sell
-- 🚧 Next: more to unlock: new fish species, more plants, corals, and more
-  tank maintenance critters
+- 🚧 Next: new species - seahorses, octopuses, pufferfish, anglerfish,
+  electric eels, hammerheads, squid, crabs and lobsters, in pairs from the
+  shop, breeding within their kind, up to ten creatures a tank
+  ([docs/species.md](docs/species.md))
+- 🚧 Next: more to unlock: more plants, corals, and more tank maintenance
+  critters
 - 🚧 Next: more achievements and milestones
 
 ## The video series

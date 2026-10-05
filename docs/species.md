@@ -18,6 +18,48 @@ creature's goal; the species decides how that goal is carried out.
 - **Breeding is within a species.** `pick_parents` picks a courting pair of
   the same species, so a tank of two species has two families.
 
+### The keeper's side (the shop, the birth flow, the pages)
+
+- **Prices** (`SD_PRICE_SP_*`): crabs 140, seahorses 200, pufferfish 220,
+  squid 240, lobsters 260, octopuses 300, anglerfish 320, electric eels 360,
+  hammerheads 400 - dearer the more exotic. The items are 7..15 in species
+  order (`SD_ITEM_SP_FIRST` + species - 1), on the shop's pages 2..4.
+- **The bit** of a species' item means "some of them are in the tank"
+  (`progression_species_sync`, run on load, after a sale, a birth and a
+  buy): it clears when the last one is sold, so the pair is for sale again,
+  and a surprise hatched in the tank sets it. No room for two: the row's
+  button and the modal say NO ROOM. Bought juveniles start at
+  STAGE_JUV_AGE and are not paid the juvenile stage's dollars.
+- **Which pair courts:** each species' two best (grown first, then trust,
+  as before), and of those pairs the one whose weaker parent ranks highest
+  (the classic fish on a tie). A tank without two of one kind lists no
+  NEW FRY row, never courts and has no arrival until a pair is bought.
+- **The gates past five** (`care_gates`): the five's three (the youngest
+  grown to adult, meals, trust) with the meals at 200 / 270 / 350 / 440 for
+  6 / 7 / 8 / 9 creatures and the trust bar at 9 from seven on.
+- **The birth flow:** "A NEW SEAHORSE!" (the species' name; "A NEW FRY!" for
+  the classic fish), "NAME THE NEW SEAHORSE"; a surprise (the fry's species
+  is not its parents') reads "A SURPRISE!" and "AS AN OCTOPUS!".
+- **The colour page** belongs to the first run's founding pair, always
+  classic fish. Should a species' creature ever be on it (a director's
+  tank), it offers that species' four designs (the body swatches are the
+  designs' bodies; a design brings its own markings) instead of LOOK_BODY.
+- **The milestones page** holds six rows a page (`MSP_FISH_ROWS`); with more
+  (ten creatures and the NEW FRY row) a chevron beside the rows - the TANK
+  row's arrow, a pip per page - or a sideways swipe across them turns the
+  page, and a card opened or stepped to brings its row's page. The TANK
+  row's population strip is two rows of five; its tally fits ten. A big
+  creature's row portrait is held to `MSP_ROW_SP_MAX`.
+- **The card** names a creature under its name in the 8 px font: "SEAHORSE -
+  GOLDEN", or the design first, or the token ("EEL - SPOTTED") when the
+  card is too narrow; the milestones card says "ADULT LOBSTER".
+- **A tap** reaches a creature by `tank_fish_hit_r`: its species' `hit_r` at
+  its size, never under `TANK_HIT_MIN_R` (32 px, a fingertip); the nearest
+  by its own reach wins (the sim and the touch port alike).
+- **The director:** `buy <species>` (token, name or the shop's plural),
+  `spawn <species>` (a staged pair, free), and `state` prints each
+  creature's species / design and a species count.
+
 ## The cap
 
 `N_FISH_MAX` is 10 (it was 6), on every board (`POP_CAP` 10; the device

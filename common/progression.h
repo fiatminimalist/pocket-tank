@@ -197,6 +197,19 @@ const char *const *progression_fry_tip(int kind);
 #define SD_PRICE_CLUSTER 240
 #define SD_PRICE_SHRIMP 180       /* 2026-09-29, Strato (first 300, then 180) */
 #define SD_PRICE_URCHIN 120       /* 2026-10-02: the grass's snail (the snail is 80, the grass pays 25 per 250 cm) */
+/* the species' pairs (2026-10-05, docs/species.md): a pair of juveniles each,
+ * dearer the more exotic - the crab a little over the castle, the hammerhead
+ * the dearest thing in the shop. A grown tank earns ~100-150 a day of care
+ * (meals, births, stages, chores), so a pair is days of saving, not hours. */
+#define SD_PRICE_SP_CRAB      140
+#define SD_PRICE_SP_SEAHORSE  200
+#define SD_PRICE_SP_PUFFER    220
+#define SD_PRICE_SP_SQUID     240
+#define SD_PRICE_SP_LOBSTER   260
+#define SD_PRICE_SP_OCTOPUS   300
+#define SD_PRICE_SP_ANGLER    320
+#define SD_PRICE_SP_EEL       360
+#define SD_PRICE_SP_SHARK     400
 typedef struct {
     uint32_t    bit;               /* SD_ITEM_* */
     const char *name;              /* <= 12 chars, the pixel font */
@@ -206,8 +219,21 @@ typedef struct {
 extern const sd_item_t SD_ITEMS[SD_ITEM_COUNT];
 /* the shop's sale: false when the balance is short or it is already owned;
  * true = unlocked, placed in the tank (tank_plant_place / tank_snail_place)
- * and saved at once */
+ * and saved at once. A species' pair (SD_ITEM_SP_*) also needs two free
+ * places (progression_has_room): the juveniles join by the reef, and the
+ * item's bit stands for "some of them are in the tank" (sync below). */
 bool progression_buy(tank_t *t, int item);
+/* the species behind a shop item (SD_ITEM_SP_*), or -1 for a thing */
+int  progression_item_species(int item);
+/* room for a pair: two more creatures under POP_CAP (and N_FISH_MAX) */
+bool progression_has_room(const tank_t *t);
+/* the species' bits follow the tank: set while any of a species lives here
+ * (bought, or a surprise hatched), cleared once none do - so the shop sells
+ * the pair again. Runs on load, after a sale, a birth and a buy. */
+void progression_species_sync(tank_t *t);
+/* director / tests: a species' pair from nowhere - no price, no shop bit
+ * asked (one already here may get company); false = no room. Saved. */
+bool progression_spawn_pair(tank_t *t, int species);
 /* the sale back (2026-09-24, Strato): a placeable piece sells for SD_SELL_PCT
  * of its price (the snail is a permanent resident), goes back to the shop at
  * full price and to its factory state; false = not owned or not for sale.
@@ -243,9 +269,12 @@ void progression_sd_grant(tank_t *t, int n);
 #define SD_EARN_LINES 6
 const char *const *progression_sd_earn_lines(void);
 
-/* population ceiling. Compile-time so the device can ship lower until its
- * advisor latency is measured (docs/progression-next.md): firmware passes
- * -DPOP_CAP=5, the sim shows all 6. Never above N_FISH_MAX. */
+/* population ceiling. Compile-time so a board can ship lower (the device
+ * shipped 5 until its advisor latency was measured, docs/progression-next.md).
+ * Since the species (2026-10-05) every board holds N_FISH_MAX = 10: each
+ * creature is a turn in the advisor's queue, ~3.7 s a decision on the
+ * device, so ten get a fresh decision every ~37 s (the reflex layer moves
+ * them in between). Never above N_FISH_MAX. */
 #ifndef POP_CAP
 #define POP_CAP N_FISH_MAX
 #endif

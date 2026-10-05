@@ -158,6 +158,20 @@ was before.
   read the default spot, AMONG. The snail is not placeable - it goes where
   the film is.
 - Dollars earned during play show as a small "+N" toast over the live tank.
+- **The species (2026-10-05, [species.md](species.md)).** Items 7..15
+  (`SD_ITEM_SP_*`, `SD_ITEM_SP_FIRST` + species - 1) are the nine new
+  creatures, a pair of juveniles each: crabs 140, seahorses 200, pufferfish
+  220, squid 240, lobsters 260, octopuses 300, anglerfish 320, electric eels
+  360, hammerheads 400 (`SD_PRICE_SP_*`) - days of saving for a grown tank.
+  `progression_buy` needs two free places (`progression_has_room`: n + 2 <=
+  POP_CAP) and adds them by the reef (`tank_add_species_pair`), as
+  juveniles: their clocks start at STAGE_JUV_AGE and the juvenile stage pay
+  is marked paid. The item's bit means "some of this species are in the
+  tank" (`progression_species_sync`, on load, after a sale, a birth and a
+  buy): the last one sold clears it and the pair is for sale again; a
+  surprise hatched in the tank sets it. The rows and the modal say NO ROOM
+  when the tank cannot take two more. Not placeable, not sold back as
+  things: a creature is sold from its card like a fish.
 
 ## IMU (motion)
 

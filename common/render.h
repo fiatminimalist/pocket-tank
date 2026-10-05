@@ -215,10 +215,16 @@ void render_milestones_show_fish(const tank_t *t, int fish);   /* put a fish's c
  * (false = none up) with the centres of RENAME and SELL; a point on a row's name */
 bool render_milestones_card(const tank_t *t, int *fish, int *rename_x, int *sell_x, int *btn_y);
 bool render_milestones_arrow(const tank_t *t, bool right, int *x, int *y);   /* the modal's left / right arrow (false = no modal up) */
-void render_milestones_row(int row, int *name_x, int *y);
+void render_milestones_row(int row, int *name_x, int *y);   /* (on its page: row % MSP_FISH_ROWS - turn to row / MSP_FISH_ROWS first) */
+/* the fish rows' pages (2026-10-05): more rows than MSP_FISH_ROWS (ten
+ * creatures and the NEW FRY row) page, by a chevron beside the rows or a
+ * sideways swipe across them. The page now, and the chevron (false = one page). */
+int  render_milestones_fish_page(void);
+bool render_milestones_pager(const tank_t *t, int *x, int *y);
 /* a sideways swipe on the milestones page (release - press dx): along the
  * TANK row, with more badges than one row holds, it turns the row's page
- * (2026-09-30). True = it did (or was a page swipe at the row's end);
+ * (2026-09-30); across the fish rows, with more rows than a page, theirs
+ * (2026-10-05). True = it did (or was a page swipe at the row's end);
  * false = not a page swipe. */
 bool render_milestones_swipe(const tank_t *t, float x, float y, float dx);
 void render_milestones_leave(void);

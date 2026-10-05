@@ -4,7 +4,7 @@
  * roll and this panel is 322 ppi); held > 300 ms = hold; a drag down from
  * the top edge = feed at that x; every touched frame streams to
  * tank_touch_drag (a moving stroke wipes algae; a horizontal slash through
- * a canopy trims it). Fish taps hit-test 38 px against the press-time fish
+ * a canopy trims it). Fish taps hit-test each creature's own reach (tank_fish_hit_r) against the press-time fish
  * snapshot AND the current position - fish move during a tap. While the stats
  * card is up, a tap anywhere on empty glass dismisses it (hunting the same
  * fish again to close it was the old, cumbersome way) and does nothing else.
@@ -595,16 +595,20 @@ void touch_port_poll(tank_t *t) {
                 ESP_LOGI(TAG, "card tap at %.0f,%.0f -> milestones", s_px, s_py);         under its MORE button) = milestones page */
                 s_ms = true; goto released;
             }
-            /* fish first; only an empty tap reaches the water. 38 px radius
-               (a fingertip on this 322 ppi panel covers ~60 px) against BOTH
-               the press-time snapshot and the current position - whichever is
-               closer - so a fish that moved mid-tap still registers. */
-            int best = -1; float bd = 38 * 38;
+            /* fish first; only an empty tap reaches the water. Each creature's
+               own reach (tank_fish_hit_r: its species' hit_r at its size, 38 px
+               for an adult classic fish, never under TANK_HIT_MIN_R - a
+               fingertip on this 322 ppi panel covers ~60 px; a hammerhead's is
+               ~90) against BOTH the press-time snapshot and the current
+               position - whichever is closer - so a fish that moved mid-tap
+               still registers. The nearest by its own reach wins. */
+            int best = -1; float bd = 1.0f;
             for (int i = 0; i < t->n_fish; i++) {
                 float ax = s_fx[i] - s_px, ay = s_fy[i] - s_py;
                 float bx = t->fish[i].x - s_px, by = t->fish[i].y - s_py;
                 float d2a = ax * ax + ay * ay, d2b = bx * bx + by * by;
-                float d2 = d2a < d2b ? d2a : d2b;
+                float r = tank_fish_hit_r(&t->fish[i]);
+                float d2 = (d2a < d2b ? d2a : d2b) / (r * r);
                 if (d2 < bd) { bd = d2; best = i; }
             }
             if (best >= 0) { s_sel = (best == s_sel) ? -1 : best; s_sel_us = now; }
@@ -626,7 +630,7 @@ void touch_port_poll(tank_t *t) {
             else tank_touch_tap(t, s_px, s_py);
         }
         else if (s_ms && !s_back && fabsf(dx) >= 40 && fabsf(dx) > 2 * fabsf(dy)) {   /* sideways along the TANK row: its page (2026-09-30) */
-            if (render_milestones_swipe(t, s_px, s_py, dx)) ESP_LOGI(TAG, "page swipe %.0f px on the tank row", dx);
+            if (render_milestones_swipe(t, s_px, s_py, dx)) ESP_LOGI(TAG, "page swipe %.0f px (the tank row or the fish rows)", dx);
         }
         else if (!s_ms && t->tool == TOOL_HAND && s_py - tank_glass_top(s_px) < 60 && dy >= 40) tank_feed(t, s_lx, 3);  /* drag down from the top = feed (not with a tool in hand) */
     }

@@ -10,10 +10,13 @@ idf_component_register(
     INCLUDE_DIRS "${COMMON}" "."
     PRIV_REQUIRES nvs_flash esp_driver_i2c
 )
-# POP_CAP: the device ships a 5-fish ceiling until advisor latency is measured on
-# hardware (docs/progression-next.md); the sim shows all 6. N_FISH_MAX stays 6.
-target_compile_options(${COMPONENT_LIB} PRIVATE -O2 -ffast-math -DPOP_CAP=5)
-target_compile_definitions(${COMPONENT_LIB} PUBLIC POP_CAP=5)
+# POP_CAP: the population ceiling, N_FISH_MAX = 10 on every board since the
+# species (2026-10-05, docs/species.md; the device shipped 5 until then). Each
+# creature is a turn in the advisor's queue: at ~3.7 s a decision on the
+# device, ten creatures each get a fresh decision every ~37 s (six: ~22 s);
+# the reflex layer keeps them moving in between, on older decisions.
+target_compile_options(${COMPONENT_LIB} PRIVATE -O2 -ffast-math -DPOP_CAP=10)
+target_compile_definitions(${COMPONENT_LIB} PUBLIC POP_CAP=10)
 # the world's shape is compiled in (common/tank.h): the bowl for the round board.
 # PUBLIC: every component that sees tank.h must see the same world.
 if(CONFIG_POCKET_TANK_ROUND)

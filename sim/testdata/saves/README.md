@@ -35,3 +35,4 @@ What is here:
 | `2026-09-29-1664-shrimp.sav` | the 1656 tank above, loaded and saved by the shrimp build: plus a school of 6 shrimp, 7 pellets toward the next, 321 s of cooldown |
 | `2026-09-29-1672-v0.2.0.sav` | the release save for **v0.2.0**: the shrimp tank above loaded and saved by the 0.2.0 build (release stamp 0x000200 at 1664) |
 | `2026-10-02-1688-urchin.sav` | the v0.2.0 save above grown to 1688 (built by hand from it: the watch's SCREEN byte 0, then the urchin tail): the urchin bought (unlock bit 6), at x 212, 4321.5 px of grass eaten |
+| `2026-10-05-2096-species.sav` | the species' ten (built by today's progression.c from the urchin save: one of its five fish sold, a pair of crabs and of lobsters bought, two lobster fry born, a crab renamed and re-designed): 4 fish, 2 crabs, 4 lobsters - the core says 6 (what an older build loads, as six classic fish), fish 7..10 in the tail from 1692; the tenth still owed its welcome |

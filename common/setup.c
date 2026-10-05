@@ -53,6 +53,21 @@ static int  place_y(void) { return s_item == 3 ? SETUP_PLACE_CORAL_Y : s_item ==
 static const char *fish_name(const tank_t *t, int i) { return i >= 0 && i < t->n_fish ? t->fish[i].name : "?"; }
 static void stage(tank_t *t);
 static void tidy_name(tank_t *t, int fish);
+/* the species' words (2026-10-05): what a creature is called on these pages
+   - "FRY" for the classic fish, else its species ("SEAHORSE") - with its article */
+static bool is_species(const fish_t *f) { return f->species > SP_FISH && f->species < SP_COUNT; }
+static const char *kind_word(const fish_t *f) { return is_species(f) ? SPECIES[f->species].name : "FRY"; }
+static const char *article(const char *w) { return strchr("AEIOU", w[0]) ? "AN" : "A"; }
+/* a surprise: hatched as a species its parents are not (SP_MUTATE_P) */
+static bool is_mutant(const tank_t *t, const fish_t *f) {
+    return f->parent_a >= 0 && f->parent_a < t->n_fish && t->fish[f->parent_a].species != f->species;
+}
+static void name_caption(char *out, size_t n, const tank_t *t) {
+    const fish_t *f = &t->fish[page_fish()];
+    if (s_rename) snprintf(out, n, is_species(f) ? "RENAME YOUR %s" : "RENAME YOUR FISH", kind_word(f));
+    else if (s_birth) snprintf(out, n, "NAME THE NEW %s", kind_word(f));
+    else snprintf(out, n, page_fish() == 0 ? "NAME THE FIRST FISH" : "NAME THE SECOND FISH");
+}
 
 void setup_begin(tank_t *t) {
     if (t->n_fish < 2) { progression_setup_done(t); s_active = false; return; }   /* nothing to name */
@@ -370,8 +385,14 @@ void setup_activate(tank_t *t, int id) {
         else if (id == SETUP_HIT_DOWN) spin(f, -1);
         return;
     }
-    if (page_is_look() && id >= SETUP_HIT_BODY0 && id < SETUP_HIT_BODY0 + LOOK_N)
-        tank_set_look(t, page_fish(), LOOK_BODY[id - SETUP_HIT_BODY0], 0);   /* the accent stays its secret */
+    if (page_is_look() && id >= SETUP_HIT_BODY0 && id < SETUP_HIT_BODY0 + LOOK_N) {
+        fish_t *lf = &t->fish[page_fish()];
+        if (is_species(lf)) {                           /* a species' creature: one of its four designs, whole */
+            int v = id - SETUP_HIT_BODY0;
+            if (v < SP_VARIANTS) { lf->variant = (uint8_t)v;
+                                   tank_set_look(t, page_fish(), SPECIES[lf->species].var[v].color, SPECIES[lf->species].var[v].accent); }
+        } else tank_set_look(t, page_fish(), LOOK_BODY[id - SETUP_HIT_BODY0], 0);   /* the accent stays its secret */
+    }
 }
 
 void setup_touch(tank_t *t, float x, float y, bool down) {
@@ -657,7 +678,8 @@ void render_setup(const tank_t *t, uint16_t *fb, int stride, float clock) {
         const fish_t *f = &t->fish[page_fish()];
         bool grid = s_kbd == SETUP_KBD_GRID;
         panel(fb, stride);
-        text_c(fb, stride, CX, SETUP_Y + (grid ? 12 : 7), 2, C_CAPT, s_rename ? "RENAME YOUR FISH" : s_birth ? "NAME THE NEW FRY" : page_fish() == 0 ? "NAME THE FIRST FISH" : "NAME THE SECOND FISH");
+        char ncap[40]; name_caption(ncap, sizeof ncap, t);
+        text_c(fb, stride, CX, SETUP_Y + (grid ? 12 : 7), 2, C_CAPT, ncap);
         if (grid) render_creature_preview(fb, stride, SETUP_X + 88, SETUP_Y + 72, 2.0f * 22 / fmaxf(22, render_species_half_len(f->species)),
                                           f->species, f->variant, f->color, f->fin, f->accent, clock);   /* an eel fits the box (2026-10-05) */
         const int SL = 22, NX = grid ? SETUP_X + 160 : CX - FISH_NAME_MAX * SL / 2 + 2, NY = grid ? SETUP_Y + 58 : SETUP_TOP_BTN_Y + (SETUP_BTN_H - 28) / 2;
@@ -695,7 +717,8 @@ void render_setup(const tank_t *t, uint16_t *fb, int stride, float clock) {
         const fish_t *f = &t->fish[page_fish()];
         fish_ring(fb, stride, f, render_fish_ring_r(f) + 6, f->color);
         render_rect_blend(fb, stride, -PAGE_X, SETUP_SLOT_Y - SETUP_ARROW_GAP - 2, TANK_W, SETUP_SLOT_H + 2 * SETUP_ARROW_GAP + 36, C_PANEL, 150);
-        text_c(fb, stride, CX, SETUP_Y + 7, 2, C_CAPT, s_rename ? "RENAME YOUR FISH" : s_birth ? "NAME THE NEW FRY" : page_fish() == 0 ? "NAME THE FIRST FISH" : "NAME THE SECOND FISH");
+        char ncap[40]; name_caption(ncap, sizeof ncap, t);
+        text_c(fb, stride, CX, SETUP_Y + 7, 2, C_CAPT, ncap);
         nav(fb, stride, true, s_rename ? "DONE" : "NEXT", s_rename);
         int n = name_len(f);
         if (s_slot > n) s_slot = n;
@@ -724,11 +747,17 @@ void render_setup(const tank_t *t, uint16_t *fb, int stride, float clock) {
         char cap[FISH_NAME_MAX + 16]; snprintf(cap, sizeof cap, "A COLOR FOR %s", f->name);
         text_c(fb, stride, CX, SETUP_Y + 7, 2, C_CAPT, cap);
         nav(fb, stride, true, "NEXT", false);
-        render_text(fb, stride, SETUP_SW_X + 2, SETUP_SW_Y - 20, 2, C_CAPT, "BODY");
-        for (int i = 0; i < SETUP_SW_N; i++) {
+        /* (a species' creature - never one of the founding pair today, but a
+           director's tank may stage one - picks among its species' four
+           designs instead: the body swatches are the designs' bodies, and a
+           design brings its own markings) */
+        bool sp = is_species(f);
+        render_text(fb, stride, SETUP_SW_X + 2, SETUP_SW_Y - 20, 2, C_CAPT, sp ? "DESIGN" : "BODY");
+        for (int i = 0; i < (sp ? SP_VARIANTS : SETUP_SW_N); i++) {
             int x = SETUP_SW_X + i * SETUP_SW_PX;
-            bool on = LOOK_BODY[i] == f->color;
-            render_rect(fb, stride, x, SETUP_SW_Y, SETUP_SW_W, SETUP_SW_H, LOOK_BODY[i]);
+            uint32_t body = sp ? SPECIES[f->species].var[i].color : LOOK_BODY[i];
+            bool on = sp ? f->variant == i : LOOK_BODY[i] == f->color;
+            render_rect(fb, stride, x, SETUP_SW_Y, SETUP_SW_W, SETUP_SW_H, body);
             render_rect_edge(fb, stride, x, SETUP_SW_Y, SETUP_SW_W, SETUP_SW_H, on ? C_TEXT : C_DIM);
             if (on) render_rect_edge(fb, stride, x + 1, SETUP_SW_Y + 1, SETUP_SW_W - 2, SETUP_SW_H - 2, C_TEXT);
         }
@@ -748,11 +777,19 @@ void render_setup(const tank_t *t, uint16_t *fb, int stride, float clock) {
         fish_ring(fb, stride, f, r, f->color);
         fish_ring(fb, stride, f, r + 8, C_EDGE);
         render_rect_blend(fb, stride, -PAGE_X, 92, TANK_W, 116, C_PANEL, 150);
-        text_c(fb, stride, CX, 104, 3, C_TEXT, "A NEW FRY!");
-        char l1[FISH_NAME_MAX * 2 + 24];
+        /* (2026-10-05) a species' newborn is named for what it is - "A NEW
+           SEAHORSE!" - and a surprise (a classic pair's fry hatched as a
+           species, SP_MUTATE_P) gets its own announcement */
+        char head[40], l1[FISH_NAME_MAX * 2 + 24], l2[40];
+        bool mutant = is_mutant(t, f);
+        if (mutant) snprintf(head, sizeof head, "A SURPRISE!");
+        else snprintf(head, sizeof head, "A NEW %s!", kind_word(f));
+        text_c(fb, stride, CX, 104, 3, C_TEXT, head);
         snprintf(l1, sizeof l1, "BORN TO %s AND %s", fish_name(t, f->parent_a), fish_name(t, f->parent_b));
         text_c(fb, stride, CX, 140, 2, C_CAPT, l1);
-        text_c(fb, stride, CX, 162, 2, C_CAPT, "DOWN IN THE GRASS.");
+        if (mutant) snprintf(l2, sizeof l2, "AS %s %s!", article(kind_word(f)), kind_word(f));
+        else snprintf(l2, sizeof l2, "DOWN IN THE GRASS.");
+        text_c(fb, stride, CX, 162, 2, C_CAPT, l2);
         text_c(fb, stride, CX, 184, 2, C_CAPT, "GO AND SAY HELLO.");
         render_button(fb, stride, SETUP_MID_X, SETUP_BTN_Y, SETUP_BTN_W, SETUP_BTN_H, C_GO, C_GO_E, "MEET IT", 2);
         dots(fb, stride, PAGE_H - 14);
