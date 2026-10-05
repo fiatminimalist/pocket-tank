@@ -9,7 +9,7 @@ picked the same goal as the teacher on fresh, never-trained-on situations
 
 | | Teacher | Student (ships) |
 |---|---|---|
-| Model | gemma4:26b | pocket-tank 14.3M (dim 384, 8 layers, 8 heads) |
+| Model | gemma4:26b | Aqua Pets 14.3M (dim 384, 8 layers, 8 heads) |
 | Parameters | ~26,000,000,000 | 14,300,000 (≈1,818× fewer) |
 | Size | ~18 GB (Q4_K_M) | 57 MB fp32 → 15.2 MB int8 → **7.56 MB 4-bit** (ships) |
 | Runs on | Mac Mini M4 Pro GPU | ESP32-S3 ($8–10 chip), from flash, no network |

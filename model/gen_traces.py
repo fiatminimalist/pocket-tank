@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Trace generator for the pocket-tank advisor model.
+"""Trace generator for the Aqua Pets advisor model.
 
 Runs a minimal headless tank sim, encodes per-fish state per schema.md (DRAFT),
 asks Ollama (gemma4:26b, structured output) for a goal, and appends

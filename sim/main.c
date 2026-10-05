@@ -4929,7 +4929,7 @@ int main(int argc, char **argv) {
     }
     progression_boot(&tank);               /* restore, or a new random pair */
     { uint32_t r = progression_loaded_release();
-      printf("pocket-tank v%s %s (build %s); the save was written by %s", PT_RELEASE, PT_RELEASE_STAGE, version_port_string(), r ? "" : "a build before release numbers (or there was none)\n");
+      printf("Aqua Pets v%s %s (build %s); the save was written by %s", PT_RELEASE, PT_RELEASE_STAGE, version_port_string(), r ? "" : "a build before release numbers (or there was none)\n");
       if (r) printf("v%d.%d.%d\n", (int)(r >> 16), (int)(r >> 8 & 255), (int)(r & 255)); }
     print_roster(&tank);
     notice_sync(&tank);                    /* nothing old gets announced */
@@ -4948,7 +4948,7 @@ int main(int argc, char **argv) {
     lv_init();
     lv_tick_set_cb(tick_cb);
     lv_display_t *disp = lv_sdl_window_create(TANK_W, TANK_H);
-    lv_sdl_window_set_title(disp, "pocket-tank sim 448x368");
+    lv_sdl_window_set_title(disp, "Aqua Pets sim 448x368");
 
     lv_draw_buf_init(&draw_buf, TANK_W, TANK_H, LV_COLOR_FORMAT_RGB565,
                      TANK_W * 2, canvas_buf, sizeof(canvas_buf));

@@ -1,4 +1,4 @@
-/* main.c — pocket-tank firmware entry (ESP32-S3).
+/* main.c — Aqua Pets firmware entry (ESP32-S3).
  *   core 0: tank reflex layer + render at 60 fps, frames to the display port
  *   core 1: LLM advisor (q4_model over the mmap'd flash model partition)
  * Boot: assert the PSRAM plan, mmap the model partition, start both loops.
@@ -78,7 +78,7 @@ static i2c_master_bus_handle_t board_i2c_bus(void) { return NULL; }
 extern const uint8_t tokenizer_bin_start[] asm("_binary_tokenizer_bin_start");
 extern const uint8_t tokenizer_bin_end[]   asm("_binary_tokenizer_bin_end");
 
-static const char *TAG = "pocket-tank";
+static const char *TAG = "aqua-pets";
 static tank_t tank;
 static uint16_t *fb[PLAN_FB_COUNT];
 static bool llm_ok = false;
@@ -842,7 +842,7 @@ void device_provision_request(void) {
 }
 
 void app_main(void) {
-    ESP_LOGI(TAG, "pocket-tank v%s %s (build %s) for %s boot%s", PT_RELEASE, PT_RELEASE_STAGE, version_port_string(), PT_BOARD,
+    ESP_LOGI(TAG, "Aqua Pets v%s %s (build %s) for %s boot%s", PT_RELEASE, PT_RELEASE_STAGE, version_port_string(), PT_BOARD,
              esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0 || esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT1 ? " (woken by button)" : "");
     gpio_config_t btn = { .pin_bit_mask = 1ULL << BTN_SLEEP, .mode = GPIO_MODE_INPUT,
                           .pull_up_en = GPIO_PULLUP_ENABLE };

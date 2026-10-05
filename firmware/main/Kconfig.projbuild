@@ -1,4 +1,4 @@
-menu "pocket-tank"
+menu "Aqua Pets"
     config POCKET_TANK_DISPLAY_SH8601
         bool "Drive the Waveshare 1.8in AMOLED (SH8601 / CO5300 over QSPI)"
         default n

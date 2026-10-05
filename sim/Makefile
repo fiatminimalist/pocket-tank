@@ -1,4 +1,4 @@
-# pocket-tank PC simulator (LVGL v9 + SDL2)
+# Aqua Pets PC simulator (LVGL v9 + SDL2)
 #
 # macOS: built as x86_64 by default because the Homebrew SDL2 here is the
 # Intel build (/usr/local); the sim runs fine under Rosetta. `make ARCH=` for

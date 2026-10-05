@@ -1,4 +1,6 @@
-# pocket-tank 🐟
+# Aqua Pets 🐟
+
+*Aqua Pets was called pocket-tank until 0.4. The repository, the download links, pocketank.com and the build's internal names (`CONFIG_POCKET_TANK_*`, `pocket_tank.bin`, the save) keep the old name, so tanks already out there keep updating and keep their saves.*
 
 **A tiny language model keeps a fish tank alive on an $8 chip.**
 The ESP32-S3 board, with screen and battery used in this project is actually around $35.
@@ -64,7 +66,7 @@ over Wi-Fi, so the cable is only for the first install.
 
 | | Teacher | Student (what ships) |
 |---|---|---|
-| Model | gemma4:26b | pocket-tank 14.3M (dim 384, 8 layers, 8 heads) |
+| Model | gemma4:26b | Aqua Pets 14.3M (dim 384, 8 layers, 8 heads) |
 | Parameters | ~26,000,000,000 | 14,300,000, about 1,818× fewer |
 | Size | ~18 GB (Q4_K_M) | 57 MB fp32 → **7.56 MB 4-bit** |
 | Vocabulary | ~262K tokens | **54 tokens** (a closed schema lexicon) |

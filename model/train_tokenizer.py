@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Word-level tokenizer for the pocket-tank advisor. Stdlib only.
+"""Word-level tokenizer for the Aqua Pets advisor. Stdlib only.
 
 The schema (schema.md, FROZEN v2) is a closed vocabulary of whitespace-delimited
 words, so one token per word is the natural encoding: a v2 state line is ~44

@@ -1,6 +1,6 @@
 # Audio — requirements (draft, 2026-09-15)
 
-Beeps and boops for the pocket tank: keeper feedback (a tap landed, food
+Beeps and boops for Aqua Pets: keeper feedback (a tap landed, food
 dropped, the light flipped) and a few fish moments (a pellet eaten, a spook,
 a birth). Sounds are feedback, never behavior: the advisor still owns every
 decision and no sound ever changes what a fish does.

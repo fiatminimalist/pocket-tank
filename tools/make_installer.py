@@ -77,7 +77,7 @@ DIALOG_EDITS = [
     ('this._isSameVersion?s`', 1, '!1?s`'),
     # connecting to a board: the dialog gave it 1.5 s to answer Improv, and the connect RESETS the
     # board - a tank answers ~0.7 s after the reset, but when the reset lands late the tank showed
-    # as an unknown device ("Install Pocket Tank" on a tank that has it). 4 s; the dialog asks
+    # as an unknown device ("Install Aqua Pets" on a tank that has it). 4 s; the dialog asks
     # again every second inside it. A board without Improv waits those 4 s once, at connect.
     (':1e4:1500;this._info=await t.initialize(i)', 1, ':1e4:4e3;this._info=await t.initialize(i)'),
     # the Wi-Fi form says what Wi-Fi is for, and what the tank does not do with it (Strato, 2026-10-04)
@@ -273,7 +273,7 @@ def main():
         build = {"chipFamily": "ESP32-S3",
                  "parts": [{"path": f"firmware/{pub}", "offset": off} for off, pub, _ in board_files[b]]}
         manifest = {
-            "name": "Pocket Tank",
+            "name": "Aqua Pets",
             "version": a.version or release_version(build_of_image(next(src for _, _, src in board_files[b] if os.path.basename(src) == "pocket_tank.bin"))),
             "built": date,                       # read by the page (ESP Web Tools ignores extra keys)
             "board": b, "board_name": name_of(b),
@@ -284,7 +284,7 @@ def main():
         }
         stem = "manifest" if b == "amoled18" else f"manifest-{b}"
         json.dump(manifest, open(os.path.join(out, f"{stem}.json"), "w"), indent=2)
-        erase = dict(manifest, name="Pocket Tank (fresh)", new_install_prompt_erase=True)
+        erase = dict(manifest, name="Aqua Pets (fresh)", new_install_prompt_erase=True)
         del erase["never_erase"]                 # the "start over" button: the dialog asks, checkbox off by default
         json.dump(erase, open(os.path.join(out, f"{stem}-erase.json"), "w"), indent=2)
         page_boards.append({"id": b, "name": name_of(b),

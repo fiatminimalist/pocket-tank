@@ -66,7 +66,7 @@ def main():
     t_teacher = time.time() - t0
     print(f"  answer: {BOLD}{goal}{END}   {DIM}({t_teacher*1000:.0f} ms){END}\n")
 
-    print(f"{YELLOW}{BOLD}STUDENT{END}{YELLOW}  pocket-tank — 14M parameters, {student_mb:.0f} MB, runs on a $10 microcontroller{END}")
+    print(f"{YELLOW}{BOLD}STUDENT{END}{YELLOW}  Aqua Pets — 14M parameters, {student_mb:.0f} MB, runs on a $10 microcontroller{END}")
     t0 = time.time()
     out = subprocess.run([run_bin, model_bin, "-z", tok_bin, "-t", "0",
                           "-i", args.state + " ->"],

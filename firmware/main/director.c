@@ -725,7 +725,7 @@ static void improv_handle(void) {
         /* the version is the installer manifest's own string (make_installer.py release_version:
            "v0.3.0 alpha (build 1a2b3c4)"): the page hides its update item when the two are equal */
         char ver[48]; snprintf(ver, sizeof ver, "v" PT_RELEASE " " PT_RELEASE_STAGE " (build %s)", version_port_string());
-        const char *info[4] = { "Pocket Tank", ver, "esp32-s3", "Pocket Tank" };
+        const char *info[4] = { "Aqua Pets", ver, "esp32-s3", "Aqua Pets" };
         improv_result(3, info, 4);
     } else if (cmd == 4) {
         if (s_imp_radio) s_imp_form = true;
@@ -785,7 +785,7 @@ static bool improv_feed(uint8_t ch) {
      * board and its first ask can arrive with its tail lost in the reset; the old parser then read
      * the next packet's bytes as the rest of the first - a length byte out of the letters, tens of
      * bytes "still to come" - and swallowed every ask that followed: the page saw no tank ("Install
-     * Pocket Tank" on a tank that has it, about one connect in three). So: a header seen INSIDE a
+     * Aqua Pets" on a tank that has it, about one connect in three). So: a header seen INSIDE a
      * packet starts a new packet; a packet not finished in IMPROV_STALE_US is dropped; and a packet
      * that fails its checksum is dropped in silence (an error packet makes the page give up at once). */
     static int64_t t_in; static int inner;

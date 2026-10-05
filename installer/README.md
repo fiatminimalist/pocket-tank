@@ -117,7 +117,7 @@ as a folder next to WordPress, e.g. `public_html/pocket-tank/`, and link
 WordPress, so themes, caching and security plugins don't touch it. Things to
 check once:
 
-- Open the page, the button must say *Install Pocket Tank*, not the red
+- Open the page, the button must say *Install Aqua Pets*, not the red
   unsupported text. If it never appears, Cloudflare's Rocket Loader is
   rewriting the module script: exclude `/pocket-tank/*` from it (a
   Configuration Rule), or turn it off.
@@ -139,7 +139,7 @@ while the binaries stay on GitHub.
 ## What the user sees
 
 Click → the browser's port picker (`USB JTAG/serial debug unit`) → *Install
-Pocket Tank* → "Do you want to install Pocket Tank <version>?" → a progress
+Aqua Pets* → "Do you want to install Aqua Pets <version>?" → a progress
 bar over the four parts → *Installation complete*, and the board resets into
 the tank: fresh on a blank board, the same tank on one that had it. The
 "start over" button adds the erase question (tick *Erase device*). The page's
