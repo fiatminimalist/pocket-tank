@@ -3864,7 +3864,7 @@ static void ms_school(const tank_t *t, uint16_t *fb, int stride, int X, int Y, i
         float cy = Y + 50 + (pitch < MSP_SCHOOL_PITCH ? (i & 1 ? 9 : -9) : 0);
         if (i < t->n_fish) {
             float sz = t->fish[i].size * MSP_SCHOOL_SCALE * k, mx = MSP_SCHOOL_MAX * k;
-            render_fish_portrait(fb, stride, cx, cy, sz > mx ? mx : sz, &t->fish[i], t->clock + i * 0.9f);   /* species preview: render agent */
+            render_fish_portrait(fb, stride, cx, cy, sz > mx ? mx : sz, &t->fish[i], t->clock + i * 0.9f);
         } else render_fish_preview(fb, stride, cx, cy, 0.9f * MSP_SCHOOL_SCALE * k, MSP_DIM, MSP_DIM, MSP_DIM, t->clock + i * 0.9f);
     }
 }
