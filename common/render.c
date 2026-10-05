@@ -140,16 +140,20 @@ static float ell_half(float t) {
     if (t < 0) t = -t;
     return t >= 1 ? 0 : lut[(int)(t * 64 + 0.5f)];
 }
-static void fill_ellipse(ctx_t *c, float cx, float cy, float rx, float ry,
-                         uint32_t rgb, int alpha) {
-    src_t s = src_color(rgb, c->dim);
+static void fill_ellipse_s(ctx_t *c, float cx, float cy, float rx, float ry,
+                           const src_t *s, int alpha) {
     int y0 = (int)(cy - ry), y1 = (int)(cy + ry);
     for (int y = y0; y <= y1; y++) {
         float w = ell_half((y - cy) / ry);
         if (w <= 0) continue;
         float half = rx * w;
-        span(c, (int)(cx - half), (int)(cx + half), y, &s, alpha);
+        span(c, (int)(cx - half), (int)(cx + half), y, s, alpha);
     }
+}
+static void fill_ellipse(ctx_t *c, float cx, float cy, float rx, float ry,
+                         uint32_t rgb, int alpha) {
+    src_t s = src_color(rgb, c->dim);
+    fill_ellipse_s(c, cx, cy, rx, ry, &s, alpha);
 }
 
 /* sine from a 256-entry table: the frond sway only has to look continuous,
@@ -162,10 +166,9 @@ static float fast_sin(float x) {
 }
 
 /* filled convex polygon, points in world space */
-static void fill_poly(ctx_t *c, const float *xs, const float *ys, int n, uint32_t rgb) {
+static void fill_poly_s(ctx_t *c, const float *xs, const float *ys, int n, const src_t *s, int alpha) {
     float miny = 1e9f, maxy = -1e9f;
     for (int i = 0; i < n; i++) { if (ys[i] < miny) miny = ys[i]; if (ys[i] > maxy) maxy = ys[i]; }
-    src_t s = src_color(rgb, c->dim);
     for (int y = (int)miny; y <= (int)maxy; y++) {
         float x0 = 1e9f, x1 = -1e9f;
         for (int i = 0; i < n; i++) {
@@ -177,8 +180,12 @@ static void fill_poly(ctx_t *c, const float *xs, const float *ys, int n, uint32_
                 if (x > x1) x1 = x;
             }
         }
-        span(c, (int)x0, (int)x1, y, &s, 255);
+        if (x0 <= x1) span(c, (int)x0, (int)x1, y, s, alpha);
     }
+}
+static void fill_poly(ctx_t *c, const float *xs, const float *ys, int n, uint32_t rgb) {
+    src_t s = src_color(rgb, c->dim);
+    fill_poly_s(c, xs, ys, n, &s, 255);
 }
 
 static uint32_t mix(uint32_t a, uint32_t b, float p) {
@@ -214,7 +221,9 @@ static float yaw_at(float yh, float yt, float lx) {
  *   elder -> a longer tail and a dorsal crest. All procedural, zero flash. */
 /* `mark` scales the accent stripes: 1 in the tank (every stage wears the
  * same 2 x 5 px marks), the preview's size so they read on a big fish */
+static void draw_creature(ctx_t *c, const fish_t *f, float clock, bool asleep);   /* the species, below */
 static void draw_fish_core(ctx_t *c, const fish_t *f, float clock, bool asleep, float mark) {
+    if (f->species != SP_FISH) { draw_creature(c, f, clock, asleep); return; }
     float tail = sinf(clock * (8 + f->speed * 0.055f) + f->wander) *
                  (0.32f + f->speed * 0.007f);
     float stress = f->stress / 10.0f;
@@ -283,9 +292,880 @@ static void draw_fish_core(ctx_t *c, const fish_t *f, float clock, bool asleep, 
 #undef TX
 #undef TY
 }
+
+/* ---- the species (2026-10-05, docs/species.md) ----
+ * Nine creatures besides the classic fish, each procedural like it and
+ * drawn through the same span / poly / ellipse calls, so the dirty mask and
+ * the fish's bounding box (render_tank's DYN_RECT) take in every pixel - an
+ * eel's whole length, a lure's halo, an ink cloud. Local coordinates as the
+ * fish's: +x the way it faces, y down, 1 unit = 1 px at size 1; the yaw
+ * foreshortens x (a negative yaw mirrors) and the head's yaw blends into the
+ * tail's along the body, so a long creature bends through its turn. Depth
+ * (z, across the glass) is shown obliquely - a hammer's span, a squid's fins
+ * - and swings into x as the creature turns head-on.
+ * The colours are the fish's own (f->color / fin / accent: a design's, or
+ * a parent's), the design's PATTERN is f->variant. The live state (puff,
+ * ink, jet, camo, lure, spark) is drawn as tank.c leaves it; only the clock
+ * animates here. Cost: no per-pixel trig - the sines come from fast_sin's
+ * table, once per part (the urchin and the snail measured per-pixel trig at
+ * 1.8-4.5 ms a frame on the ESP32-S3). */
+typedef struct {
+    ctx_t *c; const fish_t *f;
+    float x, y, s;                /* where, and its size */
+    float cp, sp;                 /* the body's pitch */
+    float yh, yt, l0, il;         /* head / tail yaw, blended over lx in [l0, l0 + 1/il] */
+    float zq;                     /* how much of the depth axis shows across the glass (0 side-on) */
+    float t;                      /* the clock */
+    bool  asleep, marked;         /* marked: a juvenile or older wears its design's pattern */
+    float fade;                   /* the pattern's strength (the octopus's camouflage fades it) */
+    uint32_t body, fin, acc;
+} sk_t;
+static float g_u16c[16], g_u16s[16];          /* 16 directions round a circle */
+static void sk_dirs(void) {
+    static bool filled; if (filled) return;
+    for (int i = 0; i < 16; i++) { g_u16c[i] = cosf(i * (TAU / 16)); g_u16s[i] = sinf(i * (TAU / 16)); }
+    filled = true;
+}
+static inline float fast_cos(float x) { return fast_sin(x + TAU * 0.25f); }
+static inline float clamp01(float v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+static inline float sk_yaw(const sk_t *k, float lx) {
+    float u = clamp01((lx - k->l0) * k->il), s = k->yt + (k->yh - k->yt) * u;
+    if (s > -YAW_MIN && s < YAW_MIN) s = s < 0 ? -YAW_MIN : YAW_MIN;
+    return s;
+}
+static inline void sk_pt(const sk_t *k, float lx, float ly, float *X, float *Y) {
+    *X = k->x + sk_yaw(k, lx) * (lx * k->cp - ly * k->sp) * k->s;
+    *Y = k->y + (lx * k->sp + ly * k->cp) * k->s;
+}
+/* a point off the side plane: z shows obliquely (obl px of y a unit), and as x once head-on */
+static inline void sk_pt3(const sk_t *k, float lx, float ly, float lz, float obl, float *X, float *Y) {
+    sk_pt(k, lx, ly + lz * obl, X, Y);
+    *X += k->zq * lz * k->s;
+}
+static void sk_poly(const sk_t *k, const float *lx, const float *ly, int n, uint32_t rgb, int a) {
+    float xs[16], ys[16];
+    for (int i = 0; i < n; i++) sk_pt(k, lx[i], ly[i], &xs[i], &ys[i]);
+    src_t s = src_color(rgb, k->c->dim);
+    fill_poly_s(k->c, xs, ys, n, &s, a);
+}
+static void sk_tri(const sk_t *k, float x0, float y0, float x1, float y1, float x2, float y2, uint32_t rgb, int a) {
+    float lx[3] = { x0, x1, x2 }, ly[3] = { y0, y1, y2 };
+    sk_poly(k, lx, ly, 3, rgb, a);
+}
+/* an ellipse at a body point; `flank` ones are painted on the side, so they
+   narrow with the yaw and fade as the creature comes head-on (as the fish's stripes) */
+static void sk_dot_s(const sk_t *k, float lx, float ly, float rx, float ry, const src_t *s, int a, bool flank) {
+    float X, Y; sk_pt(k, lx, ly, &X, &Y);
+    float w = 1;
+    if (flank) {
+        w = fabsf(sk_yaw(k, lx));
+        if (w <= 0.25f) return;
+        a = (int)(a * (w - 0.25f) * (1 / 0.75f));
+    }
+    rx *= k->s * w; ry *= k->s;
+    if (rx < 0.5f) rx = 0.5f;
+    if (ry < 0.5f) ry = 0.5f;
+    if (a > 0) fill_ellipse_s(k->c, X, Y, rx, ry, s, a);
+}
+static void sk_dot(const sk_t *k, float lx, float ly, float rx, float ry, uint32_t rgb, int a, bool flank) {
+    src_t s = src_color(rgb, k->c->dim);
+    sk_dot_s(k, lx, ly, rx, ry, &s, a, flank);
+}
+/* a pattern mark: a juvenile or older only, at the pattern's strength */
+static void sk_mark(const sk_t *k, float lx, float ly, float rx, float ry, uint32_t rgb, int a) {
+    if (k->marked) sk_dot(k, lx, ly, rx, ry, rgb, (int)(a * k->fade), true);
+}
+/* a tube through screen points (arms, tails, an eel's body): a quad a
+   segment, mitred at the joints so neighbours share an edge (no disc a
+   joint to fill the wedges - those were most of an eel's cost), round caps
+   at the ends; a sharp joint (a crab's knee) gets its own disc instead.
+   Two sqrts a point, nothing per pixel. Radii in px. */
+#define SK_TUBE_MAX 20
+static void tube_s(ctx_t *c, const float *X, const float *Y, const float *R, int n, const src_t *s, int a) {
+    if (n < 2 || n > SK_TUBE_MAX) return;
+    float dx[SK_TUBE_MAX], dy[SK_TUBE_MAX];                   /* each segment's unit direction */
+    for (int i = 0; i + 1 < n; i++) {
+        float ex = X[i + 1] - X[i], ey = Y[i + 1] - Y[i], l = sqrtf(ex * ex + ey * ey);
+        if (l < 0.05f) { dx[i] = i ? dx[i - 1] : 1; dy[i] = i ? dy[i - 1] : 0; continue; }
+        dx[i] = ex / l; dy[i] = ey / l;
+    }
+    float nxa = -dy[0], nya = dx[0];                          /* the normal where this segment starts */
+    for (int i = 0; i + 1 < n; i++) {
+        float nxb = -dy[i], nyb = dx[i];                      /* ... and where it ends: mitred, or its own at a sharp joint */
+        bool sharp = false;
+        if (i + 2 < n) {
+            float cs = dx[i] * dx[i + 1] + dy[i] * dy[i + 1];
+            if (cs > 0.6f) {
+                float mx = dx[i] + dx[i + 1], my = dy[i] + dy[i + 1];
+                float k = 1.0f / (mx * dx[i] + my * dy[i]);  /* the mitre: 1 / cos(half the bend), over |m| */
+                nxb = -my * k; nyb = mx * k;
+            } else sharp = true;
+        }
+        float xs[4] = { X[i] + nxa * R[i], X[i + 1] + nxb * R[i + 1], X[i + 1] - nxb * R[i + 1], X[i] - nxa * R[i] };
+        float ys[4] = { Y[i] + nya * R[i], Y[i + 1] + nyb * R[i + 1], Y[i + 1] - nyb * R[i + 1], Y[i] - nya * R[i] };
+        fill_poly_s(c, xs, ys, 4, s, a);
+        if (sharp && R[i + 1] >= 0.9f) fill_ellipse_s(c, X[i + 1], Y[i + 1], R[i + 1], R[i + 1], s, a);
+        if (sharp) { nxa = -dy[i + 1]; nya = dx[i + 1]; } else { nxa = nxb; nya = nyb; }
+    }
+    if (R[0] >= 0.9f) fill_ellipse_s(c, X[0], Y[0], R[0], R[0], s, a);
+    if (R[n - 1] >= 0.9f) fill_ellipse_s(c, X[n - 1], Y[n - 1], R[n - 1], R[n - 1], s, a);
+}
+static void sk_tube(const sk_t *k, const float *lx, const float *ly, const float *r, int n, uint32_t rgb) {
+    float X[SK_TUBE_MAX], Y[SK_TUBE_MAX], R[SK_TUBE_MAX];
+    for (int i = 0; i < n; i++) { sk_pt(k, lx[i], ly[i], &X[i], &Y[i]); R[i] = r[i] * k->s; if (R[i] < 0.5f) R[i] = 0.5f; }
+    src_t s = src_color(rgb, k->c->dim);
+    tube_s(k->c, X, Y, R, n, &s, 255);
+}
+static void sk_line(const sk_t *k, float x0, float y0, float x1, float y1, float r0, float r1, uint32_t rgb) {
+    float lx[2] = { x0, x1 }, ly[2] = { y0, y1 }, r[2] = { r0, r1 };
+    sk_tube(k, lx, ly, r, 2, rgb);
+}
+/* the eye: white, a pupil looking ahead; asleep, a lid line. `dark`: an
+   all-dark eye with a glint (sharks, crabs, lobsters, the eel) */
+static void sk_eye(const sk_t *k, float lx, float ly, float r, bool dark) {
+    float X, Y; sk_pt(k, lx, ly, &X, &Y);
+    float R = r * k->s; if (R < 1.3f) R = 1.3f;
+    if (k->asleep) { fill_ellipse(k->c, X, Y, R, R * 0.32f + 0.4f, 0x9fb4b8, 200); return; }
+    float dir = sk_yaw(k, lx) < 0 ? -1 : 1;
+    if (dark) {
+        fill_ellipse(k->c, X, Y, R, R, 0x05080a, 255);
+        fill_ellipse(k->c, X + dir * R * 0.3f, Y - R * 0.35f, R * 0.35f, R * 0.35f, 0xffffff, 200);
+        return;
+    }
+    fill_ellipse(k->c, X, Y, R, R, 0xffffff, 255);
+    fill_ellipse(k->c, X + dir * R * 0.3f, Y, R * 0.55f, R * 0.55f, 0x031015, 255);
+}
+/* the frame: position, size, the tints the classic fish wears (stress
+   reddens, hunger washes out), the pitch from its heading - eased toward
+   pmax as the fish's is, and `level`ed toward 0 at rest. A creature that
+   swims BACKWARD (a squid mantle-first, an eel in reverse) tilts the other
+   way: its tail end leads the climb. */
+static void sk_setup(sk_t *k, ctx_t *c, const fish_t *f, float clock, bool asleep, float l0, float l1, float pmax, float level) {
+    sk_dirs();
+    k->c = c; k->f = f; k->x = f->x; k->y = f->y; k->s = f->size; k->t = clock; k->asleep = asleep;
+    k->marked = f->stage >= STAGE_JUV; k->fade = 1;
+    k->yh = yaw_ease(f->yaw); k->yt = yaw_ease(f->yaw_tail);
+    k->l0 = l0; k->il = 1.0f / (l1 - l0);
+    k->zq = sqrtf(fmaxf(0, 1 - k->yh * k->yh));
+    float p = 0;
+    if (pmax > 0) {
+        float ch = cosf(f->heading), sh = sinf(f->heading);
+        float dir = ch * f->yaw < 0 ? -1.0f : 1.0f;
+        p = pmax * tanhf(0.8f * atan2f(sh * dir, fabsf(ch)) / pmax) * level;
+    }
+    k->cp = cosf(p); k->sp = sinf(p);
+    float stress = f->stress / 10.0f;
+    float pale = f->hunger > 7 ? (f->hunger - 7) / 3.0f * 0.35f : 0;
+    k->body = mix(mix(f->color, 0xf25b65, stress * 0.22f), 0x7a8a8e, pale);
+    k->fin  = mix(mix(f->fin, 0xf25b65, stress * 0.18f), 0x5a6a6e, pale);
+    k->acc  = f->accent;
+}
+static inline void sk_lean(sk_t *k, float p) { k->cp = cosf(p); k->sp = sinf(p); }
+
+/* ink (octopus, squid): a dark cloud left where the startle was, swelling
+   and thinning over the seconds f->ink counts down. Where it was is kept
+   here, a slot each (render_tank's fish index); a preview's cloud trails
+   behind it. */
+static int g_sp_slot = -1;                     /* the tank slot being drawn (-1: a preview) */
+typedef struct { float x, y, ink0, last; } ink_mem_t;
+static ink_mem_t g_ink[N_FISH_MAX];
+static void draw_ink(const sk_t *k) {
+    const fish_t *f = k->f;
+    float ox, oy, ink0;
+    if (g_sp_slot >= 0 && g_sp_slot < N_FISH_MAX) {
+        ink_mem_t *g = &g_ink[g_sp_slot];
+        if (f->ink <= 0) { g->ink0 = g->last = 0; return; }
+        if (g->ink0 <= 0 || f->ink > g->last + 0.05f) { g->x = f->x; g->y = f->y; g->ink0 = f->ink; }
+        if (f->ink > g->ink0) g->ink0 = f->ink;
+        g->last = f->ink; ox = g->x; oy = g->y; ink0 = g->ink0;
+    } else {
+        if (f->ink <= 0) return;
+        float dir = f->yaw < 0 ? -1.0f : 1.0f;
+        ox = f->x + dir * 14 * k->s; oy = f->y; ink0 = 3.0f;   /* a preview: behind the mantle, half spent */
+    }
+    float u = clamp01(1 - f->ink / (ink0 > 2.5f ? ink0 : 2.5f));
+    float R = (8 + 20 * u) * k->s, a = 190 * (1 - u) + 10;
+    oy -= 5 * u * k->s;                         /* it rises a little as it spreads */
+    src_t dk = src_color(0x140c18, k->c->dim), mid = src_color(0x2a1e2c, k->c->dim);
+    static const float BX[5] = { 0, -0.5f, 0.55f, -0.2f, 0.3f }, BY[5] = { 0, -0.35f, -0.25f, 0.4f, 0.3f }, BR[5] = { 0.75f, 0.55f, 0.6f, 0.5f, 0.45f };
+    fill_ellipse_s(k->c, ox, oy, R, R * 0.8f, &mid, (int)(a * 0.35f));
+    for (int i = 0; i < 5; i++)
+        fill_ellipse_s(k->c, ox + BX[i] * R, oy + BY[i] * R, BR[i] * R, BR[i] * R * 0.85f, &dk, (int)(a * 0.5f));
+}
+
+/* ---- seahorse: upright, the snout a tube, the coronet, a pot belly
+   ringed with plates, a prehensile tail curled under, and the little dorsal
+   fan that is its whole engine. Leans into its slow swim. ---- */
+static void draw_seahorse(sk_t *k) {
+    const fish_t *f = k->f; float t = k->t; int v = f->variant & 3;
+    sk_lean(k, 0.24f * clamp01(f->speed / 25));
+    /* the dorsal fan, fluttering */
+    {
+        float ph = t * 24 + f->jet, amp = 0.8f + 0.9f * clamp01(f->speed / 10);
+        float lx[5] = { -4.4f, -7.6f + amp * fast_sin(ph), -8.6f + amp * fast_sin(ph + 1.4f), -7.8f + amp * fast_sin(ph + 2.8f), -4.6f };
+        float ly[5] = { -2.0f, -1.2f, 1.8f, 4.6f, 5.2f };
+        sk_poly(k, lx, ly, 5, mix(k->fin, 0xffffff, 0.3f), 140);
+    }
+    /* the tail, curling forward under the belly */
+    static const float TLX[10] = { -1.5f, -2.6f, -2.9f, -2.1f, 0.0f, 3.0f, 5.2f, 5.3f, 3.6f, 2.3f };
+    static const float TLY[10] = { 6.0f, 10.0f, 14.0f, 17.5f, 20.0f, 21.0f, 19.5f, 17.0f, 16.0f, 17.2f };
+    static const float TLR[10] = { 3.4f, 2.8f, 2.3f, 1.9f, 1.6f, 1.4f, 1.2f, 1.05f, 0.9f, 0.8f };
+    float tlx[10], sw = 0.9f * fast_sin(t * 1.3f + f->wander);
+    for (int i = 0; i < 10; i++) tlx[i] = TLX[i] + sw * i * (1 / 9.0f);
+    sk_tube(k, tlx, TLY, TLR, 10, k->body);
+    for (int i = 1; i < 6; i++) sk_dot(k, tlx[i], TLY[i], TLR[i] * 0.9f, 0.35f, k->fin, 120, true);   /* its rings */
+    /* the trunk: a pot belly */
+    {
+        static const float lx[9] = { 2.5f, 5.0f, 5.6f, 3.6f, 0.0f, -3.6f, -5.0f, -5.0f, -3.5f };
+        static const float ly[9] = { -9.0f, -4.0f, 2.0f, 7.0f, 8.6f, 6.0f, 2.0f, -4.0f, -9.0f };
+        sk_poly(k, lx, ly, 9, k->body, 255);
+        float X, Y; sk_pt(k, 0, 0, &X, &Y);    /* its depth, turned toward the glass */
+        if (k->zq * 4.5f * k->s >= 1) fill_ellipse(k->c, X, Y, k->zq * 4.5f * k->s, 8 * k->s, k->body, 255);
+    }
+    sk_line(k, -0.5f, -8, 0.8f, -12.5f, 3.4f, 3.0f, k->body);                   /* the neck */
+    sk_dot(k, 1.2f, -14.5f, 4.0f, 3.5f, k->body, 255, false);                  /* the head */
+    sk_line(k, 4, -14.6f, 10.5f, -13.6f, 1.7f, 1.15f, k->body);                 /* the snout */
+    sk_dot(k, 11, -13.6f, 1.2f, 1.45f, k->body, 255, false);
+    sk_tri(k, -1.4f, -17.0f, 0.0f, -20.8f, 1.5f, -17.6f, k->fin, 255);          /* the coronet */
+    sk_tri(k, 0.8f, -17.6f, 2.4f, -20.2f, 3.4f, -17.0f, k->fin, 255);
+    sk_dot(k, -1.8f, -12.6f, 1.5f, 1.1f, k->fin, 120 + (int)(60 * fast_sin(t * 20)), true);   /* the pectoral, a blur */
+    for (int j = 0; j < 5; j++) sk_dot(k, 2.6f, -6 + j * 3.2f, 2.6f, 0.45f, k->fin, 110, true);   /* belly plates */
+    if (v == 0) {                                  /* bands */
+        static const float BY[4] = { -5.0f, -0.5f, 4.0f, -12.0f }, BW[4] = { 5.0f, 5.4f, 4.6f, 2.8f };
+        for (int i = 0; i < 4; i++) sk_mark(k, 0.3f, BY[i], BW[i], 1.0f, k->acc, 170);
+        for (int i = 1; i < 6; i += 2) sk_mark(k, tlx[i], TLY[i], TLR[i], 0.8f, k->acc, 170);
+    } else if (v == 1) {                           /* speckles */
+        static const float SX[14] = { -2, 1, 3.5f, -3, 0.5f, 3.8f, -1.8f, 1.5f, -0.5f, 2.5f, -1.5f, -2.4f, -2.6f, 0 };
+        static const float SY[14] = { -6, -3, -6, 0, 1.5f, 2, 4.5f, 5.5f, -11, -15.8f, -15.5f, 10, 14, 19.5f };
+        for (int i = 0; i < 14; i++) sk_mark(k, SX[i], SY[i], 0.65f, 0.65f, k->acc, 230);
+    } else if (v == 2) {                           /* white spots */
+        static const float SX[8] = { -2.5f, 2, -1, 3, 0, -2.4f, -1.6f, 3.6f }, SY[8] = { -5, -2, 3, 4.5f, -13, 12, 17.5f, -8 };
+        for (int i = 0; i < 8; i++) sk_mark(k, SX[i], SY[i], 1.15f, 1.15f, k->acc, 240);
+    } else if (k->marked) {                        /* spines: along the back, the belly and the crown */
+        static const float S[10][4] = { { -4.8f, -6, -1, -0.2f }, { -5.1f, -1, -1, 0 }, { -4.6f, 3.6f, -1, 0.2f }, { -2.8f, -10.2f, -0.8f, -0.6f },
+                                        { -1.2f, -17.6f, -0.2f, -1 }, { 4.8f, -4.5f, 1, -0.2f }, { 5.5f, 1.5f, 1, 0 }, { -3.1f, 11, -1, 0 },
+                                        { -3.3f, 15, -1, 0.3f }, { 3.6f, 6.5f, 0.8f, 0.6f } };
+        for (int i = 0; i < 10; i++) {
+            float bx = S[i][0], by = S[i][1], dx = S[i][2], dy = S[i][3];
+            sk_tri(k, bx + dy * 0.9f, by - dx * 0.9f, bx + dx * 2.6f, by + dy * 2.6f, bx - dy * 0.9f, by + dx * 0.9f, k->acc, (int)(255 * k->fade));
+        }
+    }
+    sk_eye(k, 2.6f, -15.2f, 1.6f, false);
+}
+
+/* ---- octopus: a mantle and eight arms, two poses blended by speed:
+   crawling (the mantle up behind, the arms splayed on the floor, reaching
+   in turn) and jetting (the mantle leading, the arms streaming behind
+   together, flaring between pulses). Camouflage takes on f->camo_rgb and
+   the pattern fades with it. ---- */
+static void draw_octopus(sk_t *k) {
+    const fish_t *f = k->f; float t = k->t; int v = f->variant & 3;
+    float jk = clamp01((f->speed - 26) / 30);
+    float camo = clamp01(f->camo);
+    if (camo > 0) {
+        k->body = mix(k->body, f->camo_rgb, camo);
+        k->fin = mix(k->fin, mix(f->camo_rgb, 0x000000, 0.3f), camo);
+        k->fade = 1 - camo;
+    }
+    draw_ink(k);
+    /* the head (eyes, arm roots) and the mantle's axis: up-back crawling, ahead jetting */
+    float hx = 2.5f + (-1.0f - 2.5f) * jk, hy = -2.5f + 2.5f * jk;
+    float ang = -2.3f * (1 - jk);                              /* the mantle's axis */
+    float ax = fast_cos(ang + TAU), ay = fast_sin(ang + TAU);
+    float mrx = 7.8f + 2.7f * jk, mry = 6.8f - 1.3f * jk;
+    float pulse = 0.5f + 0.5f * fast_sin(f->jet + t * 3);       /* the jet's breath */
+    mry *= 1 - 0.12f * pulse * jk;
+    float mcx = hx + ax * mrx * 0.85f, mcy = hy + ay * mrx * 0.85f;
+    float rx0 = hx + (0.0f - 3.0f) * jk * 1.0f, ry0 = hy + 3.2f * (1 - jk) + 0.5f * jk;   /* the arms' root */
+    /* the arms: [0..3] the near side (drawn in front), [4..7] the far side */
+    static const float AC[8] = { 0.15f, 0.95f, 1.75f, 2.65f, 0.55f, 1.35f, 2.2f, 3.0f };
+    float AX[8][6], AY[8][6], AR[6];
+    for (int j = 0; j < 6; j++) AR[j] = 2.1f - 1.65f * j / 5.0f;
+    float open = 0.5f + 0.5f * fast_sin(f->jet + t * 3 + 1.2f);
+    for (int i = 0; i < 8; i++) {
+        float aj = TAU * 0.5f + ((i & 3) - 1.5f + (i >= 4 ? 0.5f : 0)) * 0.07f * (0.5f + 1.5f * open);
+        float ac = AC[i] + 0.22f * fast_sin(t * (1.6f + f->speed * 0.04f) + i * 1.9f);
+        float a = ac + (aj - ac) * jk;
+        float cc = (AC[i] < 1.57f ? -0.30f : 0.30f) * (1 - jk) + 0.08f * fast_sin(t * 5 + i * 1.1f) * jk;
+        float L = (19 + 5 * jk) * (1 + 0.08f * fast_sin(t * 1.7f + i * 2.3f)), sl = L / 5;
+        float x = rx0 + (i >= 4 ? 0.8f : 0), y = ry0 - (i >= 4 ? 0.6f : 0);
+        for (int j = 0; j < 6; j++) {
+            AX[i][j] = x; AY[i][j] = y;
+            x += sl * fast_cos(a + TAU); y += sl * fast_sin(a + TAU);
+            a += cc * (0.4f + j * 0.36f);
+        }
+    }
+    for (int i = 4; i < 8; i++) {                                              /* far arms: half the joints, half hidden */
+        float fx[3] = { AX[i][0], AX[i][2], AX[i][5] }, fy[3] = { AY[i][0], AY[i][2], AY[i][5] }, fr[3] = { AR[0], AR[2], AR[5] };
+        sk_tube(k, fx, fy, fr, 3, k->fin);
+    }
+    /* the mantle: an egg, fuller at its apex */
+    {
+        float lx[16], ly[16];
+        for (int i = 0; i < 16; i++) {
+            float u = mrx * g_u16c[i], w = mry * g_u16s[i] * (1 + 0.15f * g_u16c[i]);
+            lx[i] = mcx + ax * u - ay * w; ly[i] = mcy + ay * u + ax * w;
+        }
+        sk_poly(k, lx, ly, 16, k->body, 255);
+        float X, Y; sk_pt(k, mcx, mcy, &X, &Y);
+        if (k->zq * mry * k->s >= 1) fill_ellipse(k->c, X, Y, k->zq * mry * k->s, mry * k->s, k->body, 255);
+    }
+    sk_dot(k, hx, hy, 5.0f - 0.8f * jk, 4.4f - 0.3f * jk, k->body, 255, false);   /* the head */
+    float ex = hx + 1.8f - 1.6f * jk, ey = hy - 2.8f;
+    sk_dot(k, ex, ey, 2.5f, 2.3f, k->body, 255, false);                        /* the eye's bump */
+    sk_dot(k, rx0, ry0 - 0.5f, 4.2f, 2.6f, k->body, 255, false);              /* the web */
+    for (int i = 0; i < 4; i++) sk_tube(k, AX[i], AY[i], AR, 6, k->body);      /* near arms */
+    if (!k->asleep && jk < 0.5f)                                               /* suckers under the near arms */
+        for (int i = 0; i < 4; i++) for (int j = 2; j < 4; j += 2)
+            sk_dot(k, AX[i][j], AY[i][j] + AR[j] * 0.5f, 0.5f, 0.5f, mix(k->body, 0xffffff, 0.5f), (int)(170 * (1 - jk)), false);
+    /* the pattern, at mantle-local (u, w) in radii */
+    #define OC_PT(u, w, X, Y) do { float _u = (u) * mrx, _w = (w) * mry; X = mcx + ax * _u - ay * _w; Y = mcy + ay * _u + ax * _w; } while (0)
+    if (v == 0) {                                  /* mottled */
+        static const float MU[8] = { 0.5f, -0.1f, -0.55f, 0.15f, 0.6f, -0.5f, 0.0f, 0.3f }, MW[8] = { -0.35f, 0.4f, -0.2f, -0.5f, 0.35f, 0.45f, 0.0f, 0.1f };
+        for (int i = 0; i < 8; i++) {
+            float X, Y; OC_PT(MU[i], MW[i], X, Y);
+            if (i & 1) sk_mark(k, X, Y, 1.4f, 1.2f, mix(k->body, k->acc, 0.6f), 190);
+            else       sk_mark(k, X, Y, 2.1f, 1.7f, k->fin, 170);
+        }
+        for (int i = 0; i < 4; i++) sk_mark(k, AX[i][3], AY[i][3], 1.0f, 1.0f, k->fin, 150);
+    } else if (v == 1) {                           /* blue rings */
+        static const float RU[7] = { 0.55f, 0.0f, -0.55f, 0.25f, -0.25f, 0.6f, -0.1f }, RW[7] = { -0.3f, -0.45f, -0.1f, 0.4f, 0.45f, 0.35f, 0.05f };
+        for (int i = 0; i < 7; i++) {
+            float X, Y; OC_PT(RU[i], RW[i], X, Y);
+            sk_mark(k, X, Y, 1.7f, 1.7f, k->acc, 255); sk_mark(k, X, Y, 0.8f, 0.8f, k->body, 255);
+        }
+        sk_mark(k, hx - 1.5f, hy + 1.5f, 1.4f, 1.4f, k->acc, 255); sk_mark(k, hx - 1.5f, hy + 1.5f, 0.6f, 0.6f, k->body, 255);
+        for (int i = 0; i < 4; i++) for (int j = 2; j <= 2; j += 2) {
+            sk_mark(k, AX[i][j], AY[i][j], AR[j] * 0.85f, AR[j] * 0.85f, k->acc, 255);
+            sk_mark(k, AX[i][j], AY[i][j], AR[j] * 0.4f, AR[j] * 0.4f, k->body, 255);
+        }
+    } else if (v == 2) {                           /* stripes: banded arms, barred mantle */
+        for (int i = 0; i < 4; i++) for (int j = 1; j < 6; j += 2)
+            sk_mark(k, AX[i][j], AY[i][j], AR[j] * 1.05f, AR[j] * 1.05f, k->acc, 240);
+        for (int i = -1; i <= 1; i++) { float X, Y; OC_PT(i * 0.5f, 0, X, Y); sk_mark(k, X, Y, 1.1f, mry * 0.8f, k->acc, 200); }
+    } else {                                       /* spots */
+        static const float SU[9] = { 0.6f, 0.2f, -0.3f, -0.65f, 0.4f, -0.1f, 0.65f, -0.45f, 0.05f }, SW[9] = { -0.2f, -0.55f, -0.4f, 0.1f, 0.4f, 0.2f, 0.3f, 0.5f, -0.05f };
+        for (int i = 0; i < 9; i++) { float X, Y; OC_PT(SU[i], SW[i], X, Y); sk_mark(k, X, Y, 0.9f, 0.9f, k->acc, 230); }
+        for (int i = 0; i < 4; i++) sk_mark(k, AX[i][2], AY[i][2], 0.7f, 0.7f, k->acc, 220);
+    }
+    #undef OC_PT
+    /* the eye: the octopus's bar of a pupil */
+    {
+        float X, Y; sk_pt(k, ex, ey, &X, &Y);
+        float R = 1.7f * k->s; if (R < 1.3f) R = 1.3f;
+        if (k->asleep) fill_ellipse(k->c, X, Y, R, R * 0.32f + 0.4f, 0x9fb4b8, 200);
+        else { fill_ellipse(k->c, X, Y, R, R, 0xf2ead0, 255); fill_ellipse(k->c, X, Y, R * 0.8f, R * 0.32f + 0.3f, 0x05080a, 255); }
+    }
+}
+
+/* ---- pufferfish: boxy and round-faced, big eyes, a beak of a mouth, small
+   fins sculling. f->puff swells it into a near-round ball and the spines
+   stand out. ---- */
+static void draw_puffer(sk_t *k) {
+    const fish_t *f = k->f; float t = k->t; int v = f->variant & 3;
+    float p = clamp01(f->puff);
+    static float flat[16][2]; static bool built;
+    if (!built) {                                  /* a squared-off oval, once */
+        for (int i = 0; i < 16; i++) {
+            float c = g_u16c[i], s = g_u16s[i];
+            flat[i][0] = 13 * (c < 0 ? -1 : 1) * powf(fabsf(c), 0.65f);
+            flat[i][1] = 10 * (s < 0 ? -1 : 1) * powf(fabsf(s), 0.65f);
+        }
+        built = true;
+    }
+    float bx[16], by[16];
+    for (int i = 0; i < 16; i++) {
+        bx[i] = flat[i][0] + (14.5f * g_u16c[i] - flat[i][0]) * p;
+        by[i] = flat[i][1] + (14.0f * g_u16s[i] - flat[i][1]) * p;
+    }
+    #define PF(x) ((x) * (1 + 0.1f * p))
+    #define PFY(y) ((y) * (1 + 0.36f * p))
+    /* the tail, sculling */
+    float w = 2.2f * fast_sin(t * 7 + f->jet), tb = -11.5f - 2.5f * p;
+    { float lx[4] = { tb, tb - 7.5f, tb - 8.0f, tb }, ly[4] = { -3, -5.5f + w, 4.5f + w, 3 }; sk_poly(k, lx, ly, 4, k->fin, 255); }
+    float w2 = 1.4f * fast_sin(t * 9 + 1);
+    sk_tri(k, PF(-3), PFY(-9.0f), PF(-8) + w2, PFY(-13.5f), PF(-9.5f), PFY(-7.0f), k->fin, 255);   /* dorsal */
+    sk_tri(k, PF(-3), PFY(9.0f), PF(-8) - w2, PFY(13.5f), PF(-9.5f), PFY(7.0f), k->fin, 255);      /* anal */
+    /* spines, standing out with the puff */
+    if (p > 0.08f) {
+        uint32_t sc = mix(k->fin, 0xffffff, 0.35f);
+        float L = 1 + 0.32f * p;
+        for (int i = 0; i < 16; i++) {
+            if (g_u16c[i] < -0.9f) continue;       /* not through the tail */
+            for (int h = 0; h < 2; h++) {          /* two rows, staggered */
+                float c = h ? fast_cos(i * (TAU / 16) + TAU / 32 + TAU) : g_u16c[i];
+                float s = h ? fast_sin(i * (TAU / 16) + TAU / 32) : g_u16s[i];
+                float r = h ? 0.9f : 1.0f, ex = bx[i] * r, ey = by[i] * r;
+                if (h) { int j = (i + 1) & 15; ex = (bx[i] + bx[j]) * 0.5f * r; ey = (by[i] + by[j]) * 0.5f * r; }
+                sk_tri(k, ex * 0.95f - s * 1.0f, ey * 0.95f + c * 1.0f, ex * L, ey * L, ex * 0.95f + s * 1.0f, ey * 0.95f - c * 1.0f, sc, 255);
+            }
+        }
+    }
+    sk_poly(k, bx, by, 16, k->body, 255);
+    {
+        float X, Y; sk_pt(k, 0, 0, &X, &Y);
+        float rx = k->zq * (9 + 4 * p) * k->s;
+        if (rx >= 1) fill_ellipse(k->c, X, Y, rx, (10 + 4 * p) * k->s, k->body, 255);
+    }
+    { float lx[7], ly[7]; for (int i = 0; i < 7; i++) { lx[i] = bx[i + 1] * 0.97f; ly[i] = by[i + 1] * 0.97f; }   /* the pale belly */
+      sk_poly(k, lx, ly, 7, mix(k->body, 0xffffff, 0.5f), 255); }
+    if (v == 0) {                                  /* spots */
+        static const float SX[12] = { -8, -4, 0, 4, 8, -6, -2, 2, -9.5f, 6, -1, 9.5f }, SY[12] = { -5, -7, -7.5f, -6.5f, -4.5f, -1.5f, -3, -2.5f, 0.5f, -1, 1.5f, -1.5f };
+        for (int i = 0; i < 12; i++) sk_mark(k, PF(SX[i]), PFY(SY[i]), 1.15f, 1.15f, k->acc, 235);
+    } else if (v == 1) {                           /* the dogface's dark mask */
+        sk_mark(k, PF(-1), PFY(-6.5f), 10, 3.2f, k->fin, 130);
+        sk_mark(k, PF(7.5f), PFY(-1.5f), 5.2f, 4.6f, k->acc, 175);
+        sk_mark(k, PF(12), PFY(1.5f), 2.2f, 2.4f, k->acc, 200);
+    } else if (v == 2) {                           /* black saddles */
+        static const float SX[4] = { -9, -3, 3.5f, 9.5f }, RX[4] = { 2.2f, 2.5f, 2.5f, 1.7f }, RY[4] = { 3.6f, 4.4f, 4.4f, 2.6f };
+        for (int i = 0; i < 4; i++) sk_mark(k, PF(SX[i]), PFY(-9.8f + RY[i] * 0.95f) , RX[i], RY[i] * (1 + 0.3f * p), k->acc, 240);
+    } else {                                       /* golden: plain, a darker crown */
+        sk_mark(k, PF(-1), PFY(-7), 10, 2.6f, k->fin, 90);
+    }
+    /* the pectoral fin, a blur behind the eye */
+    { float q = 1.2f * fast_sin(t * 14 + f->jet);
+      sk_tri(k, PF(2.5f), PFY(0.5f), PF(-1.5f) + q, PFY(-1.8f), PF(-1.0f) + q, PFY(3.0f), mix(k->fin, 0xffffff, 0.15f), 150); }
+    float mx = 13.0f + 1.4f * p;
+    sk_dot(k, mx, 1.6f, 1.4f, 1.15f, mix(k->body, 0xffffff, 0.35f), 255, false);   /* the beak */
+    sk_dot(k, mx + 0.4f, 1.6f, 0.5f, 0.5f, 0x2a1e18, 255, false);
+    /* the big eye */
+    float ex = PF(6.5f), ey = PFY(-3.6f);
+    if (k->asleep) sk_eye(k, ex, ey, 3.0f, false);
+    else {
+        sk_dot(k, ex, ey, 3.1f, 3.1f, 0xf4f0d8, 255, false);
+        sk_dot(k, ex + 0.5f, ey, 2.0f, 2.0f, 0x0c1a12, 255, false);
+        sk_dot(k, ex + 1.0f, ey - 0.9f, 0.6f, 0.6f, 0xffffff, 230, false);
+    }
+    #undef PF
+    #undef PFY
+}
+
+/* ---- anglerfish: a big head and a gape of needle teeth on a small body,
+   the illicium from its brow and the esca at its tip, bobbing. The esca
+   GLOWS: its colour skips the night dim (the card does the same), with a
+   halo, brightest as f->lure rises. ---- */
+static void draw_angler(sk_t *k) {
+    const fish_t *f = k->f; float t = k->t; int v = f->variant & 3;
+    float w = 1.2f * fast_sin(t * 3 + f->wander);
+    { float lx[5] = { -13.5f, -21, -23.5f, -21, -13.5f }, ly[5] = { -2.5f, -6.5f + w, w, 6.5f + w, 2.5f }; sk_poly(k, lx, ly, 5, k->fin, 255); }
+    sk_tri(k, -5, -10, -9.5f, -12.5f, -12.5f, -6.5f, k->fin, 255);             /* dorsal */
+    static const float BLX[12] = { 15.5f, 13, 9, 2, -6, -12, -15, -14, -9, -1, 8, 14 };
+    static const float BLY[12] = { 4.5f, -4, -9, -11.5f, -10, -6, -1, 4, 8, 10.5f, 10, 7.5f };
+    sk_poly(k, BLX, BLY, 12, k->body, 255);
+    { float X, Y; sk_pt(k, 0, 0, &X, &Y); float rx = k->zq * 9 * k->s; if (rx >= 1) fill_ellipse(k->c, X, Y, rx, 10.5f * k->s, k->body, 255); }
+    if (v == 0) sk_mark(k, -1, 5.5f, 9, 3.5f, mix(k->body, 0xffffff, 0.12f), 200);   /* abyss: a faint belly, nothing more */
+    else if (v == 2) {                             /* blotches */
+        static const float B[7][3] = { { -4, -6, 3 }, { 3, -7.5f, 2.4f }, { -9.5f, 0.5f, 2.6f }, { -2, 4, 3 }, { 5, 6.5f, 2 }, { -10, -5, 1.6f }, { 1, -1, 1.6f } };
+        for (int i = 0; i < 7; i++) sk_mark(k, B[i][0], B[i][1], B[i][2], B[i][2] * 0.85f, i < 5 ? k->fin : mix(k->body, 0xffffff, 0.3f), 190);
+    } else {                                       /* warts, along the outline and over the head */
+        static const float WX[13] = { 10, 4, -3, -9, -13, -14, -11, -5, 3, 9.5f, 0, -6, 6.5f }, WY[13] = { -8, -11, -11, -8.5f, -4, 2, 6.5f, 9.5f, 10.5f, 9.5f, -6.5f, -1, -9.5f };
+        uint32_t wc = v == 1 ? mix(k->body, k->acc, 0.45f) : mix(k->body, 0xffffff, 0.35f);
+        for (int i = 0; i < 13; i++) sk_mark(k, WX[i], WY[i], 1.25f, 1.25f, wc, 255);
+        if (v == 3) for (int i = 0; i < 6; i++) sk_mark(k, WX[i * 2] * 0.6f, WY[i * 2] * 0.55f, 0.9f, 0.9f, mix(k->body, 0x000000, 0.2f), 200);
+    }
+    /* the gape and its needles */
+    float g = 0.8f * (0.5f + 0.5f * fast_sin(t * 1.1f + f->wander));
+    sk_tri(k, 15.0f, -3.4f, 4.5f, 0.8f, 15.8f, 5.4f + g, 0x0c0608, 255);
+    for (int i = 0; i < 4; i++) {
+        float u = 0.12f + i * 0.22f;
+        float px = 14.8f + (5.5f - 14.8f) * u, py = -3.2f + (0.6f + 3.2f) * u;
+        sk_tri(k, px - 0.75f, py - 0.2f, px + 0.1f, py + 2.2f, px + 0.75f, py - 0.2f, 0xf2eedc, 255);
+        float qx = 15.6f + (5.5f - 15.6f) * u, qy = 5.4f + g + (0.9f - 5.4f - g) * u;
+        sk_tri(k, qx - 0.75f, qy + 0.3f, qx - 0.1f, qy - 2.6f, qx + 0.75f, qy + 0.3f, 0xf2eedc, 255);
+    }
+    { float lx[4] = { -4, 1, 2.5f, -3.5f }, ly[4] = { 7, 7.5f, 12.5f, 12 }; sk_poly(k, lx, ly, 4, k->fin, 255); }   /* the pectoral it walks on */
+    sk_eye(k, 6.5f, -6.8f, 1.5f, false);
+    /* the illicium and its esca */
+    float bxo = 1.0f * fast_sin(t * 2.1f + f->wander), byo = 1.3f * fast_sin(t * 1.7f + 1);
+    { float lx[4] = { 4, 6, 9.5f, 13.5f + bxo }, ly[4] = { -11, -16, -19.5f, -19 + byo }, r[4] = { 0.8f, 0.65f, 0.55f, 0.5f };
+      sk_tube(k, lx, ly, r, 4, k->fin); }
+    float X, Y; sk_pt(k, 13.5f + bxo, -19 + byo, &X, &Y);
+    float br = 0.35f + 0.65f * clamp01(f->lure), s = k->s;
+    src_t halo = src_color(k->acc, 1.0f), core = src_color(mix(k->acc, 0xffffff, 0.45f * br), 0.55f + 0.45f * br);
+    fill_ellipse_s(k->c, X, Y, (5 + 4 * br) * s, (5 + 4 * br) * s, &halo, (int)(18 + 40 * br));
+    fill_ellipse_s(k->c, X, Y, (2.6f + br) * s, (2.6f + br) * s, &halo, (int)(60 + 90 * br));
+    fill_ellipse_s(k->c, X, Y, 1.6f * s + 0.3f, 1.6f * s + 0.3f, &core, 255);
+}
+
+/* ---- electric eel: a long round body in segments, a wave travelling
+   down it (f->jet's phase, and more of it with speed), a blunt head, the
+   belly in f->accent and the long anal fin rippling under it, no tail fin.
+   A startle's f->spark crackles along it, undimmed. ---- */
+#define EEL_N 14
+static void draw_eel(sk_t *k) {
+    const fish_t *f = k->f; float t = k->t; int v = f->variant & 3;
+    float lx[EEL_N], ly[EEL_N], r[EEL_N];
+    float amp = 0.35f + 0.65f * clamp01(f->speed / 35), ph = f->jet + t * 2.0f;
+    for (int i = 0; i < EEL_N; i++) {
+        float u = i * (1.0f / (EEL_N - 1));
+        lx[i] = 42 - 84 * u;
+        ly[i] = (0.4f + 5.5f * u) * amp * fast_sin(ph - u * TAU * 1.25f + TAU * 2);
+        r[i] = i == 0 ? 3.3f : u < 0.4f ? 4.8f : 4.8f - (u - 0.4f) * (4.0f / 0.6f);
+    }
+    /* the anal fin: a ridge the whole way under, rippling */
+    {
+        float fx[EEL_N], fy[EEL_N], fr[EEL_N]; int n = 0;
+        for (int i = 5; i < EEL_N; i += 2, n++) {   /* every other point: it is a fin */
+            fx[n] = lx[i]; fy[n] = ly[i] + r[i] * 0.7f;
+            fr[n] = 1.3f + 0.5f * fast_sin(t * 10 - i * 1.3f + TAU * 4) + (i < EEL_N - 1 ? 0.4f : -0.6f);
+        }
+        sk_tube(k, fx, fy, fr, n, mix(k->acc, k->fin, 0.35f));
+    }
+    sk_tube(k, lx, ly, r, EEL_N, k->body);
+    float sx[EEL_N], sy[EEL_N], sr[EEL_N];
+    /* the back's shade: a round body, not a ribbon */
+    int ns = 0;
+    for (int i = 1; i < EEL_N - 1; i += 2, ns++) { sx[ns] = lx[i]; sy[ns] = ly[i] - r[i] * 0.5f; sr[ns] = r[i] * 0.42f; }
+    sk_tube(k, sx, sy, sr, ns, v == 2 ? mix(k->fin, k->body, 0.4f) : k->fin);
+    /* the belly */
+    int nb = v == 1 ? EEL_N - 2 : 9;
+    for (int i = 0; i < nb; i++) { sx[i] = lx[i + 1]; sy[i] = ly[i + 1] + r[i + 1] * (v == 1 ? 0.4f : 0.5f); sr[i] = r[i + 1] * (v == 1 ? 0.55f : 0.45f); }
+    if (k->marked || v != 1) sk_tube(k, sx, sy, sr, nb, k->acc);
+    if (v == 2 && k->marked) for (int i = 3; i < EEL_N - 2; i += 2) sk_dot(k, lx[i], ly[i] - r[i] * 0.05f, 0.7f, 0.7f, mix(k->body, 0xffffff, 0.4f), 200, true);   /* bronze: the lateral pores */
+    if (v == 3) for (int i = 3; i < EEL_N - 1; i++) sk_mark(k, lx[i] + 1.5f, ly[i] + ((i & 1) ? -1.6f : 0.6f), 1.1f, 1.1f, k->acc, 235);
+    /* the head: the mouth's line, a small eye, a little pectoral */
+    float hy = ly[0];
+    sk_line(k, 45, hy + 1.4f, 38.5f, hy + 1.8f, 0.35f, 0.35f, mix(k->fin, 0x000000, 0.5f));
+    sk_dot(k, 33.5f, ly[1] + 2.2f, 2.0f, 1.3f, k->fin, 210, true);
+    sk_eye(k, 40, hy - 1.6f, 1.0f, true);
+    /* the spark: zig-zags off the body, a new set every 50 ms */
+    if (f->spark > 0) {
+        src_t core = src_color(0xeafcff, 1.0f), glow = src_color(0x7fe8ff, 1.0f);
+        unsigned fr = (unsigned)(t * 20);
+        for (int q = 0; q < 6; q++) {
+            uint32_t h = (fr * 7u + (unsigned)q * 13u + 1u) * 2654435761u;
+            int i = 2 + (int)((h >> 8) % (EEL_N - 4));
+            float side = (h >> 20) & 1 ? -1.0f : 1.0f;
+            float X[4], Y[4], R[4];
+            sk_pt(k, lx[i], ly[i] + side * r[i] * 0.9f, &X[0], &Y[0]);
+            float ax = ((h >> 4) & 15) / 15.0f - 0.5f;
+            for (int j = 1; j < 4; j++) {
+                float zig = (j & 1 ? 0.7f : -0.7f) + ax;
+                X[j] = X[j - 1] + zig * 2.6f * k->s; Y[j] = Y[j - 1] + side * 3.0f * k->s;
+            }
+            for (int j = 0; j < 4; j++) R[j] = 1.4f;
+            tube_s(k->c, X, Y, R, 4, &glow, 70);
+            for (int j = 0; j < 4; j++) R[j] = 0.55f;
+            tube_s(k->c, X, Y, R, 4, &core, 255);
+        }
+    }
+}
+
+/* ---- hammerhead: the cephalofoil, eyes at its tips, sweeping side to
+   side (seen obliquely, so side-on it stands as a bar at the nose and turns
+   into the T as the shark comes head-on), the tall first dorsal, pectorals,
+   the heterocercal tail beating slowly, a pale belly. ---- */
+static void draw_shark(sk_t *k) {
+    const fish_t *f = k->f; float t = k->t; int v = f->variant & 3;
+    uint32_t tip = v == 2 ? mix(k->fin, 0x000000, 0.45f) : k->fin;
+    float tw = 1.8f * fast_sin(t * 2.4f + f->wander);
+    sk_tri(k, 7.5f, 3.0f, 1.0f, 9.5f, 4.0f, 3.5f, mix(k->fin, 0x000000, 0.25f), 255);   /* the far pectoral */
+    sk_tri(k, -17.5f, -2.4f, -31.0f, -13.0f + tw, -23.0f, 0.0f, k->fin, 255);          /* the tail: the long upper lobe */
+    sk_tri(k, -19.5f, 0.0f, -27.0f, 6.8f + tw * 0.6f, -23.5f, 1.2f, k->fin, 255);      /* ... and the short lower */
+    if (v == 2) sk_tri(k, -27.0f, -9.2f + tw * 0.85f, -31.0f, -13.0f + tw, -25.5f, -6.5f + tw * 0.6f, tip, 255);
+    sk_tri(k, 2.0f, -5.6f, -6.0f, -16.5f, -9.5f, -4.6f, k->fin, 255);                   /* the first dorsal */
+    if (v == 2) sk_tri(k, -3.6f, -12.0f, -6.0f, -16.5f, -7.3f, -11.8f, tip, 255);
+    sk_tri(k, -14.5f, -2.8f, -17.8f, -6.5f, -19.0f, -2.2f, k->fin, 255);               /* the second */
+    static const float BLX[13] = { 18, 13, 4, -6, -14, -21, -22, -21, -14, -6, 4, 13, 18 };
+    static const float BLY[13] = { -1.4f, -4.2f, -6.0f, -5.2f, -3.2f, -1.6f, 0, 1.4f, 2.8f, 4.6f, 5.4f, 3.8f, 1.3f };
+    sk_poly(k, BLX, BLY, 13, k->body, 255);
+    { float X, Y; sk_pt(k, 2, 0, &X, &Y); float rx = k->zq * 5.5f * k->s; if (rx >= 1) fill_ellipse(k->c, X, Y, rx, 5.6f * k->s, k->body, 255); }
+    { static const float lx[8] = { 18, 18, 13, 4, -6, -14, -21, -21 }, ly[8] = { 0.4f, 1.3f, 3.8f, 5.4f, 4.6f, 2.8f, 1.4f, 0.6f };   /* the pale belly */
+      sk_poly(k, lx, ly, 8, k->acc, 235); }
+    sk_tri(k, -14.5f, 2.6f, -17.5f, 5.2f, -18.5f, 2.0f, k->fin, 255);                   /* anal */
+    sk_tri(k, -8.5f, 4.2f, -12.0f, 7.8f, -12.5f, 3.6f, k->fin, 255);                    /* pelvic */
+    for (int i = 0; i < 3; i++) sk_dot(k, 9.5f + i * 1.6f, 0.0f, 0.3f, 1.7f, k->fin, 110, true);   /* gills */
+    sk_dot(k, 14.5f, 3.3f, 2.2f, 0.45f, mix(k->fin, 0x000000, 0.4f), 200, true);        /* the mouth */
+    sk_tri(k, 7.0f, 3.5f, -3.5f, 12.0f, 2.5f, 4.8f, k->fin, 255);                       /* the near pectoral */
+    if (v == 2) sk_tri(k, -0.5f, 9.4f, -3.5f, 12.0f, 0.2f, 8.2f, tip, 255);
+    /* the hammer */
+    float sw = 0.16f * fast_sin(t * 0.9f + f->wander), H = 8.5f, HO = 0.85f;
+    {
+        static const float HX[7] = { 22.4f, 21.4f, 18.8f, 17.0f, 17.0f, 18.8f, 21.4f };
+        static const float HZ[7] = { 0, 1, 1, 0.24f, -0.24f, -1, -1 };
+        float xs[7], ys[7];
+        for (int i = 0; i < 7; i++) sk_pt3(k, HX[i] + HZ[i] * H * sw, -0.6f, HZ[i] * H, HO, &xs[i], &ys[i]);
+        src_t s = src_color(k->body, k->c->dim);
+        fill_poly_s(k->c, xs, ys, 7, &s, 255);
+        if (v == 3) {                              /* scalloped: the leading edge notched */
+            src_t n = src_color(mix(k->fin, 0x000000, 0.2f), k->c->dim);
+            for (int i = -2; i <= 2; i++) {
+                float z = i * 0.42f * H, X, Y;
+                sk_pt3(k, 22.0f - fabsf((float)i) * 0.25f + z * sw, -0.6f, z, HO, &X, &Y);
+                fill_ellipse_s(k->c, X, Y, 0.9f * k->s, 0.6f * k->s, &n, i == 0 ? 255 : 170);
+            }
+        }
+        for (int e = -1; e <= 1; e += 2) {         /* the eyes, at the tips */
+            float X, Y; sk_pt3(k, 20.4f + e * H * 0.92f * sw, -0.6f, e * H * 0.92f, HO, &X, &Y);
+            float R = 1.0f * k->s; if (R < 1.2f) R = 1.2f;
+            if (k->asleep) fill_ellipse(k->c, X, Y, R, 0.6f, 0x9fb4b8, 200);
+            else { fill_ellipse(k->c, X, Y, R, R, 0x05080a, 255); fill_ellipse(k->c, X + 0.3f * R, Y - 0.3f * R, 0.4f * R, 0.4f * R, 0xffffff, 190); }
+        }
+    }
+}
+
+/* ---- squid: a torpedo mantle, the two fins at its tip rippling, eight
+   arms and two long tentacles at the head, a big eye; chromatophores
+   flicker in f->accent (the firefly's glow, undimmed). It swims either way:
+   mantle first it jets, arms closed behind it. ---- */
+static void draw_squid(sk_t *k) {
+    const fish_t *f = k->f; float t = k->t; int v = f->variant & 3;
+    bool back = cosf(f->heading) * f->yaw < 0;
+    float jk = back ? clamp01((f->speed - 20) / 30) : 0;
+    float pulse = 0.5f + 0.5f * fast_sin(f->jet + t * 4), my = 1 - 0.12f * pulse * jk;
+    draw_ink(k);
+    /* the fins: across the glass, shown above and below the tip */
+    {
+        float big = v == 2 ? 1.6f : 1.0f, x0 = v == 2 ? -4.0f : -8.0f, out = (1 - 0.45f * jk);
+        uint32_t fc = mix(k->body, k->fin, 0.5f);
+        for (int side = -1; side <= 1; side += 2) {
+            float rp = 1.3f * fast_sin(t * 7 + side + f->jet + TAU);
+            float lz[5] = { 3.4f * my, (8.5f + rp) * big * out, (9.5f - rp) * big * out, 1.2f, 0.0f };
+            float lxx[5] = { x0, -11.5f + rp * 0.3f, -18.0f, -22.5f, -23.0f };
+            float xs[5], ys[5];
+            for (int i = 0; i < 5; i++) sk_pt3(k, lxx[i], 0, side * lz[i], 1.0f, &xs[i], &ys[i]);
+            src_t s = src_color(fc, k->c->dim);
+            fill_poly_s(k->c, xs, ys, 5, &s, 230);
+        }
+    }
+    /* far arms and the far tentacle */
+    float arx[6][4], ary[6][4], ar[4] = { 1.3f, 1.0f, 0.7f, 0.45f };
+    for (int i = 0; i < 6; i++) {
+        float a = ((i - 2.5f) * 0.16f + 0.14f * fast_sin(t * 3 + i * 1.3f)) * (1 - jk * 0.85f);
+        float x = 9.5f, y = (-2.5f + i) * my * (1 - 0.4f * jk), L = 3.2f + 0.4f * (i & 1);
+        for (int j = 0; j < 4; j++) {
+            arx[i][j] = x; ary[i][j] = y;
+            x += L * fast_cos(a + TAU); y += L * fast_sin(a + TAU); a += (i < 3 ? -0.08f : 0.08f) * (1 - jk);
+        }
+    }
+    float tnx[2][6], tny[2][6], tr[6] = { 0.7f, 0.6f, 0.55f, 0.5f, 0.5f, 0.5f };
+    for (int q = 0; q < 2; q++) {
+        float a = (q ? 0.12f : -0.1f) + 0.18f * fast_sin(t * 2.2f + q * 2) * (1 - jk), x = 9.5f, y = (q ? 0.8f : -0.8f) * my;
+        float L = (20 - 11 * jk) / 5;
+        for (int j = 0; j < 6; j++) {
+            tnx[q][j] = x; tny[q][j] = y;
+            x += L * fast_cos(a + TAU); y += L * fast_sin(a + TAU); a += 0.06f * fast_sin(t * 1.7f + q + j);
+        }
+    }
+    for (int i = 1; i < 6; i += 2) sk_tube(k, arx[i], ary[i], ar, 4, k->fin);
+    sk_tube(k, tnx[1], tny[1], tr, 6, k->fin);
+    sk_dot(k, tnx[1][5], tny[1][5], 2.2f * (1 - 0.6f * jk), 1.1f, k->fin, 255, false);
+    /* the mantle */
+    {
+        static const float lx[9] = { 4, -3, -11, -18, -23.5f, -18, -11, -3, 4 };
+        static const float ly0[9] = { -5, -5.6f, -4.8f, -2.8f, 0, 2.8f, 4.8f, 5.6f, 5 };
+        float ly[9]; for (int i = 0; i < 9; i++) ly[i] = ly0[i] * my;
+        sk_poly(k, lx, ly, 9, k->body, 255);
+        float X, Y; sk_pt(k, -6, 0, &X, &Y);
+        float rx = k->zq * 5.4f * my * k->s; if (rx >= 1) fill_ellipse(k->c, X, Y, rx, 5.4f * my * k->s, k->body, 255);
+    }
+    sk_dot(k, 6.5f, 0, 3.6f, 4.4f * my, k->body, 255, false);                 /* the head */
+    if (v == 3) {                                  /* reef: bands */
+        static const float BX[4] = { -17, -11, -5, 1 }, BH[4] = { 2.8f, 4.6f, 5.4f, 5.1f };
+        for (int i = 0; i < 4; i++) sk_mark(k, BX[i], 0, 1.5f, BH[i] * my * 0.95f, k->acc, 170);
+    }
+    /* chromatophores, flickering */
+    if (k->marked) {
+        static const float CX[12] = { -1, -5, -9, -13, -17, -3, -8, 1, -11, -15, -6, -19.5f };
+        static const float CY[12] = { -3, 1, -3, 0.5f, -1.5f, 3.5f, 3.8f, 0.5f, -3.6f, 2.5f, -1.5f, 0.6f };
+        bool glow = v == 1;
+        src_t s = src_color(k->acc, glow ? 1.0f : k->c->dim);
+        int n = v == 2 ? 8 : 12;
+        for (int i = 0; i < n; i++) {
+            float fl = 0.5f + 0.5f * fast_sin(t * (2.0f + (i % 3)) + i * 2.1f);
+            int a = (int)((glow ? 140 + 115 * fl : 60 + 150 * fl) * (v == 2 ? 0.7f : 1));
+            if (glow) sk_dot_s(k, CX[i], CY[i] * my, 1.9f, 1.9f, &s, (int)(40 * fl), true);
+            sk_dot_s(k, CX[i], CY[i] * my, v == 2 ? 0.6f : 0.9f, v == 2 ? 0.6f : 0.9f, &s, a, true);
+        }
+    }
+    for (int i = 0; i < 6; i += 2) sk_tube(k, arx[i], ary[i], ar, 4, k->body);   /* near arms */
+    sk_tube(k, tnx[0], tny[0], tr, 6, k->body);
+    sk_dot(k, tnx[0][5], tny[0][5], 2.2f * (1 - 0.6f * jk), 1.1f, k->body, 255, false);
+    sk_eye(k, 7, -0.8f, 2.6f, false);
+}
+
+/* ---- crab (2026-10-05, the scope's late two): seen from the front
+   quarter - a wide carapace, eyes on stalks, two claws held up at its
+   shoulders, four walking legs a side stepping in a ripple. It walks sideways,
+   so it does not turn to face its way: the yaw only slides its face a
+   little toward the side it shows. f->puff is its threat display: the claws
+   go up and out. No pitch - it walks the floor. ---- */
+static void draw_crab(sk_t *k) {
+    const fish_t *f = k->f; float t = k->t; int v = f->variant & 3;
+    float q = 1.6f * k->yh;                        /* the face, slid toward the side it shows */
+    k->yh = k->yt = 1; k->zq = 0;                  /* drawn straight on: no mirroring, no foreshortening */
+    sk_lean(k, 0);
+    float raise = clamp01(f->puff);
+    float ph = t * (2.0f + clamp01(f->speed / 20) * 9) + f->jet;
+    float mv = clamp01(f->speed / 6);              /* stepping only while it walks */
+    uint32_t leg = mix(k->body, k->fin, 0.45f);
+    /* the legs: four a side, a ripple running down each row */
+    for (int sd = -1; sd <= 1; sd += 2)
+        for (int j = 0; j < 4; j++) {
+            float lift = mv * fmaxf(0, fast_sin(ph + j * 1.6f + (sd > 0 ? TAU * 0.5f : 0) + TAU)) * 2.2f;
+            float lx[3] = { sd * (6.5f + j * 1.4f), sd * (11.5f + j * 2.6f), sd * (13.0f + j * 3.5f) };
+            float ly[3] = { 1.0f + j * 0.6f, -4.0f + j * 1.3f - lift, 8.5f - lift * 0.6f };
+            float r[3] = { 1.0f, 0.75f, 0.45f };
+            sk_tube(k, lx, ly, r, 3, j & 1 ? k->fin : leg);
+        }
+    /* the carapace: domed above, flatter below */
+    float cx[16], cy[16];
+    for (int i = 0; i < 16; i++) { cx[i] = 11.5f * g_u16c[i]; cy[i] = g_u16s[i] * (g_u16s[i] < 0 ? 7.5f : 4.6f); }
+    sk_poly(k, cx, cy, 16, k->body, 255);
+    { float lx[7], ly[7]; for (int i = 0; i < 7; i++) { lx[i] = cx[i + 1] * 0.96f; ly[i] = cy[i + 1] * 0.96f + 0.6f; }   /* the underside */
+      sk_poly(k, lx, ly, 7, v == 0 ? mix(k->acc, k->body, 0.25f) : mix(k->body, 0xffffff, 0.35f), 255); }
+    sk_dot(k, q * 0.5f, -3.5f, 8.5f, 2.6f, mix(k->body, 0xffffff, 0.18f), 120, false);   /* its sheen */
+    if (v == 2) {                                  /* Sally Lightfoot: blue flecks */
+        static const float FX[10] = { -7, -3.5f, 0.5f, 4, 7.5f, -5.5f, -1.5f, 2.5f, 6, -9 }, FY[10] = { -3, -5.5f, -6, -5, -2.5f, -1, -2.5f, -2, -0.5f, 0 };
+        for (int i = 0; i < 10; i++) sk_mark(k, FX[i] + q * 0.3f, FY[i], 0.9f, 0.7f, k->acc, 240);
+    } else if (v == 3) {                           /* shore: mottled */
+        static const float MX[7] = { -6, -1, 4.5f, -3.5f, 2, 7.5f, -8.5f }, MY[7] = { -4, -5.5f, -4, -1.5f, -1.5f, -1.5f, -1 };
+        for (int i = 0; i < 7; i++) sk_mark(k, MX[i] + q * 0.3f, MY[i], i & 1 ? 1.2f : 1.8f, i & 1 ? 1.0f : 1.3f, i & 1 ? k->acc : k->fin, 170);
+    }
+    /* the eyes on their stalks (folded down asleep) */
+    for (int e = -1; e <= 1; e += 2) {
+        float bx = e * 2.6f + q, top = k->asleep ? -7.0f : -10.8f;
+        sk_line(k, bx, -6.2f, bx + e * 0.6f, top, 0.75f, 0.65f, leg);
+        float X, Y; sk_pt(k, bx + e * 0.6f, top - 0.6f, &X, &Y);
+        float R = 1.4f * k->s; if (R < 1.2f) R = 1.2f;
+        if (k->asleep) fill_ellipse(k->c, X, Y, R, R * 0.5f, 0x2a2a2e, 255);
+        else { fill_ellipse(k->c, X, Y, R, R, 0x05080a, 255); fill_ellipse(k->c, X + 0.3f * R, Y - 0.35f * R, 0.38f * R, 0.38f * R, 0xffffff, 200); }
+    }
+    sk_dot(k, q, 1.2f, 2.4f, 1.3f, mix(k->fin, 0x000000, 0.2f), 255, false);   /* the mouth parts */
+    /* the claws: held before the mouth, raised up and out in a threat */
+    uint32_t tipc = v == 1 ? k->acc : mix(k->fin, 0x000000, 0.45f);
+    for (int sd = -1; sd <= 1; sd += 2) {
+        float ccx = sd * (12.5f + 2.0f * raise) + q * 0.5f, ccy = -6.0f - 7.5f * raise;
+        float ex = sd * (14.5f + 2.0f * raise), ey = 3.0f - 4.0f * raise;
+        float lx[3] = { sd * 8.0f, ex, ccx }, ly[3] = { 2.5f, ey, ccy + 1.5f }, r[3] = { 1.5f, 1.4f, 1.8f };
+        sk_tube(k, lx, ly, r, 3, k->body);
+        float open = 0.35f + 0.3f * (0.5f + 0.5f * fast_sin(t * 2.3f + sd)) + 0.5f * raise;
+        /* the fingers point up and in at rest, straight up in the threat */
+        float dx = -sd * 0.55f * (1 - raise), dy = -0.83f - 0.17f * raise, px = -dy, py = dx;     /* along the fingers, and across them */
+        uint32_t edge = mix(k->body, 0x000000, 0.35f), lit = mix(k->body, 0xffffff, 0.15f);
+        sk_line(k, ccx + dx * 2.5f + px * 1.2f, ccy + dy * 2.5f + py * 1.2f, ccx + dx * 7.0f + px * 1.0f, ccy + dy * 7.0f + py * 1.0f, 1.3f, 0.5f, tipc);   /* the fixed finger */
+        sk_line(k, ccx + dx * 2.5f - px * 1.2f, ccy + dy * 2.5f - py * 1.2f, ccx + dx * 6.4f - px * (1.0f + open * 2.0f), ccy + dy * 6.4f - py * (1.0f + open * 2.0f), 1.2f, 0.5f, tipc);   /* the moving one */
+        sk_dot(k, ccx, ccy, 4.3f, 3.4f, edge, 255, false);                  /* the palm, edged off the shell behind it */
+        sk_dot(k, ccx, ccy, 3.7f, 2.8f, lit, 255, false);
+        sk_dot(k, ccx - sd * 0.8f, ccy - 0.9f, 1.5f, 0.9f, mix(k->body, 0xffffff, 0.4f), 170, false);
+        if (v == 2) sk_mark(k, ccx + sd * 0.8f, ccy + 0.6f, 0.8f, 0.6f, k->acc, 230);
+    }
+}
+
+/* ---- lobster: side-on - the carapace, the six-segment tail and its fan,
+   two big claws forward (the spiny lobster has none: long spiny antennae
+   instead), the long antennae sweeping, the walking legs stepping. A
+   tail-flip (f->jet > 0.5) curls the tail under it. ---- */
+static void draw_lobster(sk_t *k) {
+    const fish_t *f = k->f; float t = k->t; int v = f->variant & 3;
+    float curl = clamp01((f->jet - 0.5f) * 2.5f);
+    float ph = t * (2.0f + clamp01(f->speed / 20) * 7), mv = clamp01(f->speed / 6);
+    uint32_t dark = mix(k->fin, 0x000000, 0.25f);
+    uint32_t ant = v == 0 ? k->acc : v == 2 ? mix(k->body, k->acc, 0.35f) : k->fin;
+    /* the antennae, sweeping */
+    for (int a = 0; a < 2; a++) {
+        float lx[9], ly[9], r[9], ang = -0.4f - a * 0.25f + 0.22f * fast_sin(t * 1.3f + a * 2 + f->wander), x = 15.5f, y = -3.2f;
+        float L = v == 2 ? 4.6f : 3.8f, r0 = v == 2 ? 1.1f : 0.6f;
+        for (int j = 0; j < 9; j++) {
+            lx[j] = x; ly[j] = y; r[j] = r0 - (r0 - 0.35f) * j / 8.0f;
+            x += L * fast_cos(ang + TAU); y += L * fast_sin(ang + TAU); ang += 0.13f + 0.03f * fast_sin(t * 2 + j);
+        }
+        sk_tube(k, lx, ly, r, 9, a ? dark : ant);
+        if (v == 2) for (int j = 1; j < 5; j++) sk_dot(k, lx[j], ly[j] - r[j], 0.45f, 0.6f, k->acc, 220, false);
+    }
+    for (int a = 0; a < 2; a++) sk_line(k, 16, -2.2f, 21.5f, -4.0f + a * 1.6f, 0.4f, 0.35f, k->fin);   /* antennules */
+    /* the far claw and far legs, behind */
+    if (v != 2) {
+        float lx[4] = { 10.5f, 15.5f, 19.5f, 25.5f }, ly[4] = { 3.5f, 6.0f, 4.0f, 3.2f }, r[4] = { 1.0f, 0.9f, 1.8f, 2.2f };
+        sk_tube(k, lx, ly, r, 4, dark);
+        sk_line(k, 27, 2.5f, 30.5f, 2.2f, 0.9f, 0.4f, dark);
+    }
+    for (int j = 0; j < 4; j++) {
+        float st = mv * 1.8f * fast_sin(ph + j * 1.6f + 0.8f + TAU), lift = mv * fmaxf(0, fast_sin(ph + j * 1.6f + 2.4f + TAU)) * 1.4f;
+        float bx = 9.5f - j * 3.2f;
+        float lx[3] = { bx + 0.8f, bx + 2.5f, bx + 1.2f + st }, ly[3] = { 2.5f, 5.5f - lift, 8.6f - lift * 0.6f }, r[3] = { 0.7f, 0.55f, 0.4f };
+        sk_tube(k, lx, ly, r, 3, dark);
+    }
+    /* the tail: six plates from the carapace back, curling under on a flip */
+    float px = -1.5f, py = -0.6f, ang = TAU * 0.5f + 0.05f;
+    static const float SH[7] = { 4.2f, 4.0f, 3.8f, 3.5f, 3.1f, 2.7f, 2.3f };
+    float TX[7], TY[7], NX[7], NY[7];
+    for (int j = 0; j < 7; j++) {
+        TX[j] = px; TY[j] = py;
+        NX[j] = -fast_sin(ang + TAU); NY[j] = fast_cos(ang + TAU);
+        if (j < 6) { px += 3.2f * fast_cos(ang + TAU); py += 3.2f * fast_sin(ang + TAU); ang -= 0.05f + curl * 0.42f; }
+    }
+    /* the fan at its end */
+    {
+        float cx = TX[6], cy = TY[6], dx = NY[6], dy = -NX[6];   /* along the tail */
+        float fl = 1 + 0.15f * fast_sin(t * 3);
+        float lx[5] = { cx - NX[6] * 2.2f, cx + dx * 6.0f - NX[6] * 5.6f * fl, cx + dx * 7.4f, cx + dx * 6.0f + NX[6] * 5.6f * fl, cx + NX[6] * 2.2f };
+        float ly[5] = { cy - NY[6] * 2.2f, cy + dy * 6.0f - NY[6] * 5.6f * fl, cy + dy * 7.4f, cy + dy * 6.0f + NY[6] * 5.6f * fl, cy + NY[6] * 2.2f };
+        sk_poly(k, lx, ly, 5, k->fin, 255);
+        sk_line(k, cx, cy, cx + dx * 5.5f, cy + dy * 5.5f, 0.9f, 0.6f, k->body);   /* the telson */
+    }
+    for (int j = 0; j < 6; j++) {
+        float lx[4] = { TX[j] - NX[j] * SH[j] * 0.95f, TX[j + 1] - NX[j + 1] * SH[j + 1], TX[j + 1] + NX[j + 1] * SH[j + 1] * 0.7f, TX[j] + NX[j] * SH[j] * 0.7f };
+        float ly[4] = { TY[j] - NY[j] * SH[j] * 0.95f, TY[j + 1] - NY[j + 1] * SH[j + 1], TY[j + 1] + NY[j + 1] * SH[j + 1] * 0.7f, TY[j] + NY[j] * SH[j] * 0.7f };
+        sk_poly(k, lx, ly, 4, k->body, 255);
+        sk_dot(k, TX[j] - NX[j] * SH[j] * 0.9f, TY[j] - NY[j] * SH[j] * 0.9f, 0.9f, 0.7f, dark, 255, false);   /* swimmerets */
+        sk_line(k, TX[j] - NX[j] * SH[j] * 0.9f, TY[j] - NY[j] * SH[j] * 0.9f, TX[j] + NX[j] * SH[j] * 0.6f, TY[j] + NY[j] * SH[j] * 0.6f, 0.35f, 0.35f, dark);
+    }
+    /* the carapace and the rostrum */
+    static const float CLX[9] = { 15, 12, 6, -1, -3, -2, 4, 11, 14.5f }, CLY[9] = { -2, -4.2f, -5, -4.6f, -1.5f, 2.8f, 3.6f, 3, 1 };
+    sk_poly(k, CLX, CLY, 9, k->body, 255);
+    { float X, Y; sk_pt(k, 6, -0.6f, &X, &Y); float rx = k->zq * 4.5f * k->s; if (rx >= 1) fill_ellipse(k->c, X, Y, rx, 4.4f * k->s, k->body, 255); }
+    sk_tri(k, 14, -3.2f, 18.8f, -3.6f, 14.5f, -1.4f, k->body, 255);
+    sk_line(k, 3.5f, -4.8f, 1.5f, 3.4f, 0.3f, 0.3f, dark);                 /* the carapace's groove */
+    if (v == 1) sk_mark(k, 6, -3.2f, 6, 1.1f, k->acc, 110);               /* blue: its sheen */
+    else if (v == 2) {                             /* spiny: gold spots, spines on the back */
+        static const float GX[6] = { 9, 4, -0.5f, 6, 11.5f, 1 }, GY[6] = { -2.5f, -3, -2, 0.8f, 0, 1.5f };
+        for (int i = 0; i < 6; i++) sk_mark(k, GX[i], GY[i], 0.9f, 0.9f, k->acc, 235);
+        for (int j = 1; j < 6; j++) sk_mark(k, TX[j] - NX[j] * 1.6f, TY[j] - NY[j] * 1.6f, 0.8f, 0.8f, k->acc, 235);
+        for (int i = 0; i < 4; i++) sk_tri(k, 12 - i * 3.5f, -4.0f - (i == 1 || i == 2) * 0.8f, 11.2f - i * 3.5f, -6.6f, 10.4f - i * 3.5f, -4.4f - (i == 1 || i == 2) * 0.7f, k->acc, (int)(230 * k->fade));
+    } else if (v == 3) {                           /* calico: cream patches */
+        sk_mark(k, 8, -2.0f, 2.6f, 1.8f, k->acc, 220); sk_mark(k, 2, 0.5f, 2.0f, 1.6f, k->acc, 220);
+        for (int j = 1; j < 6; j += 2) sk_mark(k, TX[j], TY[j] - 0.8f, 1.5f, 1.4f, k->acc, 220);
+    }
+    /* the near claw: arm, crusher, fingers */
+    if (v != 2) {
+        float op = 0.3f + 0.25f * (0.5f + 0.5f * fast_sin(t * 1.7f + f->wander));
+        float lx[4] = { 11.5f, 16.5f, 20.5f, 26.5f }, ly[4] = { 2.5f, 5.0f, 2.8f, 1.6f }, r[4] = { 1.1f, 1.0f, 2.1f, 2.6f };
+        sk_tube(k, lx, ly, r, 4, k->body);
+        uint32_t tc = v == 0 ? k->acc : v == 3 ? k->acc : k->fin;
+        sk_line(k, 28.2f, 0.4f, 33.5f, -0.6f - op, 1.0f, 0.45f, tc);
+        sk_line(k, 28.2f, 2.6f, 33.0f, 3.0f + op, 0.95f, 0.45f, tc);
+        if (v == 3) sk_mark(k, 23.5f, 2.2f, 1.6f, 1.2f, k->acc, 220);
+    }
+    /* the eye on its stalk */
+    sk_line(k, 13.2f, -3.8f, 14.6f, -5.6f, 0.7f, 0.6f, k->fin);
+    sk_eye(k, 14.8f, -6.0f, 1.1f, true);
+}
+
+/* every species but the classic fish: dispatch on f->species */
+static void draw_creature(ctx_t *c, const fish_t *f, float clock, bool asleep) {
+    sk_t k;
+    switch (f->species) {
+    case SP_SEAHORSE: sk_setup(&k, c, f, clock, asleep, -8, 12, 0, 0); draw_seahorse(&k); break;
+    case SP_OCTOPUS: {
+        float jk = clamp01((f->speed - 26) / 30);
+        sk_setup(&k, c, f, clock, asleep, -20, 14, 0.9f, jk); draw_octopus(&k); break; }
+    case SP_PUFFER:   sk_setup(&k, c, f, clock, asleep, -20, 14, 0.3f, clamp01(f->speed / 25)); draw_puffer(&k); break;
+    case SP_ANGLER:   sk_setup(&k, c, f, clock, asleep, -22, 16, 0.35f, clamp01(f->speed / 25)); draw_angler(&k); break;
+    case SP_EEL:      sk_setup(&k, c, f, clock, asleep, -42, 42, 0.5f, clamp01(f->speed / 20)); draw_eel(&k); break;
+    case SP_SHARK:    sk_setup(&k, c, f, clock, asleep, -31, 22, 0.4f, 1); draw_shark(&k); break;
+    case SP_SQUID:    sk_setup(&k, c, f, clock, asleep, -23, 12, 0.5f, clamp01(f->speed / 25)); draw_squid(&k); break;
+    case SP_CRAB:     sk_setup(&k, c, f, clock, asleep, -12, 12, 0, 0); draw_crab(&k); break;
+    case SP_LOBSTER:  sk_setup(&k, c, f, clock, asleep, -26, 22, 0.3f, clamp01((f->jet - 0.5f) * 2.5f)); draw_lobster(&k); break;
+    default: break;
+    }
+}
+
 /* the tank's fish (the previews below draw a fish of their own) */
 static void draw_fish(ctx_t *c, const tank_t *t, const fish_t *f) {
+    g_sp_slot = (int)(f - t->fish);
     draw_fish_core(c, f, t->clock, t->night && f->goal.id == GOAL_REST, 1.0f);
+    g_sp_slot = -1;
 }
 
 /* ---- the shrimp (2026-09-29): cherry shrimp from 18 x 8 pixel grids,
@@ -2443,7 +3323,7 @@ void render_stats_card(const tank_t *t, int fish_idx, uint16_t *fb, int stride) 
     if (fish_idx < 0 || fish_idx >= t->n_fish) return;
     ctx_t c = ctx_full(fb, stride, 1.0f);            /* card ignores night dimming */
     const fish_t *f = &t->fish[fish_idx];
-    ring(&c, f->x, f->y, 17 * f->size, f->color);
+    ring(&c, f->x, f->y, render_fish_ring_r(f), f->color);
     unsigned ep; const uint16_t *scene = render_scene_buf(&ep);
     if (g_card && scene) {
         if (fish_idx != g_card_fish || ep != g_card_epoch ||
@@ -2666,16 +3546,25 @@ void render_glyph(uint16_t *fb, int stride, int x, int y, int scale, uint32_t rg
                 for (int yy = 0; yy < scale; yy++)
                     span(&c, x + k * scale, x + k * scale + scale - 1, y + r * scale + yy, &col, 255);
 }
-void render_fish_preview(uint16_t *fb, int stride, float x, float y, float size,
-                         uint32_t body, uint32_t fin, uint32_t accent, float clock) {
+/* a creature of any species, side-on and calm (2026-10-05): the preview
+   holds its live state still - the jet's phase from the clock (an eel's
+   wave, a seahorse's fan), the lure half lit, no puff, no ink */
+void render_creature_preview(uint16_t *fb, int stride, float x, float y, float size, int species, int variant,
+                             uint32_t body, uint32_t fin, uint32_t accent, float clock) {
     ctx_t c = ctx_page(fb, stride);
     fish_t f; memset(&f, 0, sizeof f);
     f.x = x; f.y = y; f.heading = 0; f.size = size; f.speed = 40;
     f.stage = STAGE_ADULT;                       /* grown: the crest shows the fin colour */
     f.hunger = 4; f.stress = 0; f.goal.id = GOAL_EXPLORE;
     f.color = body; f.fin = fin; f.accent = accent;
+    f.species = (uint8_t)(species > 0 && species < SP_COUNT ? species : SP_FISH); f.variant = (uint8_t)(variant & (SP_VARIANTS - 1));
+    if (f.species != SP_FISH) { f.speed = f.species == SP_SHARK ? 30 : 8; f.jet = f.species == SP_LOBSTER ? 0 : clock * 2; f.lure = 0.5f; }   /* (a lobster's jet is its tail-flip) */
     tank_fish_face(&f);                          /* side-on, facing right */
     draw_fish_core(&c, &f, clock, false, size);
+}
+void render_fish_preview(uint16_t *fb, int stride, float x, float y, float size,
+                         uint32_t body, uint32_t fin, uint32_t accent, float clock) {
+    render_creature_preview(fb, stride, x, y, size, SP_FISH, 0, body, fin, accent, clock);
 }
 void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size, const fish_t *who, float clock) {
     ctx_t c = ctx_page(fb, stride);
@@ -2684,9 +3573,17 @@ void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size
     f.stage = who->stage;
     f.hunger = 4; f.stress = 0; f.goal.id = GOAL_EXPLORE;
     f.color = who->color; f.fin = who->fin; f.accent = who->accent;
+    f.species = who->species < SP_COUNT ? who->species : SP_FISH; f.variant = who->variant & (SP_VARIANTS - 1);
+    if (f.species != SP_FISH) { f.speed = f.species == SP_SHARK ? 30 : 8; f.jet = f.species == SP_LOBSTER ? 0 : clock * 2; f.lure = 0.5f; }   /* (a lobster's jet is its tail-flip) */
     tank_fish_face(&f);
     draw_fish_core(&c, &f, clock, false, size);
 }
+/* how big a species draws (2026-10-05): its half-length at size 1 (a page
+   fits a creature by it) and the selection ring's radius round it */
+static const float SP_HALF_LEN[SP_COUNT] = { 22, 22, 24, 22, 24, 46, 34, 26, 18, 30 };
+static const float SP_RING_R[SP_COUNT]   = { 17, 19, 20, 17, 19, 34, 28, 19, 16, 24 };
+float render_species_half_len(int species) { return SP_HALF_LEN[species > 0 && species < SP_COUNT ? species : 0]; }
+float render_fish_ring_r(const fish_t *f) { return SP_RING_R[f->species < SP_COUNT ? f->species : 0] * f->size; }
 void render_confirm_reset(uint16_t *fb, int stride, float frac) {
     ctx_t c = ctx_page(fb, stride);              /* ignores night dimming, like the card */
     const int X = RENDER_CONFIRM_X, Y = RENDER_CONFIRM_Y, W = RENDER_CONFIRM_W, H = RENDER_CONFIRM_H;
