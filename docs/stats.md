@@ -236,3 +236,59 @@ follow_friend 23%, inspect_reef 17%, rest 15%, visit_bubbles 14%, seek_food
 **10%**, a 3-fish cluster anywhere 18%; **4.0 distinct zones per
 fish-minute**, longest one-goal stretch 103 s, mean bored 3.3; 63 goal
 changes (29 torn), 119 asks, 0 survival overrides in 300 s.
+
+## Schema v5 data cycle (species) — 2026-10-06/07
+
+Teacher gemma4:26b (Q4_K_M, the same blob `001e5dafc3c7`) on two machines: a
+private Ollama 0.35.1 on the training box (Ryzen 9 9950X3D, CPU only) and a
+second box on the LAN (GTX 1070 8 GB + i7-13700K, Windows). No older labels
+were mixed in (the v2-v4 traces were not at hand): the classic fish's share
+was raised to 40% instead (`--fish-share 0.4`).
+
+Gate (`prompt_check.py --schema 5`, run 4): every check but the content
+attractor (max single goal 0.55 vs < 0.45), accepted to start.
+
+Labels: 45,021 raw, **45,011 clean** (10 exact duplicates), 7 files, ~2,350/h
+on the CPU teacher, ~2,700/h on the 1070 box. Per species: fish 17,446
+(38.8%), angler 3,310, seahorse 3,302, crab 3,259, puffer 3,232, eel 3,011,
+octopus 3,004, lobster 2,850, shark 2,842, squid 2,755. seek_food 45% overall
+(the fold flags it): the new species' tanks sampled hungry states more often
+(60% of their states at hunger >= 5 vs 34% for the fish); at equal hunger the
+rate matches (hunger < 5: 18% vs 16%; >= 5: 76% vs 66%).
+
+**The dart fix.** The first student (v5m-a, 7,000 iters CPU, val 0.710)
+passed the acceptance at 88% but bold fish had all but stopped playing:
+probe P(dart) bold 0->9 0.01->0.02 (v4m 0.03->0.20). The teacher's own labels
+were the cause: on real states a content bold 7-9 fish darted 6%. The identity
+paragraph gained one sentence ("Play is a bold fish's nature ... roughly one
+choice in four"); a version that also said "unless bored after a dart" broke
+bored-0 bubbles (0.23), so it was cut. Only the states the sentence is about
+were relabelled (`relabel_subset.py`: species fish, bold 7-9, energy >= 6,
+hunger <= 4, stress <= 3, day - 1,459 states): content bold 7-9 dart 7% ->
+12%, bold 9 + energy 8+ 15% -> 26%; bored, social, last-dart and bubbles rows
+unchanged. The 726 content rows of that set train 3x (`out/v5f_train.jsonl`,
+46,463 rows).
+
+**v5m (shipped = the dart-fix run, `model_q4_v5f.bin`):** 14.19M, dim 384, 8
+layers, 7,000 iters on CPU in ~75 min (0.61 s/iter), best val 0.718; q4 7.56
+MB, sha256 325b34fb...
+
+| | v5m-a (first) | **v5m (shipped)** |
+|---|---|---|
+| teacher agreement, 400+ states (eval.py, seed 777) | 88% | **84%** |
+| per species (min .. max) | 82.9 .. 92.1% | **78.1% (fish) .. 93.3% (eel)** |
+| real states: bold 9 energetic content, P(dart) (teacher 30%) | 11% | **31%** |
+| real states: bold 7-9 content, P(dart) (teacher 15%) | 4% | **18%** |
+| real states: social 8-9 / 0-1 content, P(follow) (teacher 84 / 12%) | 89 / 15% | **86 / 18%** |
+| real states: starving squid (hunger 8-9) (teacher 81%) | 86% | **86%** |
+| probe: starving, min over 18 fish identities | 0.98 | **0.93** |
+| probe: bored 0 -> 9 at the bubbles, P(bubbles) | 0.02 -> 0.00 | **0.87 -> 0.00** |
+| sim, 5 min, 10 fish: survival overrides | 0 | **0** |
+| sim, 5 min: landmark time / zones per fish-minute / dart share | 26% / 2.5 / 0% | **28% / 2.2 / 1%** |
+
+Known corner: the probe's one synthetic starving squid (social 7, a friend
+mid 3, food near 12) gets follow_friend from v5m where the teacher says
+seek_food 20/20; on 80 real starving-squid states v5m seeks food 86-94%. The
+probe's synthetic personality panel also reads low (P(follow) social 0->9
+0.00->0.12) while real states keep the full cliff (above) - judge on the real
+states.

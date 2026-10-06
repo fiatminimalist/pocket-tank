@@ -1,8 +1,8 @@
 # State & Goal Schema — v2, FROZEN
 
-**Status: v4 SHIPS (2026-09-15, see the v4 section); v5 (species) is BUILT, its data
-cycle not yet run (2026-10-05, the v5 section at the bottom, docs/retrain-v5.md); v3
-and v2 remain readable by their kept artifacts.** (v1 approved 2026-08-19; v2 personality/stage
+**Status: v5 SHIPS (2026-10-07, model v5m; the species - the v5 section at the bottom,
+docs/retrain-v5.md, docs/stats.md); v4, v3 and v2 remain readable by their kept
+artifacts.** (v1 approved 2026-08-19; v2 personality/stage
 fields approved 2026-08-20 for the progression layer — see `docs/progression.md`.) The tokenizer and
 all training data depend on this exact encoding. Do not change field order,
 vocabulary, or value ranges without regenerating every trace and retraining.
@@ -207,7 +207,7 @@ Bored 3-9 behaviour comes only from v4 teacher data. Runbook: docs/retrain-v4.md
 
 ---
 
-## v5 — BUILT 2026-10-05, data cycle NOT yet run (species; docs/species.md)
+## v5 — SHIPPED 2026-10-07 (model v5m; species; docs/species.md)
 
 One change. Encoders: `gen_traces.py --schema 5` (`render_v5` / `parse_v5`, the
 field list `V5_FIELDS`) and `common/llm/advisor_core.c` (selected automatically

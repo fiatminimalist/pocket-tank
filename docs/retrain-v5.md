@@ -1,4 +1,4 @@
-# Schema v5 retrain (species) - runbook (prepared 2026-10-05; NOT yet run)
+# Schema v5 retrain (species) - runbook (prepared 2026-10-05; run 2026-10-06/07, v5m SHIPPED - results in docs/stats.md)
 
 **Do not start this without Strato's go: the Mac Mini Ollama (192.168.0.139)
 is shared production.** Everything below is built and was run end to end

@@ -173,4 +173,5 @@ The v4 model has no word for a species: an unknown word becomes `<unk>`,
 which it never trained on. So the advisor sends `species <token>` only to a
 **schema-5** model (detected by ` species` in its tokenizer), and the v4
 model keeps deciding as before, from each creature's species-shaped traits.
-The retrain runbook is `docs/retrain-v5.md`.
+The retrain runbook is `docs/retrain-v5.md`; the schema-5 model **v5m** ships
+since 2026-10-07 (its numbers: docs/stats.md, "Schema v5 data cycle").
