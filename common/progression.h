@@ -197,19 +197,20 @@ const char *const *progression_fry_tip(int kind);
 #define SD_PRICE_CLUSTER 240
 #define SD_PRICE_SHRIMP 180       /* 2026-09-29, Strato (first 300, then 180) */
 #define SD_PRICE_URCHIN 120       /* 2026-10-02: the grass's snail (the snail is 80, the grass pays 25 per 250 cm) */
-/* the species' pairs (2026-10-05, docs/species.md): a pair of juveniles each,
- * dearer the more exotic - the crab a little over the castle, the hammerhead
- * the dearest thing in the shop. A grown tank earns ~100-150 a day of care
- * (meals, births, stages, chores), so a pair is days of saving, not hours. */
-#define SD_PRICE_SP_CRAB      140
-#define SD_PRICE_SP_SEAHORSE  200
-#define SD_PRICE_SP_PUFFER    220
-#define SD_PRICE_SP_SQUID     240
-#define SD_PRICE_SP_LOBSTER   260
-#define SD_PRICE_SP_OCTOPUS   300
-#define SD_PRICE_SP_ANGLER    320
-#define SD_PRICE_SP_EEL       360
-#define SD_PRICE_SP_SHARK     400
+/* the species (2026-10-05, docs/species.md): one juvenile a purchase since
+ * 2026-10-07 (a pair before), 10 sand dollars a creature (Alvin's call: the
+ * creatures are the point of the tank, not days of saving); the exotic-ladder
+ * prices (140..400 a pair) are in git before this date. A creature sells back
+ * for this at most (progression_fish_value). */
+#define SD_PRICE_SP_CRAB      10
+#define SD_PRICE_SP_SEAHORSE  10
+#define SD_PRICE_SP_PUFFER    10
+#define SD_PRICE_SP_SQUID     10
+#define SD_PRICE_SP_LOBSTER   10
+#define SD_PRICE_SP_OCTOPUS   10
+#define SD_PRICE_SP_ANGLER    10
+#define SD_PRICE_SP_EEL       10
+#define SD_PRICE_SP_SHARK     10
 typedef struct {
     uint32_t    bit;               /* SD_ITEM_* */
     const char *name;              /* <= 12 chars, the pixel font */
@@ -217,19 +218,22 @@ typedef struct {
     int         price;
 } sd_item_t;
 extern const sd_item_t SD_ITEMS[SD_ITEM_COUNT];
-/* the shop's sale: false when the balance is short or it is already owned;
- * true = unlocked, placed in the tank (tank_plant_place / tank_snail_place)
- * and saved at once. A species' pair (SD_ITEM_SP_*) also needs two free
- * places (progression_has_room): the juveniles join by the reef, and the
- * item's bit stands for "some of them are in the tank" (sync below). */
+/* the shop's sale: false when the balance is short or a thing is already
+ * owned; true = unlocked, placed in the tank (tank_plant_place /
+ * tank_snail_place) and saved at once. A species' item (SD_ITEM_SP_*) sells
+ * ONE juvenile (2026-10-07) as often as there is a free place
+ * (progression_has_room_one): it joins by the reef, and the item's bit only
+ * records "some of them are in the tank" (sync below) - it never locks the item. */
 bool progression_buy(tank_t *t, int item);
 /* the species behind a shop item (SD_ITEM_SP_*), or -1 for a thing */
 int  progression_item_species(int item);
 /* room for a pair: two more creatures under POP_CAP (and N_FISH_MAX) */
 bool progression_has_room(const tank_t *t);
+bool progression_has_room_one(const tank_t *t);   /* one more place (the shop's single creature, 2026-10-07) */
 /* the species' bits follow the tank: set while any of a species lives here
- * (bought, or a surprise hatched), cleared once none do - so the shop sells
- * the pair again. Runs on load, after a sale, a birth and a buy. */
+ * (bought, or a surprise hatched), cleared once none do. The shop reads it
+ * for the modal's count only (2026-10-07; it used to lock the pair). Runs on
+ * load, after a sale, a birth and a buy. */
 void progression_species_sync(tank_t *t);
 /* director / tests: a species' pair from nowhere - no price, no shop bit
  * asked (one already here may get company); false = no room. Saved. */
@@ -271,10 +275,10 @@ const char *const *progression_sd_earn_lines(void);
 
 /* population ceiling. Compile-time so a board can ship lower (the device
  * shipped 5 until its advisor latency was measured, docs/progression-next.md).
- * Since the species (2026-10-05) every board holds N_FISH_MAX = 10: each
- * creature is a turn in the advisor's queue, ~3.7 s a decision on the
- * device, so ten get a fresh decision every ~37 s (the reflex layer moves
- * them in between). Never above N_FISH_MAX. */
+ * Since the species (2026-10-05) every board holds N_FISH_MAX (10 then, 25
+ * since 2026-10-07): each creature is a turn in the advisor's queue, ~3.7 s a
+ * decision on the device, so a full tank of 25 gets a fresh decision every
+ * ~90 s (the reflex layer moves them in between). Never above N_FISH_MAX. */
 #ifndef POP_CAP
 #define POP_CAP N_FISH_MAX
 #endif

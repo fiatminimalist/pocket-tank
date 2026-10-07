@@ -115,7 +115,13 @@ static float *drive_of(fish_t *f, const char *s) {
 static int species_of(const char *s) {
     for (int sp = 1; sp < SP_COUNT; sp++) {
         if (!strcasecmp(s, SPECIES[sp].token) || !strcasecmp(s, SPECIES[sp].name)) return sp;
-        if (!strcasecmp(s, SD_ITEMS[SD_ITEM_SP_FIRST + sp - 1].name)) return sp;   /* the plural: "crabs" */
+        const char *words[2] = { SD_ITEMS[SD_ITEM_SP_FIRST + sp - 1].name, SPECIES[sp].token }; size_t ls = strlen(s);
+        for (int w = 0; w < 2; w++) {                                                  /* the shop's word or the token, and their plurals */
+            const char *nm = words[w]; size_t ln = strlen(nm);
+            if (!strcasecmp(s, nm)) return sp;
+            if (ls == ln + 1 && (s[ln] | 32) == 's' && !strncasecmp(s, nm, ln)) return sp;        /* "crabs", "sharks" */
+            if (ls == ln + 2 && !strcasecmp(s + ln, "es") && !strncasecmp(s, nm, ln)) return sp;   /* "octopuses" */
+        }
     }
     if (!strcasecmp(s, "pufferfish")) return SP_PUFFER;
     if (!strcasecmp(s, "anglerfish")) return SP_ANGLER;
@@ -364,7 +370,7 @@ static void run(tank_t *t, char *line) {
         int item = !strcmp(argv[1], "plant") ? 0 : !strcmp(argv[1], "snail") ? 1 : !strcmp(argv[1], "castle") ? 2 : !strcmp(argv[1], "coral") ? 3 : !strcmp(argv[1], "cluster") ? 4 : !strcmp(argv[1], "shrimp") ? 5 : !strcmp(argv[1], "urchin") ? 6 : -1;
         if (item < 0 && species_of(argv[1]) > 0) item = SD_ITEM_SP_FIRST + species_of(argv[1]) - 1;   /* a species' pair */
         if (item < 0) ESP_LOGW(TAG, "buy plant|snail|castle|coral|cluster|shrimp|urchin|seahorse|octopus|puffer|angler|eel|shark|squid|crab|lobster");
-        else if (progression_item_species(item) > 0 && !progression_has_room(t)) ESP_LOGW(TAG, "%s refused: no room for two (%d of %d)", SD_ITEMS[item].name, t->n_fish, POP_CAP);
+        else if (progression_item_species(item) > 0 && !progression_has_room_one(t)) ESP_LOGW(TAG, "%s refused: no room (%d of %d)", SD_ITEMS[item].name, t->n_fish, POP_CAP);
         else if (progression_buy(t, item)) ESP_LOGI(TAG, "%s unlocked, %d sand dollars left%s", SD_ITEMS[item].name, (int)t->sd_balance,
                                                     tank_decor_placeable(item) ? " (`place` opens the placement page)" : "");
         else ESP_LOGW(TAG, "%s refused: owned, or %d < %d", SD_ITEMS[item].name, (int)t->sd_balance, SD_ITEMS[item].price);

@@ -346,25 +346,30 @@ int tank_species_n(const tank_t *t, int species) {
     return n;
 }
 static float sp_roll(tank_t *t, float lo, float hi) { return tank_randf(t, lo, hi); }
-int tank_add_species_pair(tank_t *t, int species) {
-    if (species <= SP_FISH || species >= SP_COUNT || t->n_fish + 2 > N_FISH_MAX) return -1;
+int tank_add_species_n(tank_t *t, int species, int n) {
+    if (species <= SP_FISH || species >= SP_COUNT || n < 1 || t->n_fish + n > N_FISH_MAX) return -1;
     const species_def_t *s = &SPECIES[species];
     int first = t->n_fish;
-    for (int k = 0; k < 2; k++) {
+    /* (2026-10-07: the shop sells one at a time; a newcomer contrasts with the LAST of its kind
+       already here, so the two that breed are a contrasting pair as the founding fish are) */
+    int prev = -1; for (int i = 0; i < t->n_fish; i++) if (t->fish[i].species == species) prev = i;
+    for (int k = 0; k < n; k++) {
         int slot = t->n_fish;
         /* a contrasting pair, as the founding fish are: bold apart by a third of the range */
         float bold = sp_roll(t, s->bold_lo, s->bold_hi), soc = sp_roll(t, s->soc_lo, s->soc_hi);
-        if (k == 1 && fabsf(bold - t->fish[first].bold) < (s->bold_hi - s->bold_lo) * 0.33f)
-            bold = t->fish[first].bold < (s->bold_lo + s->bold_hi) * 0.5f ? s->bold_hi - 0.02f : s->bold_lo + 0.02f;
+        if (prev >= 0 && fabsf(bold - t->fish[prev].bold) < (s->bold_hi - s->bold_lo) * 0.33f)
+            bold = t->fish[prev].bold < (s->bold_lo + s->bold_hi) * 0.5f ? s->bold_hi - 0.02f : s->bold_lo + 0.02f;
         tank_make_fish(t, slot, slot % ROSTER_N, soc, bold, STAGE_JUV);
         tank_set_species(t, slot, species, (int)tank_randf(t, 0, SP_VARIANTS - 0.001f));
         place_near_reef(t, &t->fish[slot]);
         t->fish[slot].hunger = 4; t->fish[slot].trust = 4;
+        prev = slot;
         t->n_fish++;
     }
     t->roster_gen++;
     return first;
 }
+int tank_add_species_pair(tank_t *t, int species) { return tank_add_species_n(t, species, 2); }
 
 void tank_set_bubble_x(tank_t *t, float x) {
     /* clear of the grass corner's spot (the fish's other landmark) and of the glass;

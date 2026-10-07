@@ -8,10 +8,14 @@ creature's goal; the species decides how that goal is carried out.
 
 ## Where they come from
 
-- **The shop:** each species is a sand-dollar item that brings a **pair of
-  juveniles** (`SD_ITEM_SP_*`, nine items, `progression_buy` → `tank_add_species_pair`).
-  It needs two free places in the tank. A species can be bought again once
-  none of its kind are left.
+- **The shop:** each species is a sand-dollar item that brings **one
+  juvenile** (`SD_ITEM_SP_*`, nine items, `progression_buy` →
+  `tank_add_species_n(.., 1)`; one a purchase since 2026-10-07, a pair before).
+  It needs one free place in the tank (`progression_has_room_one`) and can be
+  bought as often as there is room: two of a kind are what breed, so a keeper
+  buys a second. A newcomer's boldness contrasts with the last of its kind
+  already here, the way the founding pair's does. (The director's `spawn`
+  still stages a free pair, `progression_spawn_pair`.)
 - **A birth:** an arrival is the species of its parents. With a small chance
   (`SP_MUTATE_P`, 4 %) a fry of the classic fish hatches as a random new
   species - the rare surprise.
@@ -20,20 +24,23 @@ creature's goal; the species decides how that goal is carried out.
 
 ### The keeper's side (the shop, the birth flow, the pages)
 
-- **Prices** (`SD_PRICE_SP_*`): crabs 140, seahorses 200, pufferfish 220,
-  squid 240, lobsters 260, octopuses 300, anglerfish 320, electric eels 360,
-  hammerheads 400 - dearer the more exotic. The items are 7..15 in species
+- **Prices** (`SD_PRICE_SP_*`): every creature is 10 sand dollars (since
+  2026-10-07; before that a pair, on an exotic ladder from crabs 140 to
+  hammerheads 400), and sells back from its card for 10 at most
+  (`progression_fish_value`). The items are 7..15 in species
   order (`SD_ITEM_SP_FIRST` + species - 1), on the shop's pages 2..4.
 - **The bit** of a species' item means "some of them are in the tank"
   (`progression_species_sync`, run on load, after a sale, a birth and a
-  buy): it clears when the last one is sold, so the pair is for sale again,
-  and a surprise hatched in the tank sets it. No room for two: the row's
-  button and the modal say NO ROOM. Bought juveniles start at
-  STAGE_JUV_AGE and are not paid the juvenile stage's dollars.
+  buy): it clears when the last one is sold and a surprise hatched in the
+  tank sets it. Since 2026-10-07 it no longer locks the row: a species' row
+  always shows its price and UNLOCK, and its modal says how many of its kind
+  are here. No room: the row's button and the modal say NO ROOM / THE TANK
+  IS FULL. Bought juveniles start at STAGE_JUV_AGE and are not paid the
+  juvenile stage's dollars.
 - **Which pair courts:** each species' two best (grown first, then trust,
   as before), and of those pairs the one whose weaker parent ranks highest
   (the classic fish on a tie). A tank without two of one kind lists no
-  NEW FRY row, never courts and has no arrival until a pair is bought.
+  NEW FRY row, never courts and has no arrival until a second of one kind is bought.
 - **The gates past five** (`care_gates`): the five's three (the youngest
   grown to adult, meals, trust) with the meals at 200 / 270 / 350 / 440 for
   6 / 7 / 8 / 9 creatures and the trust bar at 9 from seven on.
@@ -45,11 +52,12 @@ creature's goal; the species decides how that goal is carried out.
   tank), it offers that species' four designs (the body swatches are the
   designs' bodies; a design brings its own markings) instead of LOOK_BODY.
 - **The milestones page** holds six rows a page (`MSP_FISH_ROWS`); with more
-  (ten creatures and the NEW FRY row) a chevron beside the rows - the TANK
-  row's arrow, a pip per page - or a sideways swipe across them turns the
-  page, and a card opened or stepped to brings its row's page. The TANK
-  row's population strip is two rows of five; its tally fits ten. A big
-  creature's row portrait is held to `MSP_ROW_SP_MAX`.
+  (up to 25 creatures and the NEW FRY row) a chevron beside the rows - the
+  TANK row's arrow, a pip per page - or a sideways swipe across them turns
+  the page, and a card opened or stepped to brings its row's page. The TANK
+  row's population strip is three rows of nine dots; its tally modal shows
+  the school in two staggered rows. A big creature's row portrait is held
+  to `MSP_ROW_SP_MAX`.
 - **The card** names a creature under its name in the 8 px font: "SEAHORSE -
   GOLDEN", or the design first, or the token ("EEL - SPOTTED") when the
   card is too narrow; the milestones card says "ADULT LOBSTER".
@@ -62,11 +70,18 @@ creature's goal; the species decides how that goal is carried out.
 
 ## The cap
 
-`N_FISH_MAX` is 10 (it was 6), on every board (`POP_CAP` 10; the device
-shipped 5 "until advisor latency is measured"). Every creature adds a turn
-to the advisor's queue: at ~3.7 s a decision on the device, ten creatures
-get a fresh decision every ~37 s, against ~22 s at six. The reflex layer
-keeps everyone moving in between; the decisions are just older.
+`N_FISH_MAX` is 25 since 2026-10-07 (6 before the species, 10 on
+2026-10-05), on every board (`POP_CAP` = `N_FISH_MAX`; the device shipped 5
+"until advisor latency is measured"). Every creature adds a turn to the
+advisor's queue: at ~3.7 s a decision on the device, ten creatures get a
+fresh decision every ~37 s and a full tank of 25 every ~90 s, against ~22 s
+at six. The reflex layer keeps everyone moving in between; the decisions
+are just older. The save's `fish_ext` tail holds fish 7..25 (19 x 100 B,
+3,592 B in all, inside the 4,000 B NVS budget); a 10-place build reading a
+save with more than ten falls back to the core's six, as an older build
+always has. The gates past ten keep the ladder going (~+70 meals a place,
+trust 9); the TANK row's tally is three rows of nine dots and the tally
+modal's school two rows.
 
 ## Species table (`SPECIES[]`, tank.c)
 

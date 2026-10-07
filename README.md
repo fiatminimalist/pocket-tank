@@ -66,12 +66,12 @@ over Wi-Fi, so the cable is only for the first install.
 
 | | Teacher | Student (what ships) |
 |---|---|---|
-| Model | gemma4:26b | Aqua Pets 14.3M (dim 384, 8 layers, 8 heads) |
-| Parameters | ~26,000,000,000 | 14,300,000, about 1,818× fewer |
+| Model | gemma4:26b | Aqua Pets 14.2M (dim 384, 8 layers, 8 heads) |
+| Parameters | ~26,000,000,000 | 14,190,000, about 1,832× fewer |
 | Size | ~18 GB (Q4_K_M) | 57 MB fp32 → **7.56 MB 4-bit** |
-| Vocabulary | ~262K tokens | **54 tokens** (a closed schema lexicon) |
+| Vocabulary | ~262K tokens | **65 tokens** (a closed schema lexicon, ten of them species) |
 | Runs on | A desktop GPU | ESP32-S3, from flash, no network |
-| Agreement | | 72% picks the teacher's goal (the teacher agrees with *itself* 82%) |
+| Agreement | | 84% picks the teacher's goal, every species above 78% (the teacher agrees with *itself* 82%) |
 
 On the real board a decision takes about 3.7 s at 12 tokens per second, with
 the tank rendering at 25 to 30 fps alongside it on the other core. Trained on
@@ -88,7 +88,7 @@ into both the simulator and the firmware:
   never blocks on the model.
 - **LLM advisor** (`llm/`). A llama2.c-style 4-bit inference engine, a
   word-level tokenizer, and one shared state encoder. Fish are re-asked only
-  when their situation meaningfully changes, so four to six fish share one
+  when their situation meaningfully changes, so up to 25 creatures share one
   brain without anyone starving for a turn. The model runs on the second core
   of the ESP32-S3 with SIMD dot products and quantized activations in
   internal SRAM; the weights are memory-mapped from flash and never copied.
@@ -154,7 +154,7 @@ or not, and at a quarter speed while the tank sleeps; a stage reached in
 the night is the morning's surprise.
 
 **Arrivals.** Take good care of the pair and the tank earns more fish, up to
-ten creatures, one at a time (the gates get harder as the tank fills: more
+25 creatures, one at a time (the gates get harder as the tank fills: more
 meals, more trust). Each arrival has conditions (trust, feedings, a fish
 grown up, a hold-approach) and the tank *tells* you when it's close: the two
 most trusting adults dive into the sea grass and circle low through it.
@@ -365,8 +365,8 @@ sells. You get 20% of the price back, the piece leaves the tank, and it is
 in the shop again at full price. The snail and the shrimp are not for
 sale; they are permanent residents.
 
-**New species.** Nine creatures join the classic fish, each a pair of
-juveniles in the shop, from the crabs (140) to the hammerheads (400):
+**New species.** Nine creatures join the classic fish, each a juvenile
+in the shop at 10 sand dollars, bought one at a time (two of a kind breed):
 seahorses, octopuses, pufferfish, anglerfish, electric eels, hammerheads,
 squid, crabs and lobsters. Each comes in four designs, has its own
 temperament, and moves like the real animal: the seahorse holds the grass by
@@ -374,11 +374,15 @@ its tail, the octopus takes the colour of its den, the pufferfish puffs up,
 the anglerfish's lure glows, the eel rises for air, the hammerhead never
 stops, the crab walks sideways. They breed within their kind: the best
 grown pair of one species courts and the fry is theirs, and now and then a
-classic pair's fry hatches as something else entirely, a surprise. A pair
-needs two free places in the tank (the shop says NO ROOM otherwise), and a
-species is for sale again once the last of it has been sold. The milestones
+classic pair's fry hatches as something else entirely, a surprise. A newcomer
+needs a free place in the tank (the shop says NO ROOM otherwise), and the
+tank holds up to 25 creatures. The milestones
 page pages its rows past six; the card names the species and the design.
 The whole design is in [docs/species.md](docs/species.md).
+
+![The ten species, one design each](docs/media/sim-species.png)
+![At night: the anglerfish's lure, the firefly squid, the eel's spark, the sleepers](docs/media/sim-species-night.png)
+![The shop's species page: each creature shown as itself, 10 sand dollars](docs/media/sim-shop-species.png)
 
 ![The shop](docs/media/sim-shop.png)
 ![Unlocking the snail](docs/media/sim-shop-modal.png)
@@ -725,6 +729,8 @@ seven-minute prompt check before an overnight run is always worth it.
   evidence behind it
 - [docs/retrain-v3.md](docs/retrain-v3.md) — the schema v3 retrain runbook
 - [docs/retrain-v4.md](docs/retrain-v4.md) — the schema v4 (boredom) retrain runbook and its numbers
+- [docs/retrain-v5.md](docs/retrain-v5.md) — the schema v5 (species) retrain runbook; the numbers are in docs/stats.md
+- [docs/species.md](docs/species.md) — the ten species: the shop, breeding, designs, how each one moves
 - [docs/DEVICE.md](docs/DEVICE.md) — what is in flight on the device, and the flash rule
 - [docs/BOARDS.md](docs/BOARDS.md) — the three boards: what is shared, where one may differ, how a release keeps each to its own image
 - [docs/board-amoled-1.75c.md](docs/board-amoled-1.75c.md) — the pendant's bring-up notes
@@ -736,7 +742,7 @@ seven-minute prompt check before an overnight run is always worth it.
 
 ## Status
 
-- ✅ Model: schema v4 (boredom, no shadow), 14.3M student, 4-bit export, evaluated
+- ✅ Model: schema v5 (species, boredom, no shadow), 14.2M student, 4-bit export, evaluated
 - ✅ Simulator: the full tank with progression, self-tests, snapshots
 - ✅ Firmware: running on the real board at 25 to 30 fps and 3.7 s per
   decision, with touch, auto-rotation, a battery gauge and log (tap the
@@ -772,9 +778,10 @@ seven-minute prompt check before an overnight run is always worth it.
   updates over Wi-Fi with signed, per-board images, a sea urchin that keeps
   the grass down, a snail that cleans overnight, a sponge and scissors, and
   fish you can rename or sell
-- 🚧 Next: new species - seahorses, octopuses, pufferfish, anglerfish,
-  electric eels, hammerheads, squid, crabs and lobsters, in pairs from the
-  shop, breeding within their kind, up to ten creatures a tank
+- ✅ New species: seahorses, octopuses, pufferfish, anglerfish,
+  electric eels, hammerheads, squid, crabs and lobsters, one at a time from
+  the shop, breeding within their kind, up to 25 creatures a tank, and a
+  model (v5m) that knows each one's species
   ([docs/species.md](docs/species.md))
 - 🚧 Next: more to unlock: more plants, corals, and more tank maintenance
   critters

@@ -3855,13 +3855,18 @@ static float g_ms_sell_clock;        /* the tank clock when SELL was armed */
 #define MSP_SCHOOL_SCALE 0.74f
 #define MSP_SCHOOL_MAX   1.02f            /* the size that still fits its place (a big elder) */
 static void ms_school(const tank_t *t, uint16_t *fb, int stride, int X, int Y, int W) {
-    int pitch = POP_CAP * MSP_SCHOOL_PITCH <= W - 16 ? MSP_SCHOOL_PITCH : (W - 16) / POP_CAP;
+    /* past ten places (2026-10-07, the 25): two rows, the places shared between them */
+    const int rows = POP_CAP > 10 ? 2 : 1, per = (POP_CAP + rows - 1) / rows;
+    int pitch = per * MSP_SCHOOL_PITCH <= W - 16 ? MSP_SCHOOL_PITCH : (W - 16) / per;
     float k = pitch < MSP_SCHOOL_PITCH ? 1.3f * pitch / MSP_SCHOOL_PITCH : 1.0f;   /* the places shrink together */
+    if (k > 1.0f) k = 1.0f;
+    if (rows > 1) k *= 0.85f;                /* (two rows: a 36 px-long eel must fit a 24 px pitch, with the stagger below) */
     /* more than six: every other one a little higher and lower, so a long eel
        may reach past its place without touching its neighbour */
     for (int i = 0; i < POP_CAP; i++) {
-        float cx = X + (W - POP_CAP * pitch) / 2 + pitch / 2 + 4 * k + i * pitch;   /* (+4: a fish's centre sits ahead of its middle) */
-        float cy = Y + 50 + (pitch < MSP_SCHOOL_PITCH ? (i & 1 ? 9 : -9) : 0);
+        int row = i / per, col = i % per, n_row = i / per == rows - 1 ? POP_CAP - row * per : per;
+        float cx = X + (W - n_row * pitch) / 2 + pitch / 2 + 4 * k + col * pitch;   /* (+4: a fish's centre sits ahead of its middle) */
+        float cy = rows == 1 ? Y + 50 + (pitch < MSP_SCHOOL_PITCH ? (i & 1 ? 9 : -9) : 0) : Y + 34 + row * 30 + (col & 1 ? 5 : -5);
         if (i < t->n_fish) {
             float sz = t->fish[i].size * MSP_SCHOOL_SCALE * k, mx = MSP_SCHOOL_MAX * k;
             render_fish_portrait(fb, stride, cx, cy, sz > mx ? mx : sz, &t->fish[i], t->clock + i * 0.9f);
@@ -4040,9 +4045,12 @@ void render_milestones(const tank_t *t, uint16_t *fb, int stride) {
     draw_text(&c, 92, MSP_TANK_Y + 2, 2, MSP_TEAL, "TANK");
     if (POP_CAP <= 6)                        /* population strip: who is here, who could still arrive */
         for (int k = 0; k < POP_CAP; k++) fish_glyph(&c, 96 + k * 14, MSP_TANK_Y + 30, 2.8f, k < t->n_fish ? MSP_TEAL : MSP_DIM);
-    else                                     /* ten (2026-10-05): two rows of five, smaller, clear of the badges */
+    else if (POP_CAP <= 10)                  /* ten (2026-10-05): two rows of five, smaller, clear of the badges */
         for (int k = 0; k < POP_CAP; k++)
             fish_glyph(&c, 96 + (k % 5) * 14, MSP_TANK_Y + 25 + (k / 5) * 11, 2.3f, k < t->n_fish ? MSP_TEAL : MSP_DIM);
+    else                                     /* 25 (2026-10-07): three rows of nine, dots, in the same 74 px before the badges */
+        for (int k = 0; k < POP_CAP; k++)
+            fish_glyph(&c, 96 + (k % 9) * 8, MSP_TANK_Y + 23 + (k / 9) * 8, 1.4f, k < t->n_fish ? MSP_TEAL : MSP_DIM);
     int nb = tank_badge_n(t), np = tank_pages(t);
     if (g_ms_tpage >= np) g_ms_tpage = 0;
     for (int j = 0; j < MSP_PER_ROW; j++) {
@@ -4426,8 +4434,8 @@ static const icon_t *shop_icon(int item) {
         &icon_shop_shark, &icon_shop_squid, &icon_shop_crab, &icon_shop_lobster };
     if (progression_item_species(item) > 0) return SP_ICONS[progression_item_species(item) - 1];
     return item == 0 ? &icon_shop_plant : item == 1 ? &icon_shop_snail : item == 2 ? &icon_shop_castle : item == 3 ? &icon_shop_coral : item == 4 ? &icon_shop_cluster : item == 5 ? &icon_shop_shrimp : &icon_shop_urchin; }
-/* a species' pair needs two free places: with no room its UNLOCK reads NO ROOM, dim */
-static bool shop_no_room(const tank_t *t, int item) { return progression_item_species(item) > 0 && !progression_has_room(t); }
+/* a species' creature needs one free place (2026-10-07; a pair needed two): with no room its UNLOCK reads NO ROOM, dim */
+static bool shop_no_room(const tank_t *t, int item) { return progression_item_species(item) > 0 && !progression_has_room_one(t); }
 /* pages (2026-09-23, the fourth item): SHP_PER_PAGE rows fit between the
  * coin and the foot buttons once the filler caption went (HOW TO EARN says
  * the same). With more items than a page holds, arrows at the header's
@@ -4462,8 +4470,12 @@ void render_shop(const tank_t *t, uint16_t *fb, int stride) {
     for (int i = g_shp_page * SHP_PER_PAGE; i < SD_ITEM_COUNT && i < (g_shp_page + 1) * SHP_PER_PAGE; i++) {
         const sd_item_t *it = &SD_ITEMS[i];
         int top = SHP_ROW_Y0 + (i - g_shp_page * SHP_PER_PAGE) * SHP_ROW_DY;
-        bool owned = (t->sd_unlocks & it->bit) != 0, room = !shop_no_room(t, i), can = t->sd_balance >= it->price && room;
-        if (owned) blit_icon(&c, 32, top, shop_icon(i), 255); else blit_icon_locked(&c, 32, top, shop_icon(i));   /* (the rows are where the bowl is wide: their own column) */
+        /* (a species' row is never "owned": one is bought as often as there is room, 2026-10-07) */
+        bool owned = (t->sd_unlocks & it->bit) != 0 && progression_item_species(i) <= 0, room = !shop_no_room(t, i), can = t->sd_balance >= it->price && room;
+        /* a thing not yet bought is its silhouette; a species is always shown as the creature
+         * (2026-10-07: its bit means "in the tank", not "bought" - the silhouette read as a missing
+         * picture for every species the keeper had not got yet) */
+        if (owned || i >= SD_ITEM_SP_FIRST) blit_icon(&c, 32, top, shop_icon(i), 255); else blit_icon_locked(&c, 32, top, shop_icon(i));   /* (the rows are where the bowl is wide: their own column) */
         draw_text(&c, 76, top + 2, 2, 0xffffff, it->name);
         if (owned) draw_text(&c, 76, top + 20, 2, MSP_TEAL, "IN THE TANK");
         else price_tag(&c, 76, top + 20, it->price, can ? MSP_TEAL : MSP_DIM);
@@ -4491,7 +4503,7 @@ void render_shop(const tank_t *t, uint16_t *fb, int stride) {
     }
     const sd_item_t *it = &SD_ITEMS[g_shp_modal];
     const int Y = SHP_MODAL_Y, H = SHP_MODAL_H;
-    bool owned = (t->sd_unlocks & it->bit) != 0, room = !shop_no_room(t, g_shp_modal), can = t->sd_balance >= it->price && room;
+    bool owned = (t->sd_unlocks & it->bit) != 0 && progression_item_species(g_shp_modal) <= 0, room = !shop_no_room(t, g_shp_modal), can = t->sd_balance >= it->price && room;
     rect_fill(&c, X, Y, W, H, 0x04141a);
     rect_edge(&c, X, Y, W, H, MSP_TEAL); rect_edge(&c, X + 1, Y + 1, W - 2, H - 2, 0x1c2f36);
     blit_icon_scaled(&c, X + (W - 64) / 2, Y + 14, shop_icon(g_shp_modal), 2, true);
@@ -4508,19 +4520,17 @@ void render_shop(const tank_t *t, uint16_t *fb, int stride) {
                                 button(&c, SHP_TWO_X1, by, MSP_HOW_W, MSP_HOW_H, MSP_TEAL, MSP_TEAL, sell, 2);
                                 draw_text(&c, SHP_TWO_X1 + (MSP_HOW_W - text_w(sell, 2)) / 2, by + (MSP_HOW_H - 14) / 2, 2, MSP_INK, sell); }
         else button(&c, SHP_TWO_X1, by, MSP_HOW_W, MSP_HOW_H, 0x1c2f36, MSP_DIM, "SELL", 2);
-    } else if (owned && progression_item_species(g_shp_modal) > 0) {   /* a species here: for sale again once none are left */
-        int sp = progression_item_species(g_shp_modal), n = tank_species_n(t, sp);
-        char line[32]; snprintf(line, sizeof line, "%d IN THE TANK", n);
-        draw_text(&c, X + (W - text_w(line, 2)) / 2, Y + 164, 2, MSP_TEAL, line);
-        draw_text(&c, X + (W - text_w("BACK WHEN NONE ARE LEFT", 2)) / 2, by + 8, 2, MSP_DIM, "BACK WHEN NONE ARE LEFT");
     } else if (owned) draw_text(&c, X + (W - text_w("IN THE TANK", 2)) / 2, by + 8, 2, MSP_TEAL, "IN THE TANK");   /* the snail: a permanent resident */
     else {
         char line[32]; snprintf(line, sizeof line, "%d", it->price);
         int pw = 20 + text_w(line, 2);
         price_tag(&c, X + (W - pw) / 2, Y + 164, it->price, can ? 0xffffff : MSP_DIM);
-        if (!room) draw_text(&c, X + (W - text_w("THE TANK HAS NO ROOM FOR 2", 2)) / 2, Y + 184, 2, MSP_DIM, "THE TANK HAS NO ROOM FOR 2");
+        int msp = progression_item_species(g_shp_modal), nsp = msp > 0 ? tank_species_n(t, msp) : 0;
+        if (!room) draw_text(&c, X + (W - text_w("THE TANK IS FULL", 2)) / 2, Y + 184, 2, MSP_DIM, "THE TANK IS FULL");
         else if (!can) { snprintf(line, sizeof line, "YOU HAVE %d", (int)t->sd_balance);
                          draw_text(&c, X + (W - text_w(line, 2)) / 2, Y + 184, 2, MSP_DIM, line); }
+        else if (nsp > 0) { snprintf(line, sizeof line, "%d IN THE TANK", nsp);   /* (a species: how many of its kind are here) */
+                            draw_text(&c, X + (W - text_w(line, 2)) / 2, Y + 184, 2, MSP_TEAL, line); }
         if (!room) button(&c, bx, by, MSP_HOW_W, MSP_HOW_H, 0x1c2f36, MSP_DIM, "NO ROOM", 2);
         else if (can) { button(&c, bx, by, MSP_HOW_W, MSP_HOW_H, MSP_TEAL, MSP_TEAL, "UNLOCK", 2);
                    draw_text(&c, bx + (MSP_HOW_W - text_w("UNLOCK", 2)) / 2, by + (MSP_HOW_H - 14) / 2, 2, MSP_INK, "UNLOCK"); }
@@ -4532,7 +4542,7 @@ int render_shop_tap(const tank_t *t, float x, float y) {
     if (g_shp_earn) { g_shp_earn = false; return SHOP_TAP_KEPT; }
     if (g_shp_modal >= 0) {
         int item = g_shp_modal; const sd_item_t *it = &SD_ITEMS[item];
-        bool owned = (t->sd_unlocks & it->bit) != 0, can = t->sd_balance >= it->price && !shop_no_room(t, item);
+        bool owned = (t->sd_unlocks & it->bit) != 0 && progression_item_species(item) <= 0, can = t->sd_balance >= it->price && !shop_no_room(t, item);   /* (a species: never owned, 2026-10-07) */
         const int bx = SHP_MODAL_X + (SHP_MODAL_W - MSP_HOW_W) / 2, by = SHP_MODAL_Y + SHP_MODAL_H - 12 - MSP_HOW_H;
         bool row = y >= by - MSP_HOW_SLOP_UP && y < by + MSP_HOW_H + MSP_HOW_SLOP_DN;
         bool on_btn = row && x >= bx - MSP_HOW_SLOP_X && x < bx + MSP_HOW_W + MSP_HOW_SLOP_X;

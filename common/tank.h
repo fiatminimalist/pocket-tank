@@ -78,8 +78,9 @@ float tank_glass_x1(float y);
 float tank_glass_top(float x);                         /* the glass above x (0 in the rectangle) */
 void  tank_glass_clamp(float *x, float *y, float m);   /* (x,y) brought to at least m px inside the glass and above the bottom */
 
-#define N_FISH_MAX 10           /* array bound; the live count is tank_t.n_fish (6 until the species,
-                                 * 2026-10-05: fish 7..10 save in their own tail, progression.c) */
+#define N_FISH_MAX 25           /* array bound; the live count is tank_t.n_fish (6 until the species,
+                                 * 2026-10-05, then 10; 25 since 2026-10-07: fish 7..N_FISH_MAX save in
+                                 * their own tail, progression.c - the tail grows with this number) */
 #define N_FISH_START 2          /* a new tank: two contrasting adults */
 #define N_TRAINED_NAMES 4       /* name tokens the v2 model was trained on */
 #define FISH_NAME_MAX 7         /* the keeper's name for a fish (first-run setup) */
@@ -187,7 +188,7 @@ extern const char *const STAGE_NAMES[4];           /* schema.md v2 stage tokens 
 extern const char *const TRAINED_NAMES[N_TRAINED_NAMES]; /* mira bolt kelp nori */
 
 /* ---- species (2026-10-05, docs/species.md) ----
- * The classic fish and seven creatures that breed like it. The model picks
+ * The classic fish and nine creatures that breed like it. The model picks
  * every creature's goal (schema 5 also hears its species); the species
  * decides how the goal is carried out (its locomotion, its own spots) and
  * how it looks (render.c). SP_FISH is 0, so every older save reads as fish. */
@@ -863,6 +864,7 @@ const char *tank_roster_name(int preset);
 const species_def_t *tank_species(const fish_t *f);
 void  tank_set_species(tank_t *t, int slot, int species, int variant);
 int   tank_add_species_pair(tank_t *t, int species);
+int   tank_add_species_n(tank_t *t, int species, int n);   /* n juveniles of a species (the shop sells one, 2026-10-07); the first's slot or -1 */
 int   tank_species_n(const tank_t *t, int species);
 /* a tap's reach around a creature (the touch ports, the sim): its species'
  * hit_r at its size, never under a fingertip's TANK_HIT_MIN_R */
@@ -905,14 +907,14 @@ void  tank_set_bubble_x(tank_t *t, float x);
  * the tank for good. */
 enum { SD_ITEM_PLANT = 1u << 0, SD_ITEM_SNAIL = 1u << 1, SD_ITEM_CASTLE = 1u << 2, SD_ITEM_CORAL = 1u << 3, SD_ITEM_CLUSTER = 1u << 4, SD_ITEM_SHRIMP = 1u << 5,
        SD_ITEM_URCHIN = 1u << 6,
-       /* the species (2026-10-05, docs/species.md): a pair of juveniles each, in
-          species order (item SD_ITEM_SP_FIRST + species - 1). The bit means the
-          species is in the tank: it clears when the last of them is sold, and
-          the item can be bought again (progression_species_sync). */
+       /* the species (2026-10-05, docs/species.md): one juvenile a purchase (2026-10-07;
+          a pair before), in species order (item SD_ITEM_SP_FIRST + species - 1). The
+          bit means the species is in the tank (progression_species_sync); it never
+          locks the item - a creature sells whenever there is a free place. */
        SD_ITEM_SP_SEAHORSE = 1u << 7, SD_ITEM_SP_OCTOPUS = 1u << 8, SD_ITEM_SP_PUFFER = 1u << 9, SD_ITEM_SP_ANGLER = 1u << 10,
        SD_ITEM_SP_EEL = 1u << 11, SD_ITEM_SP_SHARK = 1u << 12, SD_ITEM_SP_SQUID = 1u << 13, SD_ITEM_SP_CRAB = 1u << 14,
        SD_ITEM_SP_LOBSTER = 1u << 15, SD_ITEM_COUNT = 16 };
-#define SD_ITEM_SP_FIRST 7         /* the item index of the first species pair (the seahorses) */
+#define SD_ITEM_SP_FIRST 7         /* the item index of the first species (the seahorse) */
 /* per-fish paid bits (sd_paid_fish) */
 enum { SD_PAID_JUV = 1u << 0, SD_PAID_ADULT = 1u << 1, SD_PAID_ELDER = 1u << 2, SD_PAID_TRUST = 1u << 3 };
 #define PX_PER_INCH 24.0f          /* the tank reads as ~15 in tall; a fish ~1.7 in */

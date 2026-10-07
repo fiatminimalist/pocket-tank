@@ -263,8 +263,13 @@ _Static_assert(SV_FISH == 6, "SAVE LAYOUT LOCK: the core's per-fish arrays are s
 _Static_assert(sizeof(fish_ext_save_t) == 100, "SAVE LAYOUT LOCK: fish_ext_save_t is frozen");
 SAVE_AT(n_fish_all, 1688); SAVE_AT(pad_ext, 1689); SAVE_AT(fish_ext, 1692);                            /* fish 7..10, the species, 10-05 */
 _Static_assert(sizeof(save_t) >= 2092, "SAVE LAYOUT LOCK: save_t only ever grows");
-/* (the next field: SAVE_AT(its_name, 1692 + 100 x (N_FISH_MAX - 6)) - a bigger N_FISH_MAX
-   needs its own tail too, as this one is);) */
+/* 2026-10-07: N_FISH_MAX 25 - fish_ext is the save's LAST field, so the fifteen more records
+   only lengthen it (fish 7..10 keep their offsets; a 10-place build reads n_fish_all 25 as "too
+   many" and falls back to the core's six, the rollback promise as before) */
+_Static_assert(N_FISH_MAX == 25, "SAVE LAYOUT LOCK: fish_ext holds 19 records (fish 7..25)");
+_Static_assert(sizeof(save_t) >= 3592, "SAVE LAYOUT LOCK: save_t only ever grows");
+/* (the next field: SAVE_AT(its_name, 1692 + 100 x (N_FISH_MAX - 6) = 3592) - a bigger N_FISH_MAX
+   needs its own tail then, as fish_ext would no longer be last;) */
 /* NVS budget: the save is one blob in the nvs partition (0x9000, 0x6000 =
  * 6 pages of 4096 B; tools/make_installer.py pins the row). A page is 126
  * entries of 32 B, and NVS keeps one page free for its garbage collection:
@@ -275,8 +280,8 @@ _Static_assert(sizeof(save_t) >= 2092, "SAVE LAYOUT LOCK: save_t only ever grows
  * is 3 x ~128 = ~390 entries, plus ~10 for the settings, "bat"/"hist" and
  * the batlog's "bed": under 2/3 of the 630, so GC always has room. Past it,
  * saves can start failing for space, and any nvs_flash_init error makes
- * main.c ERASE the partition. 2092 B today (fish 7..10, 2026-10-05: 4 x 100 B after the
- * lights-out notice; ~66 entries a copy): 1908 B of headroom. */
+ * main.c ERASE the partition. 3592 B today (fish 7..25, 2026-10-07: 19 x 100 B after the
+ * lights-out notice; ~113 entries a copy, 3 x 113 + 10 = ~350 of the 630): 408 B of headroom. */
 #define SAVE_NVS_BUDGET 4000
 _Static_assert(sizeof(save_t) <= SAVE_NVS_BUDGET, "the save outgrew its NVS budget - see the math above");
 
@@ -329,17 +334,17 @@ const sd_item_t SD_ITEMS[SD_ITEM_COUNT] = {
     { SD_ITEM_CLUSTER, "REEF CLUSTER", "A MATURE REEF ON A ROCK,", "FILLS OUT, THEN IT BLOOMS",  SD_PRICE_CLUSTER },  /* 2026-09-24: the dearest; three looks on its page */
     { SD_ITEM_SHRIMP,  "SHRIMP",    "A SCHOOL OF CHERRY SHRIMP", "THEY EAT SCRAPS AND MULTIPLY", SD_PRICE_SHRIMP },
     { SD_ITEM_URCHIN,  "SEA URCHIN", "NIBBLES THE TALL GRASS,",  "EVEN WHILE THE TANK SLEEPS",  SD_PRICE_URCHIN },  /* 2026-10-02: the episode 5 promise, a resident like the snail */  /* 2026-09-29: a resident, like the snail; Strato: "should mention that they multiply" (28 chars, as the plant's) */
-    /* the species (2026-10-05, docs/species.md): a pair of juveniles each, in
-       species order; the words say what makes them them, and that they breed */
-    { SD_ITEM_SP_SEAHORSE, "SEAHORSES",   "A YOUNG PAIR. THEY HOLD",  "THE GRASS BY THE TAIL, BREED", SD_PRICE_SP_SEAHORSE },
-    { SD_ITEM_SP_OCTOPUS,  "OCTOPUSES",   "A YOUNG PAIR. THEY HIDE,", "TAKE ITS COLOR AND BREED",     SD_PRICE_SP_OCTOPUS },
-    { SD_ITEM_SP_PUFFER,   "PUFFERFISH",  "A YOUNG PAIR. STARTLED,",  "THEY PUFF UP. THEY BREED",     SD_PRICE_SP_PUFFER },
-    { SD_ITEM_SP_ANGLER,   "ANGLERFISH",  "A YOUNG PAIR WITH LURES",  "THAT GLOW AT NIGHT. BREEDS",   SD_PRICE_SP_ANGLER },
-    { SD_ITEM_SP_EEL,      "ELECTRIC EEL", "A YOUNG PAIR. THEY RISE", "FOR AIR, SPARK AND BREED",     SD_PRICE_SP_EEL },
-    { SD_ITEM_SP_SHARK,    "HAMMERHEADS", "A PAIR OF PUPS THAT NEVER", "STOP SWIMMING. THEY BREED",   SD_PRICE_SP_SHARK },
-    { SD_ITEM_SP_SQUID,    "SQUID",       "A YOUNG PAIR. THEY JET,",  "HOLD STATION, INK AND BREED",  SD_PRICE_SP_SQUID },
-    { SD_ITEM_SP_CRAB,     "CRABS",       "A YOUNG PAIR THAT WALKS",  "SIDEWAYS. THEY BREED TOO",     SD_PRICE_SP_CRAB },
-    { SD_ITEM_SP_LOBSTER,  "LOBSTERS",    "A YOUNG PAIR OF FLOOR",    "WALKERS. THEY BREED TOO",      SD_PRICE_SP_LOBSTER },
+    /* the species (2026-10-05, docs/species.md; one a purchase since 2026-10-07), in
+       species order; the words say what makes them them, and that two of a kind breed */
+    { SD_ITEM_SP_SEAHORSE, "SEAHORSE",    "A YOUNG ONE. IT HOLDS THE", "GRASS BY ITS TAIL. 2 BREED",  SD_PRICE_SP_SEAHORSE },
+    { SD_ITEM_SP_OCTOPUS,  "OCTOPUS",     "A YOUNG ONE. IT HIDES AND", "TAKES ITS DEN'S COLOR",       SD_PRICE_SP_OCTOPUS },
+    { SD_ITEM_SP_PUFFER,   "PUFFERFISH",  "A YOUNG ONE. STARTLED,",    "IT PUFFS UP. TWO BREED",      SD_PRICE_SP_PUFFER },
+    { SD_ITEM_SP_ANGLER,   "ANGLERFISH",  "A YOUNG ONE. ITS LURE",     "GLOWS AT NIGHT. TWO BREED",   SD_PRICE_SP_ANGLER },
+    { SD_ITEM_SP_EEL,      "ELECTRIC EEL", "A YOUNG ONE. IT RISES FOR", "AIR AND SPARKS. TWO BREED",  SD_PRICE_SP_EEL },
+    { SD_ITEM_SP_SHARK,    "HAMMERHEAD",  "A PUP THAT NEVER STOPS",    "SWIMMING. TWO BREED",         SD_PRICE_SP_SHARK },
+    { SD_ITEM_SP_SQUID,    "SQUID",       "A YOUNG ONE. IT JETS AND",  "INKS. TWO OF THEM BREED",     SD_PRICE_SP_SQUID },
+    { SD_ITEM_SP_CRAB,     "CRAB",        "A YOUNG ONE THAT WALKS",    "SIDEWAYS. TWO BREED",         SD_PRICE_SP_CRAB },
+    { SD_ITEM_SP_LOBSTER,  "LOBSTER",     "A YOUNG FLOOR WALKER.",     "TWO OF THEM BREED",           SD_PRICE_SP_LOBSTER },
 };
 _Static_assert(SD_ITEM_SP_FIRST + SP_COUNT - 1 == SD_ITEM_COUNT, "a shop item per species, after the things");
 _Static_assert(SD_ITEM_COUNT <= 32, "sd_unlocks is 32 bits");
@@ -389,7 +394,12 @@ bool progression_sell(tank_t *t, int item) {
 /* ---- a fish sold (2026-10-01) ---- */
 int progression_fish_value(const tank_t *t, int fish) {
     static const int worth[4] = { SD_FISH_FRY, SD_FISH_JUV, SD_FISH_ADULT, SD_FISH_ELDER };
-    return fish < 0 || fish >= t->n_fish ? 0 : worth[t->fish[fish].stage & 3];
+    if (fish < 0 || fish >= t->n_fish) return 0;
+    int v = worth[t->fish[fish].stage & 3], sp = t->fish[fish].species;
+    /* a species' creature sells back for its shop price at most (2026-10-07: at 10 a creature,
+       a juvenile bought for 10 and sold for SD_FISH_JUV 15 would mint sand dollars) */
+    if (sp > SP_FISH && sp < SP_COUNT) { int price = SD_ITEMS[SD_ITEM_SP_FIRST + sp - 1].price; if (v > price) v = price; }
+    return v;
 }
 bool progression_fish_sellable(const tank_t *t, int fish) {
     return fish >= 0 && fish < t->n_fish && t->n_fish > FISH_KEEP_MIN && s_newborn < 0;
@@ -398,6 +408,7 @@ int progression_item_species(int item) {
     return item >= SD_ITEM_SP_FIRST && item < SD_ITEM_COUNT ? 1 + item - SD_ITEM_SP_FIRST : -1;
 }
 bool progression_has_room(const tank_t *t) { return t->n_fish + 2 <= POP_CAP && t->n_fish + 2 <= N_FISH_MAX; }
+bool progression_has_room_one(const tank_t *t) { return t->n_fish + 1 <= POP_CAP && t->n_fish + 1 <= N_FISH_MAX; }
 void progression_species_sync(tank_t *t) {
     uint32_t was = t->sd_unlocks;
     for (int sp = 1; sp < SP_COUNT; sp++) {
@@ -425,11 +436,12 @@ bool progression_sell_fish(tank_t *t, int fish) {
     progression_save(t);                                   /* a sale sticks at once */
     return true;
 }
-/* a species' pair in the tank: two juveniles by the reef, their clocks
-   where a juvenile's are, nothing owed for the stage they were bought at */
-static bool add_pair(tank_t *t, int sp) {
-    if (sp <= SP_FISH || sp >= SP_COUNT || !progression_has_room(t)) return false;
-    int first = tank_add_species_pair(t, sp);
+/* a species' newcomers in the tank: n juveniles by the reef, their clocks
+   where a juvenile's are, nothing owed for the stage they were bought at
+   (the shop sells ONE at a time since 2026-10-07; the director's spawn stages a pair) */
+static bool add_species(tank_t *t, int sp, int n) {
+    if (sp <= SP_FISH || sp >= SP_COUNT || t->n_fish + n > POP_CAP) return false;
+    int first = tank_add_species_n(t, sp, n);
     if (first < 0) return false;
     for (int i = first; i < t->n_fish; i++) {
         s_age[i] = STAGE_JUV_AGE; s_starve_s[i] = 0;
@@ -441,16 +453,18 @@ static bool add_pair(tank_t *t, int sp) {
     return true;
 }
 bool progression_spawn_pair(tank_t *t, int species) {
-    if (!add_pair(t, species)) return false;
+    if (!add_species(t, species, 2)) return false;
     progression_species_sync(t); progression_save(t);
     return true;
 }
 bool progression_buy(tank_t *t, int item) {
     if (item < 0 || item >= SD_ITEM_COUNT) return false;
     const sd_item_t *it = &SD_ITEMS[item];
-    if ((t->sd_unlocks & it->bit) || t->sd_balance < it->price) return false;
     int sp = progression_item_species(item);
-    if (sp > 0 && !add_pair(t, sp)) return false;          /* a pair of juveniles, by the reef - or no room */
+    /* a thing is bought once; a species' creature is bought as often as there is room
+       (2026-10-07: one a purchase - two of a kind breed, so the keeper buys a second) */
+    if ((sp <= 0 && (t->sd_unlocks & it->bit)) || t->sd_balance < it->price) return false;
+    if (sp > 0 && !add_species(t, sp, 1)) return false;    /* one juvenile, by the reef - or no room */
     t->sd_balance -= it->price; t->sd_unlocks |= it->bit;
     if (it->bit == SD_ITEM_PLANT) tank_plant_place(t);
     if (it->bit == SD_ITEM_SNAIL) tank_snail_place(t);
@@ -599,7 +613,9 @@ static int care_gates(const tank_t *t, gate_t g[CARE_GATES_MAX]) {
         /* 6..9 (2026-10-05, the species' ten places): the five's gates, the
            meals climbing ~+70 a place and the trust to 9 from eight - a
            full tank is a lot of mouths, and every one of them must trust */
-        static const int meals[N_FISH_MAX] = { 0, 0, 0, 0, 0, 140, 200, 270, 350, 440 };
+        static const int meals[N_FISH_MAX] = { 0, 0, 0, 0, 0, 140, 200, 270, 350, 440,
+            /* 10..24 (2026-10-07, the 25 places): the same ladder on, ~+70 a place */
+            510, 580, 650, 720, 790, 860, 930, 1000, 1070, 1140, 1210, 1280, 1350, 1420, 1490 };
         int nf = t->n_fish < N_FISH_MAX ? t->n_fish : N_FISH_MAX - 1;
         float trust = nf >= 7 ? 9.0f : 8.0f;
         GATE(FRY_REQ_GROW, age, (float)STAGE_ADULT_AGE, t->fish[last].stage >= STAGE_ADULT);

@@ -259,6 +259,9 @@ def main():
     board_files = {b: [(off, publish(src, pub, b), src) for off, src, pub in builds[b]] for b in order}
     total = sum(os.path.getsize(src) for _, _, src in board_files["amoled18"])
     shutil.copytree(os.path.join(ROOT, "installer", "vendor"), os.path.join(out, "vendor"))
+    media = os.path.join(ROOT, "installer", "media")        # the page's own pictures (2026-10-07: the species)
+    if os.path.isdir(media):
+        shutil.copytree(media, os.path.join(out, "media"))
     dialog, tag = patch_dialog(os.path.join(out, "vendor", "esp-web-tools"))
     # The bundle's file names are content hashes of the PRISTINE vendor, and
     # hosts serve .js with a year's max-age: a patched dialog under the old

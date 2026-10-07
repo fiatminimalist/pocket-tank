@@ -85,6 +85,8 @@
     border-radius: 10px; padding: 14px 16px; max-width: 420px;
   }
   .meta { color: var(--muted); font-size: 14px; }
+  .shots { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px; }
+  .shot { display: block; flex: 1 1 300px; width: 100%; max-width: 448px; height: auto; border-radius: 10px; image-rendering: pixelated; }
   /* the board picker (2026-10-02): shown only when the build carries more than one board */
   .boards { display: flex; flex-wrap: wrap; gap: 10px; margin: 4px 0 18px; }
   .boards button { font: 500 16px/1.25 var(--sans); letter-spacing: .01em; color: var(--ink); text-align: left;
@@ -124,6 +126,15 @@
   <section class="card dark">
     <h1>Install Aqua Pets</h1>
     <p class="lede">A tiny fish tank where a small AI decides what the fish do, all on the board. Install it from this page. Update it the same way.</p>
+  </section>
+
+  <section class="card">
+    <h2>Ten species</h2>
+    <p>Your tank starts with two fish. The sand dollars you earn buy nine other kinds of creature from the shop, 10 sand dollars each: seahorses, octopuses, pufferfish, anglerfish, electric eels, hammerheads, squid, crabs and lobsters. Each comes in four designs, moves like the real animal, breeds once you have two of a kind, and the AI on the board knows what each one is. The tank holds up to 25 creatures.</p>
+    <div class="shots">
+      <img class="shot" src="media/species.png" width="448" height="368" alt="The ten species in the tank: fish, seahorse, octopus, pufferfish, anglerfish, electric eel, hammerhead, squid, crab and lobster">
+      <img class="shot" src="media/shop-species.png" width="448" height="368" alt="The shop's species page: octopus, pufferfish, anglerfish and electric eel, 10 sand dollars each">
+    </div>
   </section>
 
   <section class="card">
