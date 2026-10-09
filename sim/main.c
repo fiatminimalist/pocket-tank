@@ -4266,10 +4266,11 @@ static float sheet_size(int sp, stage_t st) {
     return base * SCALE[st];
 }
 typedef struct { int sp, v; stage_t st; float x, y, heading, yaw, yaw_tail, speed, puff, ink, jet, camo, spark, lure; bool rest; int mode, anchor; } sheet_fish_t;
+static int sim_sheet_theme = 0;        /* --theme <0|1|2>: the theme the sheets are drawn in */
 static void sheet_tank(void) {
     tank_init(&tank, 2024);
     tank_new_population(&tank);
-    tank.n_fish = 0;
+    tank.n_fish = 0; tank.theme = (uint8_t)sim_sheet_theme;
     for (int b = 0; b < VEG_BEDS; b++) tank_veg_set(&tank, b, VEG_NUB);   /* the grass out of the way: the creatures in full */
     memset(tank.algae, 0, sizeof tank.algae);
     for (int i = 0; i < MAX_FOOD; i++) tank.food[i].alive = false;
@@ -4387,6 +4388,20 @@ static int species_sheet(const char *prefix) {
                                     d->var[sp % 4].color, d->var[sp % 4].fin, d->var[sp % 4].accent, 3.0f);
         }
         snprintf(path, sizeof path, "%s_previews.ppm", prefix); write_ppm(path, fb); files++;
+    }
+    /* the turns (2026-10-10): every creature side-on, mid-turn and head-on - a body must keep its
+       volume through the turn in every theme (--theme), never fold to a line */
+    for (int half = 0; half < 2; half++) {
+        sheet_tank();
+        static const float YAWS[3] = { 1.0f, 0.45f, 0.06f };
+        int n = 0;
+        for (int sp = half * 6; sp < SP_COUNT && sp < half * 6 + 6; sp++)
+            for (int c = 0; c < 3; c++) {
+                sheet_fish_t q = { .sp = sp, .v = sp % 4, .st = STAGE_ADULT, .x = 75 + c * 150, .y = 38 + (sp - half * 6) * 58,
+                                   .yaw = YAWS[c], .yaw_tail = YAWS[c], .speed = 12 };
+                sheet_put(n++, &q);
+            }
+        snprintf(path, sizeof path, "%s_turns_%c.ppm", prefix, 'a' + half); sheet_render(fb, path); files++;
     }
     printf("species-sheet: wrote %d PPMs, %s_*.ppm\n", files, prefix);
     /* the cost: each species drawn 4000 times at its adult size against the classic fish */
@@ -4968,6 +4983,7 @@ int main(int argc, char **argv) {
     for (int a = 1; a < argc; a++)
         if (strcmp(argv[a], "--greedy") == 0) advisor_core_sample = false;
     for (int a = 1; a < argc; a++) {                 /* mode flags may sit anywhere */
+        if (strcmp(argv[a], "--theme") == 0 && a + 1 < argc) sim_sheet_theme = atoi(argv[a + 1]);   /* the sheets' theme (set first) */
         if (strcmp(argv[a], "--hero") == 0 && a + 1 < argc) return hero_shot(argv[a + 1]);
         if (strcmp(argv[a], "--clip") == 0 && a + 1 < argc)
             return clip(argv[a + 1], a + 2 < argc ? atoi(argv[a + 2]) : 6);

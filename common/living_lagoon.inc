@@ -39,12 +39,22 @@ static void lagoon_shape(sk_t *k,const float *x,const float *y,int n,uint32_t rg
     for(int i=0;i<n;i++)sk_pt(k,x[i],y[i],&X[i],&Y[i]);
     lagoon_poly(k->c,X,Y,n,rgb);
 }
+/* the body's thickness (2026-10-10): a shaded cross-section at (x, y), `depth` px deep and
+   `ry` tall, that widens as the creature turns toward the glass (sqrt(1 - yaw^2), as the
+   Original fish's FISH_THICK) - so a turn never folds a lagoon creature to a line. Before
+   this only the ellipse bodies had one, a sliver a fifth of their width, and only head-on. */
+static void lagoon_volume(sk_t *k,float x,float y,float depth,float ry,uint32_t rgb) {
+    float w=fabsf(sk_yaw(k,x)),f=sqrtf(fmaxf(0,1-w*w));
+    float RX=depth*f*k->s,RY=ry*k->s;if(RX<1)return;
+    float X,Y;sk_pt(k,x,y,&X,&Y);
+    float px[20],py[20];for(int i=0;i<20;i++){float a=i*TAU/20;px[i]=X+RX*fast_cos(a);py[i]=Y+RY*fast_sin(a);}
+    lagoon_poly(k->c,px,py,20,rgb);
+}
 static void lagoon_body(sk_t *k,float x,float y,float rx,float ry,uint32_t rgb) {
     float X[20],Y[20];
     for(int i=0;i<20;i++){float a=i*TAU/20;X[i]=x+rx*fast_cos(a);Y[i]=y+ry*fast_sin(a);}
     lagoon_shape(k,X,Y,20,rgb);
-    /* A real cross-section stays visible while the flank turns away. */
-    if(fabsf(k->yh)<.3f)sk_dot(k,x,y,rx*.2f,ry*.85f,rgb,255,false);
+    lagoon_volume(k,x,y,fminf(rx,ry)*.8f,ry*.95f,rgb);   /* a rounded body: as deep as it is tall, nearly */
 }
 static void lagoon_limb(sk_t *k,const float *x,const float *y,const float *r,int n,uint32_t rgb) {
     sk_tube(k,x,y,r,n,mix(rgb,0x123b3d,.35f));
@@ -78,7 +88,7 @@ static void draw_lagoon_species(sk_t *k,int species) {
         lagoon_fin(k,5,4,1,7,13);
         float x[12]={17,14,7,-3,-12,-17,-13,-5,4,12,16,17};
         float y[12]={0,-4,-7,-8,-5,0,5,7,7,4,1,0};
-        lagoon_shape(k,x,y,12,body);
+        lagoon_shape(k,x,y,12,body);lagoon_volume(k,0,0,5.5f,7.2f,body);
         for(int i=0;i<5;i++)for(int j=0;j<3;j++)sk_mark(k,-8+i*3,j*3-3,.8f,.3f,0xe0dfbf,85);
         sk_line(k,9,-5,7,0,.35f,.3f,mix(body,0x123b3d,.5f));
         sk_line(k,7,0,10,5,.3f,.2f,mix(body,0x123b3d,.5f));
@@ -104,7 +114,7 @@ static void draw_lagoon_species(sk_t *k,int species) {
         }
         if(squid) {
             lagoon_fin(k,15,0,-3,-12,0);lagoon_fin(k,15,0,-3,0,12);
-            float x[8]={17,11,1,-6,-8,-6,1,11},y[8]={0,-5,-7,-5,0,5,7,5};lagoon_shape(k,x,y,8,body);
+            float x[8]={17,11,1,-6,-8,-6,1,11},y[8]={0,-5,-7,-5,0,5,7,5};lagoon_shape(k,x,y,8,body);lagoon_volume(k,3,0,5,6.3f,body);
         }else lagoon_body(k,3,-1,10,9.5f,body);
         lagoon_pattern(k,1,-1,2.5f,2);sk_eye(k,squid?-4:8,-2,1.4f,true);break;
     }
@@ -135,7 +145,7 @@ static void draw_lagoon_species(sk_t *k,int species) {
     }
     case SP_SHARK: {
         lagoon_fin(k,-18,0,-32,-12-beat,8+beat);sk_tri(k,-10,-4,-3,-15,2,-4,k->fin,220);lagoon_fin(k,5,3,-7,7,14);
-        float x[10]={16,11,-1,-15,-22,-15,-1,10,16,17},y[10]={-3,-5,-6,-3,0,3,5,4,2,0};lagoon_shape(k,x,y,10,body);
+        float x[10]={16,11,-1,-15,-22,-15,-1,10,16,17},y[10]={-3,-5,-6,-3,0,3,5,4,2,0};lagoon_shape(k,x,y,10,body);lagoon_volume(k,-2,0,5.2f,5.2f,body);
         lagoon_body(k,15,0,3,9,body);sk_eye(k,16,-7,1,true);sk_eye(k,16,7,.8f,true);
         for(int i=0;i<3;i++)sk_line(k,8+i*1.3f,-2,7.5f+i*1.3f,2,.22f,.2f,mix(body,0x123b3d,.5f));
         break;
