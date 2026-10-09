@@ -181,6 +181,8 @@ typedef struct {
     fish_ext_save_t fish_ext[N_FISH_MAX - SV_FISH];
     uint8_t theme;                     /* 0 = Original, including every older save */
     uint8_t pad_theme[7];
+    float   wreck_x;                   /* the shipwreck (2026-10-10): 0 = the default spot (or none) */
+    uint8_t wreck_z1, pad_wreck[3];    /* its depth + 1 (0 in an older save = FRONT) */
 } save_t;
 /* the smallest PTK2 save (pre-upkeep, 2026-08-30): anything shorter is not
  * ours. Every later build wrote sizeof(save_t) of its day - 448, 1112, 1304,
@@ -272,7 +274,9 @@ _Static_assert(sizeof(save_t) >= 2092, "SAVE LAYOUT LOCK: save_t only ever grows
 _Static_assert(N_FISH_MAX == 25, "SAVE LAYOUT LOCK: fish_ext holds 19 records (fish 7..25)");
 _Static_assert(sizeof(save_t) >= 3592, "SAVE LAYOUT LOCK: save_t only ever grows");
 SAVE_AT(theme, 3592); SAVE_AT(pad_theme, 3593);
-_Static_assert(sizeof(save_t) == 3600, "SAVE LAYOUT LOCK: theme tail ends at 3600");
+_Static_assert(sizeof(save_t) >= 3600, "SAVE LAYOUT LOCK: save_t only ever grows");
+SAVE_AT(wreck_x, 3600); SAVE_AT(wreck_z1, 3604); SAVE_AT(pad_wreck, 3605);                           /* the shipwreck, 10-10 */
+_Static_assert(sizeof(save_t) == 3608, "SAVE LAYOUT LOCK: the wreck's tail ends at 3608");
 /* A larger population now needs a separate tail: fish_ext is no longer last. */
 /* NVS budget: the save is one blob in the nvs partition (0x9000, 0x6000 =
  * 6 pages of 4096 B; tools/make_installer.py pins the row). A page is 126
@@ -337,7 +341,8 @@ const sd_item_t SD_ITEMS[SD_ITEM_COUNT] = {
     { SD_ITEM_CORAL,  "CORAL",      "A BRANCHING REEF CORAL,",   "GROWS FOR WEEKS, YOUR COLOR", SD_PRICE_CORAL },    /* 2026-09-23 */
     { SD_ITEM_CLUSTER, "REEF CLUSTER", "A MATURE REEF ON A ROCK,", "FILLS OUT, THEN IT BLOOMS",  SD_PRICE_CLUSTER },  /* 2026-09-24: the dearest; three looks on its page */
     { SD_ITEM_SHRIMP,  "SHRIMP",    "A SCHOOL OF CHERRY SHRIMP", "THEY EAT SCRAPS AND MULTIPLY", SD_PRICE_SHRIMP },
-    { SD_ITEM_URCHIN,  "SEA URCHIN", "NIBBLES THE TALL GRASS,",  "EVEN WHILE THE TANK SLEEPS",  SD_PRICE_URCHIN },  /* 2026-10-02: the episode 5 promise, a resident like the snail */  /* 2026-09-29: a resident, like the snail; Strato: "should mention that they multiply" (28 chars, as the plant's) */
+    { SD_ITEM_URCHIN,  "SEA URCHIN", "NIBBLES THE TALL GRASS,",  "EVEN WHILE THE TANK SLEEPS",  SD_PRICE_URCHIN },
+    { SD_ITEM_WRECK,   "SHIPWRECK",  "A SUNKEN BOAT WITH HOLES", "TO SWIM THROUGH, AND A DIVER", SD_PRICE_WRECK },   /* 2026-10-10 */  /* 2026-10-02: the episode 5 promise, a resident like the snail */  /* 2026-09-29: a resident, like the snail; Strato: "should mention that they multiply" (28 chars, as the plant's) */
     /* the species (2026-10-05, docs/species.md; one a purchase since 2026-10-07), in
        species order; the words say what makes them them, and that two of a kind breed */
     { SD_ITEM_SP_SEAHORSE, "SEAHORSE",    "A YOUNG ONE. IT HOLDS THE", "GRASS BY ITS TAIL. 2 BREED",  SD_PRICE_SP_SEAHORSE },
@@ -478,6 +483,7 @@ bool progression_buy(tank_t *t, int item) {
     if (it->bit == SD_ITEM_CLUSTER) tank_cluster_place(t);
     if (it->bit == SD_ITEM_SHRIMP) { tank_shrimp_place(t, SHRIMP_START); t->shrimp_food = 0; t->shrimp_cool = 0; }
     if (it->bit == SD_ITEM_URCHIN) tank_urchin_place(t);
+    if (it->bit == SD_ITEM_WRECK) tank_wreck_place(t);
     progression_save(t);                                   /* a purchase sticks at once */
     return true;
 }
@@ -898,6 +904,7 @@ static bool load_save(tank_t *t, int64_t *saved_unix) {
     t->coral_growth = sv.coral_growth > 0 ? sv.coral_growth : 0;   /* 0 = full (tank_coral_growth) */
     if (sv.cluster_x > 0) tank_decor_set(t, 4, sv.cluster_x, sv.cluster_z1 ? sv.cluster_z1 - 1 : DECOR_Z_FRONT);
     tank_cluster_set_scheme(t, sv.cluster_scheme);
+    if (sv.wreck_x > 0) tank_decor_set(t, SD_ITEM_WRECK_IDX, sv.wreck_x, sv.wreck_z1 ? sv.wreck_z1 - 1 : DECOR_Z_FRONT);
     t->cluster_growth = sv.cluster_growth > 0 ? sv.cluster_growth : 0;
     if (t->sd_unlocks & SD_ITEM_SHRIMP) {             /* the school back in the grass, its count and its progress */
         tank_shrimp_place(t, sv.shrimp_n >= SHRIMP_START ? sv.shrimp_n : SHRIMP_START);
@@ -1137,6 +1144,7 @@ bool progression_save(tank_t *t) {
     sv.coral_growth = t->coral_growth;
     sv.cluster_x = t->cluster_x > 0 ? t->cluster_x : 0; sv.cluster_z1 = (uint8_t)(t->cluster_z + 1); sv.cluster_scheme = t->cluster_scheme;
     sv.cluster_growth = t->cluster_growth;
+    sv.wreck_x = t->wreck_x > 0 ? t->wreck_x : 0; sv.wreck_z1 = (uint8_t)(t->wreck_z + 1);
     sv.shrimp_n = (t->sd_unlocks & SD_ITEM_SHRIMP) ? t->shrimp_n : 0; sv.shrimp_food = t->shrimp_food;
     sv.shrimp_cool = t->shrimp_cool > 0 ? t->shrimp_cool : 0; sv.shrimp_eaten = t->shrimp_eaten;
     sv.urchin_x = (t->sd_unlocks & SD_ITEM_URCHIN) && t->urchin_x > 0 ? t->urchin_x : 0;

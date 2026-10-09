@@ -536,6 +536,7 @@ void tank_init(tank_t *t, uint32_t seed) {
     t->castle_x = 0; t->castle_z = DECOR_Z_FRONT;
     t->coral_x = 0; t->coral_z = DECOR_Z_FRONT; t->coral_rgb = 0; t->coral_growth = 0; t->coral_acc = 0;
     t->cluster_x = 0; t->cluster_z = DECOR_Z_FRONT; t->cluster_scheme = 0; t->cluster_growth = 0; t->cluster_acc = 0;
+    t->wreck_x = 0; t->wreck_z = DECOR_Z_FRONT;
     t->tank_ms_bits = 0; t->tank_ms_seen = 0; t->ask_rr = 0; t->advisor_asks = 0;
     tank_scatter_food(t, 2);
 }
@@ -1452,6 +1453,9 @@ void tank_plant_place(tank_t *t) {
 void tank_castle_place(tank_t *t) {
     t->castle_x = 0; t->castle_z = DECOR_Z_FRONT;          /* the default spot, the fish swim through */
 }
+void tank_wreck_place(tank_t *t) {
+    t->wreck_x = 0; t->wreck_z = DECOR_Z_FRONT;            /* the default spot, in front of the grass: the fish pass behind its holes */
+}
 void tank_coral_place(tank_t *t) {
     t->coral_x = 0; t->coral_z = DECOR_Z_FRONT;            /* the default spot, in front of the reef bed's grass; the colour stays the keeper's */
     t->coral_growth = CORAL_START;                          /* young: it grows from here */
@@ -1474,9 +1478,9 @@ static void cluster_grow(tank_t *t, float seconds) {
     t->cluster_growth = fminf(CLUSTER_FULL, t->cluster_growth + seconds / CLUSTER_GROW_S);
 }
 void     tank_coral_set_rgb(tank_t *t, uint32_t rgb) { t->coral_rgb = rgb & 0xffffff; }
-/* the decor's spot and layer (see tank.h): item 0 is the plant, item 2 the castle, item 3 the coral, item 4 the cluster */
-bool  tank_decor_placeable(int item) { return item == 0 || item == 2 || item == 3 || item == 4; }
-float tank_decor_half_w(int item) { return item == 0 ? PLANT_HALF_W : item == 2 ? CASTLE_HALF_W : item == 3 ? CORAL_HALF_W : item == 4 ? CLUSTER_HALF_W : 0; }
+/* the decor's spot and layer (see tank.h): item 0 is the plant, item 2 the castle, item 3 the coral, item 4 the cluster, item 7 the shipwreck */
+bool  tank_decor_placeable(int item) { return item == 0 || item == 2 || item == 3 || item == 4 || item == SD_ITEM_WRECK_IDX; }
+float tank_decor_half_w(int item) { return item == 0 ? PLANT_HALF_W : item == 2 ? CASTLE_HALF_W : item == 3 ? CORAL_HALF_W : item == 4 ? CLUSTER_HALF_W : item == SD_ITEM_WRECK_IDX ? WRECK_HALF_W : 0; }
 /* only the plant weaves AMONG the fish; the castle and both corals are
  * BEHIND or IN FRONT (Strato, 2026-09-24: "remove the among option for
  * corals, it doesn't really make as much sense") */
@@ -1490,20 +1494,22 @@ float tank_decor_x(const tank_t *t, int item) {
     if (item == 2) return t->castle_x > 0 ? t->castle_x : CASTLE_X_DEFAULT;
     if (item == 3) return t->coral_x > 0 ? t->coral_x : CORAL_X_DEFAULT;
     if (item == 4) return t->cluster_x > 0 ? t->cluster_x : CLUSTER_X_DEFAULT;
+    if (item == SD_ITEM_WRECK_IDX) return t->wreck_x > 0 ? t->wreck_x : WRECK_X_DEFAULT;
     if (item != 0) return 0;
     return t->plant_x > 0 ? t->plant_x : PLANT_X_DEFAULT;
 }
-int tank_decor_z(const tank_t *t, int item) { return item == 0 ? t->plant_z : item == 2 ? t->castle_z : item == 3 ? t->coral_z : item == 4 ? t->cluster_z : DECOR_Z_MIDDLE; }
+int tank_decor_z(const tank_t *t, int item) { return item == 0 ? t->plant_z : item == 2 ? t->castle_z : item == 3 ? t->coral_z : item == 4 ? t->cluster_z : item == SD_ITEM_WRECK_IDX ? t->wreck_z : DECOR_Z_MIDDLE; }
 static float decor_top(const tank_t *t, int item) {         /* the piece's highest pixel */
     if (item == 0) { float top; tank_veg_bed(t, 3, NULL, NULL, &top, NULL); return top; }
     if (item == 2) return TANK_BOT - 16 - 146;
     if (item == 3) return TANK_BOT - 14 + DECOR_SINK - 92;
+    if (item == SD_ITEM_WRECK_IDX) return TANK_BOT - 14 + DECOR_SINK - 84;
     return TANK_BOT - 14 + DECOR_SINK - 120;
 }
 int tank_decor_hit(const tank_t *t, float x, float y) {
-    static const int order[4] = { 3, 0, 2, 4 };               /* the coral, the plant, the castle, the cluster */
-    static const uint32_t bits[5] = { SD_ITEM_PLANT, 0, SD_ITEM_CASTLE, SD_ITEM_CORAL, SD_ITEM_CLUSTER };
-    for (int k = 0; k < 4; k++) {
+    static const int order[5] = { 3, 0, 2, 4, SD_ITEM_WRECK_IDX };   /* the coral, the plant, the castle, the cluster, the wreck */
+    static const uint32_t bits[8] = { SD_ITEM_PLANT, 0, SD_ITEM_CASTLE, SD_ITEM_CORAL, SD_ITEM_CLUSTER, 0, 0, SD_ITEM_WRECK };
+    for (int k = 0; k < 5; k++) {
         int item = order[k];
         if (!(t->sd_unlocks & bits[item])) continue;
         float cx = tank_decor_x(t, item), half = tank_decor_half_w(item) + 8;
@@ -1516,6 +1522,7 @@ void tank_decor_reset(tank_t *t, int item) {
     if (item == 2) { t->castle_x = 0; t->castle_z = DECOR_Z_FRONT; }
     if (item == 3) { t->coral_x = 0; t->coral_z = DECOR_Z_FRONT; t->coral_rgb = 0; t->coral_growth = 0; t->coral_acc = 0; }
     if (item == 4) { t->cluster_x = 0; t->cluster_z = DECOR_Z_FRONT; t->cluster_scheme = 0; t->cluster_growth = 0; t->cluster_acc = 0; }
+    if (item == SD_ITEM_WRECK_IDX) { t->wreck_x = 0; t->wreck_z = DECOR_Z_FRONT; }
 }
 void tank_decor_set(tank_t *t, int item, float x, int z) {
     if (!tank_decor_placeable(item)) return;
@@ -1528,6 +1535,7 @@ void tank_decor_set(tank_t *t, int item, float x, int z) {
     if (item == 2) { t->castle_x = x; t->castle_z = z2; return; }
     if (item == 3) { t->coral_x = x; t->coral_z = z2; return; }
     if (item == 4) { t->cluster_x = x; t->cluster_z = z2; return; }
+    if (item == SD_ITEM_WRECK_IDX) { t->wreck_x = x; t->wreck_z = z2; return; }
     t->plant_x = x; t->plant_z = (uint8_t)z;
 }
 
@@ -1954,6 +1962,7 @@ static void sp_den(const tank_t *t, const fish_t *f, int idx, float *x, float *y
     float side = (idx & 1) ? 1.0f : -1.0f, x0;
     if (t->sd_unlocks & SD_ITEM_CLUSTER)     x0 = tank_decor_x(t, 4) + side * (CLUSTER_HALF_W - 16);
     else if (t->sd_unlocks & SD_ITEM_CASTLE) x0 = tank_decor_x(t, 2) + side * (CASTLE_HALF_W - 24);
+    else if (t->sd_unlocks & SD_ITEM_WRECK)  x0 = tank_decor_x(t, SD_ITEM_WRECK_IDX) + side * (WRECK_HALF_W - 20);   /* under the hull's holes */
     else if (t->sd_unlocks & SD_ITEM_CORAL)  x0 = tank_decor_x(t, 3) + side * 14;
     else                                     x0 = t->reef_x - 10 + side * 6;
     x0 += (f->species == SP_CRAB ? 10 : f->species == SP_LOBSTER ? -10 : 0) * side;   /* not on top of each other */

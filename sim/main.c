@@ -1203,7 +1203,7 @@ static int selftest_sleep(void) {
 #include <dirent.h>
 static const size_t SAVE_CUTS[] = { 448, 1112, 1304, 1408, 1432, 1440, 1456, 1480, 1608, 1616, 1624, 1640, 1656, 1664, 1672, 1680, 1688,
                                     2092, 2096 };   /* (2092: fish 7..10's tail without the struct's closing pad; 2096: that build's sizeof) */
-#define SAVE_NOW 3600                    /* append-only theme byte + padding after the 3592-byte population save */
+#define SAVE_NOW 3608                    /* the theme byte (3592) and the shipwreck's tail (3600) after the 3592-byte population save */
 static uint32_t sv_u32(const uint8_t *e, size_t off) { uint32_t v; memcpy(&v, e + off, 4); return v; }
 static float    sv_f32(const uint8_t *e, size_t off) { float v; memcpy(&v, e + off, 4); return v; }
 static int name_cmp(const void *a, const void *b) { return strcmp(*(char *const *)a, *(char *const *)b); }
@@ -3366,7 +3366,7 @@ static int selftest_shop(void) {
            walls; BEHIND the fish and the grass pass in front of it; the spot and
            the depth survive a save */
         {
-            if (SD_ITEM_COUNT != 17 || SD_ITEMS[2].bit != SD_ITEM_CASTLE || SD_ITEMS[2].price != SD_PRICE_CASTLE) { printf("FAIL: the castle is not the third item\n"); return 1; }
+            if (SD_ITEM_COUNT != 18 || SD_ITEMS[2].bit != SD_ITEM_CASTLE || SD_ITEMS[2].price != SD_PRICE_CASTLE) { printf("FAIL: the castle is not the third item\n"); return 1; }
             if (!tank_decor_placeable(2) || tank_decor_z_count(2) != 2 || tank_decor_z_at(2, 0) != DECOR_Z_BACK || tank_decor_z_at(2, 1) != DECOR_Z_FRONT
                 || tank_decor_z_index(2, DECOR_Z_FRONT) != 1 || tank_decor_z_index(2, DECOR_Z_BACK) != 0) { printf("FAIL: the castle's depths\n"); return 1; }
             tank.sd_balance = SD_PRICE_CASTLE - 1;
@@ -3541,7 +3541,7 @@ static int selftest_shop(void) {
         tank.sd_unlocks &= ~SD_ITEM_CLUSTER; tank.sd_balance = SD_PRICE_CLUSTER;
         int r = shop_tap(SHOP_BTN_X, SHOP_BTN_Y);
         if (r != SHOP_TAP_BUY + 4) { printf("FAIL: UNLOCK in the cluster's modal returned %d\n", r); return 1; }
-        if (shop_tap(SHOP_ROW_X, SHOP_ROW_Y(3)) != SHOP_TAP_KEPT) { printf("FAIL: page 2's fourth row (the seahorses, 2026-10-05) did not open a modal\n"); return 1; }
+        if (shop_tap(SHOP_ROW_X, SHOP_ROW_Y(3)) != SHOP_TAP_KEPT) { printf("FAIL: page 2's fourth row (the shipwreck since 2026-10-10; the seahorses before) did not open a modal\n"); return 1; }
         shop_tap(SHOP_ROW_X, SHOP_ROW_Y(3));                           /* (any tap closes its modal) */
         if (shop_tap(SHOP_ROW_X, SHOP_ROW_Y(2)) != SHOP_TAP_KEPT) { printf("FAIL: page 2 row 2 (the urchin) did not open a modal\n"); return 1; }
         render_shop(&tank, fb, TANK_W);
@@ -3924,6 +3924,30 @@ static int selftest_shop(void) {
        ROOM); the bit is "some are in the tank" - set by the purchase, cleared
        when the last of them is sold, never a lock; a surprise hatched in the
        tank sets it too; the save keeps it all */
+    /* the shipwreck (2026-10-10): the eighth item at 200, placeable BEHIND / IN FRONT like the
+       castle, the fish pass behind its holes; bought, placed, saved and back, drawn in both
+       depths with the scene cache, sold back */
+    {
+        static uint16_t fb[TANK_W * TANK_H];
+        if (SD_ITEMS[SD_ITEM_WRECK_IDX].bit != SD_ITEM_WRECK || SD_ITEMS[SD_ITEM_WRECK_IDX].price != SD_PRICE_WRECK || strcmp(SD_ITEMS[SD_ITEM_WRECK_IDX].name, "SHIPWRECK")) { printf("FAIL: the wreck is not item %d at %d\n", SD_ITEM_WRECK_IDX, SD_PRICE_WRECK); return 1; }
+        if (!tank_decor_placeable(SD_ITEM_WRECK_IDX) || tank_decor_z_count(SD_ITEM_WRECK_IDX) != 2 || tank_decor_half_w(SD_ITEM_WRECK_IDX) != WRECK_HALF_W) { printf("FAIL: the wreck's depths / reach\n"); return 1; }
+        tank.sd_unlocks &= ~SD_ITEM_WRECK; tank.sd_balance = SD_PRICE_WRECK - 1;
+        if (progression_buy(&tank, SD_ITEM_WRECK_IDX)) { printf("FAIL: the wreck sold short\n"); return 1; }
+        tank.sd_balance = SD_PRICE_WRECK;
+        if (!progression_buy(&tank, SD_ITEM_WRECK_IDX) || tank.sd_balance != 0 || !(tank.sd_unlocks & SD_ITEM_WRECK) || tank_decor_z(&tank, SD_ITEM_WRECK_IDX) != DECOR_Z_FRONT) { printf("FAIL: the wreck did not sell at %d\n", SD_PRICE_WRECK); return 1; }
+        if (tank_decor_x(&tank, SD_ITEM_WRECK_IDX) != WRECK_X_DEFAULT) { printf("FAIL: the wreck's default spot\n"); return 1; }
+        tank_decor_set(&tank, SD_ITEM_WRECK_IDX, 200, DECOR_Z_BACK);
+        if (tank.wreck_x != 200 || tank.wreck_z != DECOR_Z_BACK || tank_decor_hit(&tank, 200, TANK_BOT - 30) != SD_ITEM_WRECK_IDX) { printf("FAIL: placing the wreck (x %.0f z %d hit %d)\n", tank.wreck_x, tank.wreck_z, tank_decor_hit(&tank, 200, TANK_BOT - 30)); return 1; }
+        progression_save(&tank);
+        { tank_t back; tank_init(&back, 1); progression_boot(&back);
+          if (!(back.sd_unlocks & SD_ITEM_WRECK) || back.wreck_x != 200 || back.wreck_z != DECOR_Z_BACK) { printf("FAIL: the wreck did not come back from the save (x %.0f z %d)\n", back.wreck_x, back.wreck_z); return 1; } }
+        for (int z = DECOR_Z_BACK; z <= DECOR_Z_FRONT; z += 2) {
+            tank_decor_set(&tank, SD_ITEM_WRECK_IDX, 200, z); tank.fish[0].x = 200 - 22; tank.fish[0].y = TANK_BOT - 14 + DECOR_SINK - 14;
+            for (int f = 0; f < 3; f++) { tank_tick(&tank, 1 / 60.0f, advisor_rules); render_tank(&tank, fb, TANK_W); }
+        }
+        if (!progression_sell(&tank, SD_ITEM_WRECK_IDX) || (tank.sd_unlocks & SD_ITEM_WRECK) || tank.sd_balance != progression_sell_value(SD_ITEM_WRECK_IDX)) { printf("FAIL: selling the wreck back\n"); return 1; }
+        printf("shop: the shipwreck - item %d at %d, placed at 200 BEHIND, saved and back, drawn in both depths, sold back for %d\n", SD_ITEM_WRECK_IDX, SD_PRICE_WRECK, progression_sell_value(SD_ITEM_WRECK_IDX));
+    }
     {
         static uint16_t fb[TANK_W * TANK_H];
         const char *sav = getenv("POCKET_TANK_SAVE");
@@ -3933,11 +3957,11 @@ static int selftest_shop(void) {
         if (SHP_PAGES != 5) { printf("FAIL: %d shop pages for %d items\n", SHP_PAGES, SD_ITEM_COUNT); return 1; }
         for (int sp = 1; sp < SP_COUNT; sp++) {
             int item = SD_ITEM_SP_FIRST + sp - 1; const sd_item_t *it = &SD_ITEMS[item];
-            if (progression_item_species(item) != sp || it->bit != 1u << item || tank_decor_placeable(item)
+            if (progression_item_species(item) != sp || it->bit != (SD_ITEM_SP_SEAHORSE << (sp - 1)) || tank_decor_placeable(item)   /* (the bits sit one below the indices since the wreck, 2026-10-10) */
                 || strlen(it->name) > 12 || strlen(it->words) > 25 || strlen(it->words2) > 28 || it->price < 1 || it->price > 999) {   /* (10 a creature since 2026-10-07) */
                 printf("FAIL: the %s item (%d): '%s' '%s' '%s' at %d\n", SPECIES[sp].token, item, it->name, it->words, it->words2, it->price); return 1; }
         }
-        if (progression_item_species(6) != -1 || progression_item_species(SD_ITEM_COUNT) != -1) { printf("FAIL: a thing reads as a species\n"); return 1; }
+        if (progression_item_species(6) != -1 || progression_item_species(SD_ITEM_WRECK_IDX) != -1 || progression_item_species(SD_ITEM_COUNT) != -1) { printf("FAIL: a thing reads as a species\n"); return 1; }
         /* (2026-10-07, 25 places: the classic fish fill the tank to eight places short, so the
            fifth pair meets NO ROOM as it did with ten) */
         while (tank.n_fish < N_FISH_MAX - 8) tank_add_fish(&tank, 0, 1);

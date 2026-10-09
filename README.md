@@ -295,6 +295,16 @@ fish swim through the arch, tucked behind the jambs as they pass. The
 fish do not know it is there. They find the arch by chance, which is most
 of the charm.
 
+**The shipwreck.** The eighth thing in the shop (200, 2026-10-10) is a small
+sunken boat lying on the sand, drawn from geometry like the castle: a planked
+hull tilted up toward the bow, a broken mast with a yard and a rag of sail, a
+cabin with a porthole, an anchor on the sand before the bow with its chain up
+to the prow. Two big holes are knocked through the hull: IN FRONT, the fish
+pass behind the hull and show through them, swimming in and out; BEHIND it is
+a backdrop in the weeds. A frogman hangs on a line from the stern post,
+bobbing on the water's lift, a mist of fine bubbles rising from his helmet.
+The octopus, crab and lobster den under its holes when there is no reef.
+
 **The coral.** The fourth thing in the shop (100) is a branching coral,
 drawn from a little skeleton of rounded branches on a chunky pixel grid:
 a dark rim on the shaded side, a lit edge toward the light, pale tips,
@@ -767,7 +777,7 @@ seven-minute prompt check before an overnight run is always worth it.
   and touch) puts a tank left on the desk to sleep; the double-tap by
   default
 - ✅ Sand dollars: care earns points, the shop spends them; a sword plant,
-  an algae-grazing snail and a swim-through castle to start; what you buy you place yourself,
+  an algae-grazing snail, a swim-through castle and a sunken shipwreck with a bobbing frogman; what you buy you place yourself,
   where along the floor and whether it stands behind, among or in front
   of the fish
 - ✅ Browser installer: one click from Chrome or Edge, at

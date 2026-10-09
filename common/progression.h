@@ -196,7 +196,8 @@ const char *const *progression_fry_tip(int kind);
 #define SD_PRICE_CORAL 100
 #define SD_PRICE_CLUSTER 240
 #define SD_PRICE_SHRIMP 180       /* 2026-09-29, Strato (first 300, then 180) */
-#define SD_PRICE_URCHIN 120       /* 2026-10-02: the grass's snail (the snail is 80, the grass pays 25 per 250 cm) */
+#define SD_PRICE_URCHIN 120
+#define SD_PRICE_WRECK 200        /* 2026-10-10: the shipwreck - a sunken boat with holes, an anchor, a frogman */       /* 2026-10-02: the grass's snail (the snail is 80, the grass pays 25 per 250 cm) */
 /* the species (2026-10-05, docs/species.md): one juvenile a purchase since
  * 2026-10-07 (a pair before), 10 sand dollars a creature (Alvin's call: the
  * creatures are the point of the tank, not days of saving); the exotic-ladder

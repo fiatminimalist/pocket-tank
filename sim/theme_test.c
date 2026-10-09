@@ -65,7 +65,7 @@ static int art_sheets(const tank_t *base,const char *prefix) {
             }
             shot(prefix,page==2?"species3":page?"species2":"species1",id);
         }
-        for(int which=0;which<5;which++) {
+        for(int which=0;which<6;which++) {
             tank_t a=t; a.sd_unlocks=0;
             for(int b=0;b<VEG_BEDS_MAX;b++)for(int i=0;i<VEG_FRONDS_MAX;i++)a.veg_h[b][i]=which==3?.34f:VEG_NUB;
             tank_veg_sync(&a);
@@ -74,6 +74,7 @@ static int art_sheets(const tank_t *base,const char *prefix) {
             else if(which==1){a.sd_unlocks=SD_ITEM_CORAL;tank_coral_place(&a);a.coral_x=TANK_W/2;a.coral_growth=1;label="coral";}
             else if(which==2){a.sd_unlocks=SD_ITEM_CLUSTER;tank_cluster_place(&a);a.cluster_x=TANK_W/2;a.cluster_growth=1;label="reef";}
             else if(which==3){a.sd_unlocks=SD_ITEM_PLANT;tank_plant_place(&a);label="plants";}
+            else if(which==5){a.sd_unlocks=SD_ITEM_WRECK;tank_wreck_place(&a);a.wreck_x=TANK_W/2;label="wreck";}
             else{a.sd_unlocks=SD_ITEM_SNAIL|SD_ITEM_SHRIMP|SD_ITEM_URCHIN;tank_snail_place(&a);tank_shrimp_place(&a,3);tank_urchin_place(&a);a.snail_x=TANK_W/2;a.snail_y=SNAIL_FLOOR_Y;a.snail_front=true;a.urchin_x=TANK_W/2+48;label="companions";}
             for(int j=0;j<5;j++){a.food[j].alive=true;a.food[j].x=TANK_W/2-45+j*17;a.food[j].y=TANK_H/2-25+j%2*10;}
             render_tank(&a,fb,TANK_W);render_tank(&a,fb,TANK_W);shot(prefix,label,id);

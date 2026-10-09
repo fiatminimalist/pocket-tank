@@ -587,6 +587,11 @@ typedef struct tank {
     uint8_t  cluster_scheme;
     float    cluster_growth;       /* CLUSTER_START..CLUSTER_FULL; 0..1 = it fills out, 1..FULL = the tentacles come */
     float    cluster_acc;          /* awake seconds pooled, as coral_acc */
+    /* the shipwreck (2026-10-10, item 7): a small sunken boat on the floor with holes the
+     * creatures swim through, an anchor on its chain, a bobbing frogman trailing a mist of
+     * bubbles. Its centre x (<= 0 = the default) and depth, BACK or FRONT. Both saved. */
+    float    wreck_x;
+    uint8_t  wreck_z;
     /* the shrimp school (SD_ITEM_SHRIMP, see SHRIMP_*): how many (saved), the
      * pellets eaten toward the next one (0..SHRIMP_PER_JOIN, saved), the seconds
      * before another may join (saved), each shrimp's motion (not saved: a load
@@ -875,6 +880,7 @@ int   tank_species_n(const tank_t *t, int species);
 #define TANK_HIT_MIN_R 32.0f
 float tank_fish_hit_r(const fish_t *f);
 bool  tank_poke(tank_t *t, int idx);        /* a double tap on creature idx: its trick (puff, ink); false = it has none */
+void  tank_wreck_place(tank_t *t);           /* the shipwreck bought: its default spot (item 7) */
 float tank_species_size(const fish_t *f);   /* its base size: from its personality, so a load gets the same */
 /* the species' motion, for the renderer and the tests (see THE CONVENTION in
  * fish_t). tank_ground_y: the top of what a floor walker stands on at x -
@@ -918,8 +924,11 @@ enum { SD_ITEM_PLANT = 1u << 0, SD_ITEM_SNAIL = 1u << 1, SD_ITEM_CASTLE = 1u << 
           locks the item - a creature sells whenever there is a free place. */
        SD_ITEM_SP_SEAHORSE = 1u << 7, SD_ITEM_SP_OCTOPUS = 1u << 8, SD_ITEM_SP_PUFFER = 1u << 9, SD_ITEM_SP_ANGLER = 1u << 10,
        SD_ITEM_SP_EEL = 1u << 11, SD_ITEM_SP_SHARK = 1u << 12, SD_ITEM_SP_SQUID = 1u << 13, SD_ITEM_SP_CRAB = 1u << 14,
-       SD_ITEM_SP_LOBSTER = 1u << 15, SD_ITEM_SP_JELLYFISH = 1u << 16, SD_ITEM_COUNT = 17 };
-#define SD_ITEM_SP_FIRST 7         /* the item index of the first species (the seahorse) */
+       SD_ITEM_SP_LOBSTER = 1u << 15, SD_ITEM_SP_JELLYFISH = 1u << 16,
+       SD_ITEM_WRECK = 1u << 17,   /* the shipwreck (2026-10-10): item index 7, after the urchin - a thing, before the species */
+       SD_ITEM_COUNT = 18 };
+#define SD_ITEM_SP_FIRST 8         /* the item index of the first species (the seahorse) */
+#define SD_ITEM_WRECK_IDX 7        /* the shipwreck's item index */
 /* per-fish paid bits (sd_paid_fish) */
 enum { SD_PAID_JUV = 1u << 0, SD_PAID_ADULT = 1u << 1, SD_PAID_ELDER = 1u << 2, SD_PAID_TRUST = 1u << 3 };
 #define PX_PER_INCH 24.0f          /* the tank reads as ~15 in tall; a fish ~1.7 in */
@@ -978,6 +987,10 @@ enum { DECOR_Z_BACK = 0, DECOR_Z_MIDDLE = 1, DECOR_Z_FRONT = 2, DECOR_Z_N = 3 };
  * (the keep behind them, the gate wall and the front towers over them). */
 #define CASTLE_HALF_W   92
 #define CASTLE_X_DEFAULT TANK_FLOOR_X(300.0f)
+/* the shipwreck (2026-10-10): ~128 px wide, ~80 tall at the mast, item 7; BEHIND or IN
+ * FRONT like the castle; the holes in its hull are see-through, the fish pass behind them */
+#define WRECK_HALF_W    64
+#define WRECK_X_DEFAULT TANK_FLOOR_X(130.0f)
 /* the coral (2026-09-23, Strato's coral-single.png, drawn procedurally in
  * render.c): a branching fan ~60 px wide and ~90 tall on the floor, item 3.
  * All three depths; the default is AMONG - nestled in the reef bed's grass,

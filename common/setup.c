@@ -528,6 +528,14 @@ static void cluster_glyph(uint16_t *fb, int stride, int cx, int y_bot, const clu
     coral_glyph(fb, stride, cx - 9, y_bot - 4, sc->coral);
     render_rect(fb, stride, cx - 4, y_bot - 12, 12, 8, sc->brain); render_rect(fb, stride, cx - 2, y_bot - 14, 8, 2, sc->brain);
 }
+/* a little shipwreck for its depth tiles (2026-10-10): a tilted hull with two holes, a mast stump */
+static void wreck_glyph(uint16_t *fb, int stride, int cx, int y_bot) {
+    const uint32_t wood = 0x6b4e35, dark = 0x3a2a1c, hole = 0x0b1a22;
+    for (int i = 0; i < 12; i++) render_rect(fb, stride, cx - 20 + i * 3 + (i < 2 ? 2 - i : 0), y_bot - 14 + (i > 9 ? i - 9 : 0), 3, 12 - (i < 2 ? 2 - i : 0) - (i > 9 ? i - 9 : 0), wood);
+    render_rect(fb, stride, cx - 18, y_bot - 15, 36, 1, dark); render_rect(fb, stride, cx - 16, y_bot - 9, 32, 1, dark);
+    render_rect(fb, stride, cx - 11, y_bot - 11, 5, 5, hole); render_rect(fb, stride, cx + 5, y_bot - 12, 6, 6, hole);
+    render_rect(fb, stride, cx - 1, y_bot - 28, 2, 14, dark); render_rect(fb, stride, cx - 5, y_bot - 24, 10, 1, dark);
+}
 static void castle_glyph(uint16_t *fb, int stride, int cx, int y_bot, uint32_t wall, uint32_t roof) {
     const uint32_t tower = 0x87795f, dark = 0x0b1a22, trim = 0xc25f38;
     render_rect(fb, stride, cx - 14, y_bot - 14, 29, 15, wall);
@@ -550,6 +558,12 @@ static void depth_tile(const tank_t *t, uint16_t *fb, int stride, int x, int y, 
     const int cx = x + w / 2, cy = y + h / 2, lh = h - 6, yb = y + h - 3;
     const uint32_t la = 0x8dbb48, lb = 0x6c9d38;
     const fish_t *who = t->n_fish > 0 ? &t->fish[0] : NULL;
+    if (item == SD_ITEM_WRECK_IDX) {                    /* the wreck: as the castle's, behind or in front of the leaves */
+        if (z == DECOR_Z_BACK) wreck_glyph(fb, stride, cx, yb);
+        leaf_glyph(fb, stride, cx - 14, yb, lh, la); leaf_glyph(fb, stride, cx + 15, yb, lh, lb);
+        if (z != DECOR_Z_BACK) wreck_glyph(fb, stride, cx, yb);
+        return;
+    }
     if (item == 2) {
         if (z == DECOR_Z_BACK) castle_glyph(fb, stride, cx, yb, 0xa99b7b, 0xc4a95e);
         leaf_glyph(fb, stride, cx - 14, yb, lh, la); leaf_glyph(fb, stride, cx + 15, yb, lh, lb);
@@ -682,12 +696,13 @@ void render_setup(const tank_t *t, uint16_t *fb, int stride, float clock) {
                 render_rect_edge(fb, stride, x, SETUP_COL_Y, SETUP_COL_W, SETUP_COL_H, on ? C_TEXT : C_DIM);
                 if (on) render_rect_edge(fb, stride, x + 1, SETUP_COL_Y + 1, SETUP_COL_W - 2, SETUP_COL_H - 2, C_TEXT);
             }
-        } else text_c(fb, stride, CX, SETUP_DEPTH_HINT_Y, 2, C_CAPT, s_item == 2 ? castle_hint[z] : hint[z]);
+        } else text_c(fb, stride, CX, SETUP_DEPTH_HINT_Y, 2, C_CAPT, s_item == 2 || s_item == SD_ITEM_WRECK_IDX ? castle_hint[z] : hint[z]);
         float x0 = tank_decor_x(t, s_item) - tank_decor_half_w(s_item) - 10, x1 = tank_decor_x(t, s_item) + tank_decor_half_w(s_item) + 10, top = TANK_BOT - 16 - 40;
         if (s_item == 0) tank_veg_bed(t, 3, NULL, NULL, &top, NULL);   /* the leaves' reach */
         if (s_item == 2) top = TANK_BOT - 16 - 146;                    /* the tallest spire */
         if (s_item == 3) top = TANK_BOT - 14 + DECOR_SINK - 92;        /* the coral's top tip */
         if (s_item == 4) top = TANK_BOT - 14 + DECOR_SINK - 120;       /* the cluster's tallest tube */
+        if (s_item == SD_ITEM_WRECK_IDX) top = TANK_BOT - 14 + DECOR_SINK - 84;   /* the wreck's mast */
         x0 -= PAGE_X; x1 -= PAGE_X; top -= PAGE_Y;                     /* the piece is in the tank; the stripe is drawn on the page */
         int sy = (int)top - 8; if (sy < place_y()) sy = place_y();
         render_rect_blend(fb, stride, (int)x0, sy, (int)(x1 - x0), FLOOR - sy + 4, C_EDGE, 46);
