@@ -211,7 +211,7 @@ static int flourish_checks(void) {
         t.stage_fish=0;tank_tick(&t,.1f,NULL);
         CHECK(f->surface_s==0&&f->ink==0&&f->spark==0,"naming preview suppresses idle displays");
         t.stage_fish=-1;f->hunger=2;f->energy=8;f->goal.id=GOAL_EXPLORE;tank_tick(&t,.1f,NULL);
-        if(species[i]==SP_OCTOPUS)CHECK(f->ink>2,"octopus alternates a surface trip with ink");
+        if(species[i]==SP_OCTOPUS)CHECK(f->ink>2,"octopus squirts ink on the idle turns after its surface trip");
         f->hunger=9;f->surface_s=5;tank_tick(&t,.1f,NULL);CHECK(f->surface_s==0,"hunger interrupts a trip");
     }
     return 0;

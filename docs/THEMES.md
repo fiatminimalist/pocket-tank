@@ -39,11 +39,13 @@ food, bubbles, battery and menu treatments live alongside their Original paths i
 | Snail / companions | Warm shaded shell whorls, soft shrimp, fine urchin spines | Warm striped shell, segmented shrimp, rounded urchin tips |
 | Food / bubbles | Small flakes and pearl rings | Round tablets and outlined bubbles |
 | Battery / menus | Liquid gauge, dark-glass rows, soft highlights | Four-cell gauge, raised pill controls, rounded row cards |
-| Ink / electricity | Soft green-grey clouds and fine mint arcs | Blue-grey cloud lobes and gold zigzags |
+| Ink / electricity | Black clouds with a whisper of green, fine mint arcs | Black cloud lobes with a whisper of blue, gold zigzags |
 
 All themes share the same behaviour. Lobsters, crabs, anglerfish, octopuses and
 pufferfish occasionally visit the upper water. Pufferfish inflate for their trip.
-Octopuses alternate trips with ink releases; squid release ink and eels spark.
+Squid and octopuses squirt a black ink cloud every 50-120 idle seconds (the octopus
+makes every third idle turn a surface trip instead); eels spark. Ink is black in
+every theme since 2026-10-10 - the tinted clouds read as water.
 The first eligible idle event is staggered by creature (45–124 seconds), then
 waits 100–210 eligible idle seconds between events. Surface trips last up to
 40 seconds followed by an 18-second return phase. Rest, night, urgent hunger,

@@ -139,6 +139,8 @@ step turn it into the animal's own motion.
 - **Octopus (`LOCO_JET`, crawler)** - EXPLORE / REST / INSPECT on the floor
   and the reef: crawls on its arms. DART_PLAY and a startle: jets
   mantle-first, arms trailing, in pulses, and a startle leaves an ink cloud.
+  Left to itself by day it squirts a black cloud of its own every 50-120 s
+  (two squirts in three; the third idle turn is a trip to the surface).
   REST: a den at the reef cluster, castle or grass foot, and it **takes on
   the colour of what it sits on** (`fish_t.camo`).
 - **Pufferfish (`LOCO_HOVER`)** - slow, boxy, fins sculling: it can stop,
@@ -157,7 +159,8 @@ step turn it into the animal's own motion.
   is a slow patrol lap, not a stop.
 - **Squid (`LOCO_JET`, hoverer)** - hovers in open water with its fins
   rippling, moves forward or backward, and jets in pulses to dart or flee
-  (ink on a startle). Social: squid hold station near each other.
+  (ink on a startle, and a black cloud of its own every 50-120 idle seconds
+  by day). Social: squid hold station near each other.
 
 - **Crab (`LOCO_SIDEWALK`)** - a floor walker that moves **sideways**, legs
   stepping in a ripple; it climbs the reef cluster, castle and rocks, and

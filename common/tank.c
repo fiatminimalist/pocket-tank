@@ -2020,6 +2020,7 @@ static int sp_nearest_kin(const tank_t *t, int idx) {
     return best;
 }
 
+#define INK_SQUIRT_S 4.5f   /* seconds a spontaneous ink cloud lasts (render.c scales the cloud to it) */
 /* Small idle displays, independent of the advisor and theme. No save-layout changes.
  * Pause the countdown for care/rest/interaction, and abort a trip for an urgent need. */
 static void sp_flourish(tank_t *t,int idx,fish_t *f,float dt) {
@@ -2035,10 +2036,15 @@ static void sp_flourish(tank_t *t,int idx,fish_t *f,float dt) {
     if(f->surface_s<0){f->surface_s=fminf(0,f->surface_s+dt);return;}
     if(f->sp_mode!=SPM_NONE||f->ink>0||f->spark>0)return;
     if((f->flourish_wait-=dt)>0)return;
-    f->flourish_wait=100+110*sp_hash01(idx+f->species*17,++f->flourish_cycle);
+    bool inker=f->species==SP_SQUID||f->species==SP_OCTOPUS;
+    /* the inkers squirt more often than the others surface (2026-10-10: every 50-120 s of idle day,
+       was 100-210; the octopus makes every third idle turn (the first of them) a trip to the surface, was every other) */
+    f->flourish_wait=(inker?50+70*sp_hash01(idx+f->species*17,++f->flourish_cycle):100+110*sp_hash01(idx+f->species*17,++f->flourish_cycle));
     if(f->species==SP_EEL){f->spark=1.3f;return;}
-    if(f->species==SP_SQUID||(f->species==SP_OCTOPUS&&!(f->flourish_cycle&1))){
-        f->ink=3.0f;f->sp_mode=SPM_JET;f->sp_t=2.5f;f->jet=0;return;
+    if(f->species==SP_SQUID||(f->species==SP_OCTOPUS&&f->flourish_cycle%3!=1)){   /* the octopus: a trip first, then two squirts */
+        /* a squirt of its own: a fuller cloud than the startle's (INK_SQUIRT_S of it, the startle's is 2.5)
+           left where it was as the jet carries it off */
+        f->ink=INK_SQUIRT_S;f->sp_mode=SPM_JET;f->sp_t=2.5f;f->jet=0;return;
     }
     f->surface_s=40;
     if(f->species==SP_PUFFER)f->sp_t=35;

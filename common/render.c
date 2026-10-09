@@ -528,18 +528,25 @@ static void draw_ink(const sk_t *k) {
     } else {
         if (f->ink <= 0) return;
         float dir = f->yaw < 0 ? -1.0f : 1.0f;
-        ox = f->x + dir * 14 * k->s; oy = f->y; ink0 = 3.0f;   /* a preview: behind the mantle, half spent */
+        ox = f->x + dir * 14 * k->s; oy = f->y; ink0 = 4.5f;   /* a preview: behind the mantle, a squirt (INK_SQUIRT_S) part spent */
     }
     float u = clamp01(1 - f->ink / (ink0 > 2.5f ? ink0 : 2.5f));
-    float R = (8 + 20 * u) * k->s, a = 190 * (1 - u) + 10;
+    /* a spontaneous squirt (tank.c INK_SQUIRT_S, 4.5 s) is a fuller cloud than the startle's 2.5 s puff */
+    float big = clamp01((ink0 - 2.5f) / 2.0f);
+    /* the cloud grows from a puff to a billow; it stays dense through the first part of its life
+       and only then thins (before 2026-10-10 it was most opaque at 8 px and faded as it grew: a smudge) */
+    float fade = u < 0.4f ? 1 : 1 - (u - 0.4f) / 0.6f;
+    float R = (10 + 26 * u) * (1 + 0.45f * big) * k->s, a = 20 + 215 * fade;
     oy -= 5 * u * k->s;                         /* it rises a little as it spreads */
-    uint32_t dark=theme_active()==THEME_QUIET_LAGOON?0x244d48:theme_active()==THEME_TIDEPOOL_CLUB?0x596a82:0x140c18;
-    uint32_t middle=theme_active()==THEME_QUIET_LAGOON?0x537f71:theme_active()==THEME_TIDEPOOL_CLUB?0x8997ad:0x2a1e2c;
+    /* black ink in every theme (2026-10-10; the lagoon and tidepool clouds were tinted teal and blue-grey
+       and read as water): the themes keep only a whisper of their tint and their lobe shapes */
+    uint32_t dark=theme_active()==THEME_QUIET_LAGOON?0x0e1816:theme_active()==THEME_TIDEPOOL_CLUB?0x12131c:0x0a0710;
+    uint32_t middle=theme_active()==THEME_QUIET_LAGOON?0x22302d:theme_active()==THEME_TIDEPOOL_CLUB?0x272a38:0x1e1622;
     src_t dk = src_color(dark, k->c->dim), mid = src_color(middle, k->c->dim);
     static const float BX[5] = { 0, -0.5f, 0.55f, -0.2f, 0.3f }, BY[5] = { 0, -0.35f, -0.25f, 0.4f, 0.3f }, BR[5] = { 0.75f, 0.55f, 0.6f, 0.5f, 0.45f };
-    fill_ellipse_s(k->c, ox, oy, R, R * 0.8f, &mid, (int)(a * 0.35f));
+    fill_ellipse_s(k->c, ox, oy, R, R * 0.8f, &mid, (int)(a * 0.55f));
     for (int i = 0; i < 5; i++)
-        fill_ellipse_s(k->c, ox + BX[i] * R, oy + BY[i] * R, BR[i] * R, BR[i] * R * (theme_active()==THEME_TIDEPOOL_CLUB?1:0.85f), &dk, (int)(a * (theme_active()==THEME_QUIET_LAGOON?.33f:.5f)));
+        fill_ellipse_s(k->c, ox + BX[i] * R, oy + BY[i] * R, BR[i] * R, BR[i] * R * (theme_active()==THEME_TIDEPOOL_CLUB?1:0.85f), &dk, (int)(a * (theme_active()==THEME_QUIET_LAGOON?.75f:.85f)));
 }
 
 /* ---- seahorse: upright, the snout a tube, the coronet, a pot belly
