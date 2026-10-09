@@ -2050,6 +2050,21 @@ static void sp_flourish(tank_t *t,int idx,fish_t *f,float dt) {
     if(f->species==SP_PUFFER)f->sp_t=35;
 }
 
+/* a double tap ON a creature (the touch ports, 2026-10-10): its party trick, with none of a
+ * startle's stress or lost trust - the pufferfish puffs up, the squid and the octopus squirt a
+ * black cloud and jet off. True when the creature has one (the port then keeps its card down);
+ * for the rest a double tap is just the card up and down again. */
+bool tank_poke(tank_t *t, int idx) {
+    if (idx < 0 || idx >= t->n_fish) return false;
+    fish_t *f = &t->fish[idx];
+    switch (f->species) {
+    case SP_PUFFER:  tank_handled(t); f->sp_t = 5.0f; return true;                              /* a ball, held ~5 s */
+    case SP_OCTOPUS: case SP_SQUID:
+        tank_handled(t); f->ink = INK_SQUIRT_S; f->sp_mode = SPM_JET; f->sp_t = 2.5f; f->jet = 0; return true;
+    default: return false;
+    }
+}
+
 /* ---- per frame: the species' own state - its puff and ink, the eel's
  * breath, the angler's lure, the octopus's colour ---- */
 static void sp_state(tank_t *t, int idx, fish_t *f, float dt) {

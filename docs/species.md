@@ -140,12 +140,15 @@ step turn it into the animal's own motion.
   and the reef: crawls on its arms. DART_PLAY and a startle: jets
   mantle-first, arms trailing, in pulses, and a startle leaves an ink cloud.
   Left to itself by day it squirts a black cloud of its own every 50-120 s
-  (two squirts in three; the third idle turn is a trip to the surface).
+  (two squirts in three; the third idle turn is a trip to the surface), and
+  two quick taps on it squirt one on demand.
   REST: a den at the reef cluster, castle or grass foot, and it **takes on
   the colour of what it sits on** (`fish_t.camo`).
 - **Pufferfish (`LOCO_HOVER`)** - slow, boxy, fins sculling: it can stop,
   turn on the spot and back up (no committed U-turn needed). Startle:
-  **inflates** into a spiny ball for a few seconds, then deflates.
+  **inflates** into a spiny ball for a few seconds, then deflates. Two quick
+  taps on it (2026-10-10, `tank_poke`) puff it up the same way, without a
+  startle's stress or lost trust.
 - **Anglerfish (`LOCO_AMBUSH`)** - an ambush hunter: it barely moves, stays
   low, waits with its lure bobbing, and lunges short and fast at food that
   comes near. The lure **glows**, brightest at night. Frogfish-style it can
@@ -160,7 +163,8 @@ step turn it into the animal's own motion.
 - **Squid (`LOCO_JET`, hoverer)** - hovers in open water with its fins
   rippling, moves forward or backward, and jets in pulses to dart or flee
   (ink on a startle, and a black cloud of its own every 50-120 idle seconds
-  by day). Social: squid hold station near each other.
+  by day; two quick taps on it squirt one too). Social: squid hold station
+  near each other.
 
 - **Crab (`LOCO_SIDEWALK`)** - a floor walker that moves **sideways**, legs
   stepping in a ripple; it climbs the reef cluster, castle and rocks, and

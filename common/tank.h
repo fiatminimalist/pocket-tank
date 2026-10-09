@@ -874,6 +874,7 @@ int   tank_species_n(const tank_t *t, int species);
  * hit_r at its size, never under a fingertip's TANK_HIT_MIN_R */
 #define TANK_HIT_MIN_R 32.0f
 float tank_fish_hit_r(const fish_t *f);
+bool  tank_poke(tank_t *t, int idx);        /* a double tap on creature idx: its trick (puff, ink); false = it has none */
 float tank_species_size(const fish_t *f);   /* its base size: from its personality, so a load gets the same */
 /* the species' motion, for the renderer and the tests (see THE CONVENTION in
  * fish_t). tank_ground_y: the top of what a floor walker stands on at x -

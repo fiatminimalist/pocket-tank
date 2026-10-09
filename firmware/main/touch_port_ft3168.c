@@ -611,7 +611,15 @@ void touch_port_poll(tank_t *t) {
                 float d2 = (d2a < d2b ? d2a : d2b) / (r * r);
                 if (d2 < bd) { bd = d2; best = i; }
             }
-            if (best >= 0) { s_sel = (best == s_sel) ? -1 : best; s_sel_us = now; }
+            if (best >= 0) {
+                /* two quick taps on the same creature (2026-10-10): its trick - the puffer puffs, the squid
+                   and the octopus ink - and the card stays down; any other creature: the card up, then down */
+                static int s_poke_fish = -1; static int64_t s_poke_us;
+                bool again = best == s_poke_fish && now - s_poke_us < 500000;
+                s_poke_fish = best; s_poke_us = now;
+                if (again && tank_poke(t, best)) { s_sel = -1; s_poke_fish = -1; ESP_LOGI(TAG, "%s double-tapped: its trick", t->fish[best].name); }
+                else { s_sel = (best == s_sel) ? -1 : best; s_sel_us = now; }
+            }
             else if (tank_snail_hit(t, s_px, s_py)) {   /* the snail: its card (2026-09-16), the fish first */
                 s_sel = s_sel == RENDER_CARD_SNAIL ? -1 : RENDER_CARD_SNAIL; s_sel_us = now;
                 ESP_LOGI(TAG, "snail tapped: card %s (%d spots grazed)", s_sel >= 0 ? "up" : "down", (int)t->snail_grazed); }

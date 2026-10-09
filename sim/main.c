@@ -4800,6 +4800,20 @@ static int selftest_species(void) {
     if (sp_run(120, tr, 2, 3)) return 1;
     printf("species: puffer     mean %.1f px/s (fish %.1f)\n", tr[1].speed_sum / tr[1].n, tr[0].speed_sum / tr[0].n);
 
+    /* the double tap (2026-10-10): the touch ports call tank_poke on two quick taps on the same
+       creature - the puffer puffs, the squid and the octopus ink and jet, with no stress and no
+       trust lost; a classic fish has no trick (false), and the light is not touched */
+    { sp_tank(331, SP_PUFFER); tank_add_species_pair(&tank, SP_SQUID); tank_add_species_pair(&tank, SP_OCTOPUS);
+      bool light = tank.light_manual_off; float st = tank.fish[2].stress, tr = tank.fish[2].trust;
+      if (tank_poke(&tank, 0)) SP_FAIL("a classic fish has a double-tap trick");
+      if (!tank_poke(&tank, 2) || !tank_poke(&tank, 4) || !tank_poke(&tank, 6)) SP_FAIL("the puffer, squid or octopus has no double-tap trick");
+      for (int i = 0; i < (int)(0.6f / SP_DT); i++) if (sp_tick()) return 1;
+      if (tank.fish[2].puff < 0.5f) SP_FAIL("the double-tapped puffer: puff %.2f at 0.6 s", tank.fish[2].puff);
+      if (tank.fish[4].ink < 3 || tank.fish[6].ink < 3) SP_FAIL("the double-tapped squid / octopus: ink %.1f / %.1f", tank.fish[4].ink, tank.fish[6].ink);
+      if (tank.fish[2].stress > st + 0.01f || tank.fish[2].trust < tr - 0.01f) SP_FAIL("a double tap stressed the puffer (%.1f -> %.1f) or cost trust", st, tank.fish[2].stress);
+      if (tank.light_manual_off != light) SP_FAIL("a double tap on a creature toggled the light");
+      printf("species: a double tap - the puffer puffs (%.2f), the squid and the octopus ink (%.1f s)\n", tank.fish[2].puff, tank.fish[4].ink); }
+
     /* the jellyfish (2026-10-09): a slow drifter in the open water, never on the
      * floor, pulsing ~0.6 Hz as it explores and ~0.2 Hz at rest in mid-water;
      * a startle quickens the pulse and nothing else - no ink, no spark, no puff */
@@ -5230,7 +5244,13 @@ int main(int argc, char **argv) {
                 else if ((selected_fish < 0 || selected_fish >= tank.n_fish) && render_tool_chip_hit(&tank, (float)press_x, (float)press_y)) {
                     tank_set_tool(&tank, TOOL_HAND); printf("toolbox: DONE - back to bare hands\n");
                 }
-                else if (best >= 0) selected_fish = (best == selected_fish) ? -1 : best;
+                else if (best >= 0) {                      /* two quick taps on the same creature: its trick (2026-10-10), as the device */
+                    static int poke_fish = -1; static uint32_t poke_ms;
+                    bool again = best == poke_fish && now_ms - poke_ms < 500;
+                    poke_fish = best; poke_ms = now_ms;
+                    if (again && tank_poke(&tank, best)) { selected_fish = -1; poke_fish = -1; printf("%s double-tapped: its trick\n", tank.fish[best].name); }
+                    else selected_fish = (best == selected_fish) ? -1 : best;
+                }
                 else if (tank_snail_hit(&tank, (float)press_x, (float)press_y))   /* the snail: its card (2026-09-16) */
                     selected_fish = selected_fish == RENDER_CARD_SNAIL ? -1 : RENDER_CARD_SNAIL;
                 else if (tank_urchin_hit(&tank, (float)press_x, (float)press_y)) {  /* the urchin: its card (2026-10-02) */

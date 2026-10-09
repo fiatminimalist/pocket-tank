@@ -408,7 +408,9 @@ The whole design is in [docs/species.md](docs/species.md).
 ![Placing the reef cluster: the LOOK row](docs/media/sim-place-cluster.png)
 ![SELL armed in the castle's modal](docs/media/sim-shop-sell.png)
 
-**The light.** Two quick taps on the glass turn the tank light off and on;
+**The light.** Two quick taps on the glass turn the tank light off and on
+(two quick taps on a creature are its own business: a pufferfish puffs up,
+a squid or an octopus squirts ink; the light stays as it was);
 in the dark the fish rest and the palette dims. The first time a double-tap
 turns the light off, a small LIGHTS OUT notice says what happened and how
 to turn it back on, once per tank. The settings page has a
