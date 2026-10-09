@@ -42,8 +42,8 @@ food, bubbles, battery and menu treatments live alongside their Original paths i
 |---|---|---|
 | Creatures | Shaded natural profiles, fin rays, scales, gills and shell detail | Rounder bodies, spots, bold fins and claws |
 | Sword plant / weeds | Veined leaves and delicate stems | Scalloped leaves and fuller blades |
-| Castle | Textured limestone ruin with battlements, relief and moss | Warm sandcastle with scalloped battlements |
-| Coral / reef | Fine fan branches, cup sponges, layered dome | Thick finger coral, stacked sponges, dotted dome |
+| Castle | A sunken ruin (2026-10-10): stepped platform, fluted columns (one broken), a crumbling arch and keystone, a fallen lintel, moss on the ledges | A pineapple house (2026-10-10): diamond skin, a crown of leaves, a round-topped door, two portholes |
+| Coral / reef | The keeper's coral / tube / brain hues on a dark basalt rock (2026-10-10; the first cut pulled every piece toward the water's tone and read as twigs and slabs): a ridged brain, streaked tubes, deep rims | Thick finger coral, stacked sponges, dotted dome |
 | Snail / companions | Warm shaded shell whorls, soft shrimp, fine urchin spines | Warm striped shell, segmented shrimp, rounded urchin tips |
 | Food / bubbles | Small flakes and pearl rings | Round tablets and outlined bubbles |
 | Battery / menus | Liquid gauge, dark-glass rows, soft highlights | Four-cell gauge, raised pill controls, rounded row cards |

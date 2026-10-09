@@ -1783,73 +1783,101 @@ static void castle_front_row(const cst_t *k) {
  * scene bake), or the front row alone (front = 1: over the fish) */
 /* A quiet rounded ruin / a sculpted sandcastle. Same footprint and swim-through arch. */
 /* Limestone ruin: relief, joints and moss are baked through the same depth mask. */
+/* the Quiet Lagoon's castle (redesigned 2026-10-10): a sunken ruin - a stepped stone platform,
+   two fluted columns (the left one broken off), a crumbling arch with its keystone over the
+   same opening every castle has (the fish swim through it), a lintel fallen across the right
+   column, a low wall behind with blocks missing, moss on every ledge. Pale sandstone gone
+   green with the water. The same geometry rule as the other castles: every solid pixel is
+   painted in both passes, the opening's dark only behind the fish (!front). */
 static void draw_lagoon_castle(ctx_t *c,int cx,int front,bool final) {
     cst_t k={c,cx,front,final};
     uint16_t tones[16];
-    for(int i=0;i<16;i++)tones[i]=rgb565(mix(0xc0c1a6,0x3e6259,i/15.f),c->dim);
+    for(int i=0;i<16;i++)tones[i]=rgb565(mix(0xc4c2a4,0x3b5c54,i/15.f),c->dim);
     for(int y=CASTLE_FY-128;y<=CASTLE_FY+3;y++) {
         if(y<c->oy||y>=c->oy+c->h)continue;
         int h=CASTLE_FY-y;
         int left=c->ox-cx;if(left< -88)left=-88;
         int right=c->ox+c->w-1-cx;if(right>88)right=88;
         for(int x=left;x<=right;x++) {
-            int d=abs(x)-61;
-            bool tower=abs(d)<20&&h>=0&&h<(x<0?108:118);
-            bool crown=tower&&h>(x<0?96:105);
-            if(crown && ((x+100)/11)%2==0)tower=false;
-            bool wall=abs(x)<43&&h>=0&&h<66;
-            bool foot=abs(x)<84&&h>=-3&&h<8;
-            if(!(tower||wall||foot))continue;
-            bool opening=abs(x)<26&&h>=0&&(h<24||x*x+(h-24)*(h-24)<26*26);
+            unsigned noise=((unsigned)(x+100)*1237u+(unsigned)(h+40)*719u)^((unsigned)(x+130)*(unsigned)(h+17));
+            int ax=abs(x), d=ax-61;
+            /* the platform: three steps */
+            int step = h>=-3&&h<4&&ax<88 ? 1 : h>=4&&h<9&&ax<80 ? 2 : h>=9&&h<13&&ax<72 ? 3 : 0;
+            /* the columns: the right one whole with its capital, the left one broken off jagged */
+            int top = x<0 ? 74+(int)(((unsigned)(x*7)%5)) - 2 : 100;
+            bool shaft=abs(d)<8&&h>=13&&h<top;
+            bool base=abs(d)<11&&h>=13&&h<19;
+            bool capital=x>0&&abs(d)<12&&h>=90&&h<100;
+            bool lintel=x>0&&abs(x-57)<17&&h>=100&&h<108;
+            bool fallen=abs(x+30)<9&&h>=13&&h<13+8-(x+30>0?(x+30)/4:0);   /* a block lying tilted on the left step */
+            /* the arch: a ring round the opening, the right side crumbled */
+            bool opening=ax<26&&h>=0&&(h<24||x*x+(h-24)*(h-24)<26*26);
+            bool ring=ax<36&&h>=13&&(h<24||x*x+(h-24)*(h-24)<36*36)&&!opening;
+            if(ring&&x>18&&h>40&&((unsigned)(x*3+h*5)%7)<3)ring=false;
+            bool keystone=ax<5&&h>=48&&h<62&&ring;
+            /* the wall behind, blocks missing toward its top */
+            bool wall=ax<44&&h>=13&&h<46&&!opening;
+            if(wall&&h>28&&(((unsigned)((x+44)/11)*31u+(unsigned)(h/7)*17u)%5u)==0)wall=false;
             if(opening){if(!front)castle_put(&k,cx+x,y,rgb565(mix(water_rgb(y),0x173e3e,.5f),c->dim));continue;}
-            bool trim=abs(x)<31&&h>=0&&(h<24||x*x+(h-24)*(h-24)<31*31);
-            unsigned noise=((unsigned)(x+100)*1237u+(unsigned)h*719u)^((unsigned)(x+130)*(unsigned)(h+17));
-            int tone=4+(x+88)/35+(int)(noise%3);
-            if(tower)tone=3+(d+20)/6+(int)(noise%3);
-            if(h%14==0||((x+100+(h/14%2)*11)%23==0&&h%14<13))tone+=3;
-            if(h%14==1)tone-=2;
-            if(trim)tone=abs(x)>28?2:9;
-            if(foot)tone=7+(h<1?4:0);
-            if(tone<0)tone=0;
-            if(tone>15)tone=15;
-            uint16_t v=tones[tone];
-            if(h>65&&h<81&&abs(d)<4)v=tones[15];
-            if(h<18&&noise%11<4)v=rgb565(mix(0x4f7757,0x78916b,(noise%3)/3.f),c->dim);
-            castle_put(&k,cx+x,y,v);
+            if(!(step||shaft||base||capital||lintel||fallen||ring||wall))continue;
+            int tone;
+            if(step) tone=6+step+(int)(noise%3);
+            else if(shaft){ tone=4+(int)(noise%3); if(((x+61)%5)==0)tone+=4; if(d>4)tone+=2; }
+            else if(base||capital) tone=5+(int)(noise%2);
+            else if(lintel) tone=6+(int)(noise%3)+((h-100)<2?-2:0);
+            else if(fallen) tone=7+(int)(noise%3);
+            else if(ring) tone=keystone?2:4+(int)(noise%3);
+            else tone=9+(int)(noise%3);                                  /* the wall, in the arch's shadow */
+            if(!shaft&&!ring&&(h%7==0||((x+100+(h/7%2)*6)%13==0)))tone+=3;   /* the blocks' seams */
+            /* the broken column's top and the ledges: moss */
+            bool ledge = (step&&(h==3||h==8||h==12)) || (shaft&&x<0&&h>=top-3) || (lintel&&h>=106);
+            if(ledge&&noise%7<4){castle_put(&k,cx+x,y,rgb565(mix(0x4f7757,0x8aa06b,(noise%4)/4.f),c->dim));continue;}
+            if(tone<0)tone=0; if(tone>15)tone=15;
+            castle_put(&k,cx+x,y,tones[tone]);
         }
     }
 }
+/* the Tidepool Club's castle (redesigned 2026-10-10): a pineapple house - the fruit's body in a
+   diamond skin, a crown of leaves, a round-topped door (the same opening every castle has) and
+   two porthole windows, on a low sand mound. */
 static void draw_theme_castle(ctx_t *c,int cx,int front,bool final) {
     if(theme_active()==THEME_QUIET_LAGOON){draw_lagoon_castle(c,cx,front,final);return;}
-    bool club=theme_active()==THEME_TIDEPOOL_CLUB;
     cst_t k={c,cx,front,final};
-    uint32_t wall=club?0xe6bb7d:0x9ead9b, edge=club?0xc08455:0x617e70;
-    for(int y=CASTLE_FY-142;y<=CASTLE_FY+5;y++) {
+    for(int y=CASTLE_FY-150;y<=CASTLE_FY+5;y++) {
         if(y<c->oy || y>=c->oy+c->h)continue;
         int h=CASTLE_FY-y;
-        uint16_t light=rgb565(mix(water_rgb(y),wall,.9f),c->dim);
-        uint16_t shade=rgb565(mix(water_rgb(y),edge,.9f),c->dim);
-        uint16_t roof=rgb565(club?0xd17d59:0x78958a,c->dim);
         for(int x=-90;x<=90;x++) {
-            bool base=h>=-3&&h<10&&x*x+(h-2)*(h-2)*25<8100;
-            bool center=abs(x)<47&&h>=0&&h<(club?64:70);
-            int d=abs(x)-(club?65:62);
-            bool tower=abs(d)<(club?19:17)&&h>=0&&h<(club?92:98);
-            bool dome=d*d+(h-(club?92:98))*(h-(club?92:98))<(club?19*19:17*17)&&h>=(club?92:98);
-            bool battlement=club&&h>=64&&h<76&&abs(x)<47&&((x+50)/13)%2==0;
-            if(!(base||center||tower||dome||battlement))continue;
-            bool opening=abs(x)<26&&h>=0&&(h<24 || x*x+(h-24)*(h-24)<26*26);
-            if(opening) { if(!front)castle_put(&k,cx+x,y,rgb565(mix(water_rgb(y),0x173e38,.55f),c->dim)); continue; }
-            bool trim=abs(x)<31&&h>=0&&(h<24 || x*x+(h-24)*(h-24)<31*31);
-            bool window=abs(d)<5&&h>61&&h<78;
-            bool seam=club ? ((h==18||h==43)&&abs(x)>33) : ((h%24==0&&abs(x)>33)||((x+90+(h/24%2)*12)%32==0&&h%24>18));
-            uint16_t v=(trim||seam||d>12)?shade:light;
-            if(dome || battlement)v=roof;
-            if(window)v=shade;
-            /* Cream dots on the playful turrets; moss plaques on the quiet ruin. */
-            if(club && tower && h>30 && h<53 && d*d+(h-42)*(h-42)<20)v=rgb565(0xffe6b3,c->dim);
-            if(!club && h>6&&h<15&&(x+83)%29<18)v=rgb565(0x6e9375,c->dim);
-            castle_put(&k,cx+x,y,v);
+            unsigned noise=((unsigned)(x+100)*1237u+(unsigned)(h+40)*719u)^((unsigned)(x+130)*(unsigned)(h+17));
+            int ax=abs(x);
+            bool mound=h>=-3&&h<9&&x*x+(h-2)*(h-2)*25<8100;
+            /* the fruit: an ellipse 62 wide, 58 tall, standing on the mound */
+            float ex=x/62.f, ey=(h-58)/58.f; float e2=ex*ex+ey*ey;
+            bool body=h>=4&&e2<1.0f;
+            bool skin_edge=body&&e2>0.86f;
+            /* the crown: seven leaves, the middle ones tallest */
+            bool leaf=false; int leaf_i=0;
+            for(int i=0;i<7&&!leaf;i++){ int lx=(i-3)*13; int lh=120+(i==3?30:abs(i-3)==1?22:abs(i-3)==2?12:4); int w=7-(h-100)*7/(lh-100+1);
+                if(h>=100&&h<lh&&abs(x-lx-(i-3)*((h-100)/12))<=w){leaf=true;leaf_i=i;} }
+            bool opening=ax<26&&h>=0&&(h<24 || x*x+(h-24)*(h-24)<26*26);
+            bool frame=!opening&&ax<30&&h>=0&&(h<24 || x*x+(h-24)*(h-24)<30*30);
+            bool win=false, winframe=false;
+            for(int sx=-1;sx<=1;sx+=2){ int wx=x-sx*40, wy=h-66; int r2=wx*wx+wy*wy; if(r2<8*8)win=true; else if(r2<11*11)winframe=true; }
+            if(opening){ if(!front)castle_put(&k,cx+x,y,rgb565(mix(water_rgb(y),0x3a2a1e,.55f),c->dim)); continue; }
+            if(!(mound||body||leaf))continue;
+            uint32_t rgb;
+            if(leaf) rgb=(leaf_i+(h/9))%2 ? 0x4f9a5e : 0x3b7a48;
+            else if(body&&win) rgb=mix(0x8fc9d6,0xcfe9ee,((h-66+8)/16.f));
+            else if(body&&winframe) rgb=0x8a5a3a;
+            else if(body&&frame) rgb=0x8a5a3a;
+            else if(body){
+                /* the diamond skin: two diagonal families of seams, the cells lit toward the top-left */
+                int u=(x+h*1)/10, v=(x-h*1)/10; bool seam=((x+h)%10==0)||((x-h)%10==0);
+                rgb = seam ? 0xb77a2c : ((u+v)&1) ? 0xe9b84f : 0xdba23f;
+                if(((u*7+v*13)&3)==0&&!seam) rgb=mix(rgb,0xfff0b0,.25f);          /* a glint on some cells */
+                if(skin_edge) rgb=mix(rgb,0x8a5020,.45f);
+            }
+            else rgb=mix(0xdcc39b,0xc0a67c,(noise%4)/4.f);                       /* the mound */
+            castle_put(&k,cx+x,y,rgb565(rgb,c->dim));
         }
     }
 }
@@ -2654,6 +2682,13 @@ static void cl_paint(int e, int pass, float s) {
             else if (out_r || out_d) v = CLV_RIM;
             else if (out_l || out_u) v = CLV_LIT;
             else if (deep) v = CLV_DEEP;                        /* the rock's moss: never on its edge */
+            else if (theme_active()==THEME_QUIET_LAGOON) {   /* the lagoon's surfaces (2026-10-10): the brain's ridges, the tubes' streaks, the rock's speckle */
+                uint32_t h = chash(i + 97 * e, j) % 100;
+                v = e == CLE_BRAIN ? (((i * 2 + j * 3 + (i * j) % 4) % 7) < 2 ? CLV_SHADE : h < 12 ? CLV_LIT : CLV_BODY)
+                  : e == CLE_TUBE  ? (i % 3 == 1 ? CLV_SHADE : h < 10 ? CLV_LIT : CLV_BODY)
+                  : e == CLE_CORAL ? (h < 10 ? CLV_LIT : CLV_BODY)
+                  : h < 22 ? CLV_SHADE : h < 30 ? CLV_LIT : CLV_BODY;
+            }
             else { uint32_t h = chash(i + 97 * e, j) % 100; v = theme_active()==THEME_TIDEPOOL_CLUB?CLV_BODY:h < 20 ? CLV_SHADE : h < 26 ? CLV_LIT : CLV_BODY; }
             if (e == CLE_TUBE && deep && (out_u || out_l)) v = CLV_RIM;   /* the mouth's far lip */
             ds()->cl_sprite[j][i] = (uint8_t)CL_TONE(e, v);
@@ -2681,10 +2716,24 @@ static void cl_tint_fill(int scheme, float dim) {
     uint32_t tone[CL_TONES]; tone[0] = 0;
     for (int e = 0; e < CLE_N; e++) {
         uint32_t c = base[e];
+        if(theme_active()==THEME_QUIET_LAGOON) {
+            /* the lagoon's reef (redesigned 2026-10-10; it was every element pulled 92 % toward tones a hair
+               from the water and sand, and read as a bare twig and grey slabs): a dark basalt rock with a
+               mossy crown, the keeper's coral / tube / brain hues kept (softened a quarter toward the
+               lagoon's green-grey, no more), deep shaded rims so each piece has a silhouette */
+            static const uint32_t quiet[CLE_N]={0x4e5a52,0x5f9a62,0x9fb6a0,0x9fb6a0,0x9fb6a0};
+            c = e==CLE_ROCK||e==CLE_WEED ? quiet[e] : mix(c,quiet[e],.25f);
+            tone[CL_TONE(e, CLV_BODY)]  = c;
+            tone[CL_TONE(e, CLV_LIT)]   = mix(c, 0xf4f0d0, e == CLE_ROCK ? 0.26f : 0.40f);
+            tone[CL_TONE(e, CLV_RIM)]   = mix(c, 0x0e1a18, 0.62f);
+            tone[CL_TONE(e, CLV_SHADE)] = mix(c, 0x0e1a18, 0.32f);
+            tone[CL_TONE(e, CLV_DEEP)]  = e == CLE_ROCK ? 0x5f8a4a : e == CLE_CORAL ? mix(c, 0xfff0c0, 0.55f)
+                                        : e == CLE_TUBE ? mix(c, 0x0a1012, 0.72f) : e == CLE_BRAIN ? mix(c, 0x0e1a18, 0.50f) : mix(c, 0xe8ff80, 0.40f);
+            continue;
+        }
         if(theme_active()) {
-            static const uint32_t quiet[CLE_N]={0xa9b39c,0x769f86,0xcaa58b,0x94b5a8,0xc6c697};
             static const uint32_t club[CLE_N]={0xe5c89b,0x79a86a,0xe99d7f,0xbb9fb2,0xe4bc70};
-            c=mix(c,theme_active()==THEME_TIDEPOOL_CLUB?club[e]:quiet[e],theme_active()==THEME_QUIET_LAGOON?.92f:.7f);
+            c=mix(c,club[e],.7f);
         }
         tone[CL_TONE(e, CLV_BODY)]  = c;
         tone[CL_TONE(e, CLV_LIT)]   = mix(c, 0xfff0b0, e == CLE_ROCK ? 0.22f : 0.36f);
