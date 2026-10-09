@@ -1832,7 +1832,8 @@ static void draw_lagoon_castle(ctx_t *c,int cx,int front,bool final) {
             /* the broken column's top and the ledges: moss */
             bool ledge = (step&&(h==3||h==8||h==12)) || (shaft&&x<0&&h>=top-3) || (lintel&&h>=106);
             if(ledge&&noise%7<4){castle_put(&k,cx+x,y,rgb565(mix(0x4f7757,0x8aa06b,(noise%4)/4.f),c->dim));continue;}
-            if(tone<0)tone=0; if(tone>15)tone=15;
+            if(tone<0)tone=0;
+            if(tone>15)tone=15;
             castle_put(&k,cx+x,y,tones[tone]);
         }
     }

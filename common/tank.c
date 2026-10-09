@@ -202,12 +202,12 @@ const species_def_t SPECIES[SP_COUNT] = {
     { "ELECTRIC EEL", "eel", { "zap", "volt", "sparky", "ohm" },
       { { "OLIVE", 0x5a6a3a, 0x3a4626, 0xff8a3d }, { "CHARCOAL", 0x3a3f45, 0x24282c, 0xffd23f },
         { "BRONZE", 0x8a6a3a, 0x5a4426, 0xffb070 },  { "SPOTTED", 0x4e7a4a, 0x2e4e2e, 0xd8f07a } },
-      1.40f, 1.75f, 0.60f, 0.90f, 0.10f, 0.30f, 4.5f, 0.6f, 1.8f, LOCO_UNDULATE,
+      0.98f, 1.23f, 0.60f, 0.90f, 0.10f, 0.30f, 4.5f, 0.6f, 1.8f, LOCO_UNDULATE,   /* 2026-10-10: 30 % smaller (was 1.40-1.75) */
       0.70f, 1.10f, 0.80f, 0.0f, 46, true },
     { "HAMMERHEAD", "shark", { "hammer", "finn", "ridge", "bruce" },
       { { "GREY", 0x8a9aa6, 0x5e6e7a, 0xe8eef2 },  { "BRONZE", 0xa88a5a, 0x7a603a, 0xf2e6cc },
         { "SLATE", 0x6a83a8, 0x46607e, 0xdde8f4 }, { "SCALLOPED", 0xc0ccd4, 0x8e9aa2, 0xffffff } },
-      1.60f, 1.95f, 0.80f, 0.95f, 0.50f, 0.80f, 5.0f, 0.1f, 1.5f, LOCO_CRUISE,
+      1.12f, 1.37f, 0.80f, 0.95f, 0.50f, 0.80f, 5.0f, 0.1f, 1.5f, LOCO_CRUISE,   /* 2026-10-10: 30 % smaller (was 1.60-1.95) */
       0.95f, 1.20f, 0.50f, 16.0f, 52, true },
     { "SQUID", "squid", { "squee", "jett", "sumi", "kiki" },
       { { "PINK", 0xf2a6c0, 0xc06a8a, 0xe0443a },   { "FIREFLY", 0x3a6aff, 0x2446b0, 0x9ffcff },

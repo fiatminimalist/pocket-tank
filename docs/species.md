@@ -94,8 +94,8 @@ modal's school two rows.
 | octopus | `octopus` | 1.00-1.25 | 0.40-0.80 | 0.05-0.25 | 8.5 | 0.40 | 3.0 | `LOCO_JET` (crawls the floor) |
 | pufferfish | `puffer` | 0.85-1.05 | 0.25-0.60 | 0.20-0.50 | 7.0 | 0.50 | 4.6 | `LOCO_HOVER` |
 | anglerfish | `angler` | 0.95-1.20 | 0.50-0.80 | 0.05-0.20 | 2.5 | 0.90 | 1.4 | `LOCO_AMBUSH` |
-| electric eel | `eel` | 1.40-1.75 | 0.60-0.90 | 0.10-0.30 | 4.5 | 0.60 | 1.8 | `LOCO_UNDULATE` |
-| hammerhead | `shark` | 1.60-1.95 | 0.80-0.95 | 0.50-0.80 | 5.0 | 0.10 | 1.5 | `LOCO_CRUISE` |
+| electric eel | `eel` | 0.98-1.23 | 0.60-0.90 | 0.10-0.30 | 4.5 | 0.60 | 1.8 | `LOCO_UNDULATE` |
+| hammerhead | `shark` | 1.12-1.37 | 0.80-0.95 | 0.50-0.80 | 5.0 | 0.10 | 1.5 | `LOCO_CRUISE` |
 | squid | `squid` | 0.90-1.10 | 0.30-0.60 | 0.70-0.95 | 6.0 | 0.30 | 3.5 | `LOCO_JET` (hovers in open water) |
 | crab | `crab` | 0.80-1.00 | 0.40-0.80 | 0.20-0.50 | 6.5 | 0.50 | 3.5 | `LOCO_SIDEWALK` |
 | lobster | `lobster` | 1.10-1.40 | 0.50-0.85 | 0.05-0.25 | 5.5 | 0.60 | 2.0 | `LOCO_WALK` |
