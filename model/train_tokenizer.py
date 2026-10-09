@@ -37,9 +37,12 @@ SCHEMA = int(os.environ.get("POCKET_SCHEMA", "2"))
 # v5 (2026-10-05, docs/species.md): the species words, in common/tank.h
 # species_t order (SPECIES[].token). `fish` is the classic fish (the v2 line's
 # old `fish <name>` head word, reused). Appended after every v4 word, so ids
-# 0..53 keep the v4 layout and v5 adds ids 54..64: vocab 65.
+# 0..53 keep the v4 layout and v5 adds ids 54..64: vocab 65. The jellyfish
+# (2026-10-09) is appended again as id 65: vocab 66, and a model built on the
+# 65-word vocab still reads this tokenizer's first 65 ids as its own (the C
+# advisor sends `species fish` for a word the loaded model lacks).
 SPECIES_WORDS = ["fish", "seahorse", "octopus", "puffer", "angler", "eel", "shark", "squid",
-                 "crab", "lobster"]
+                 "crab", "lobster", "jellyfish"]
 
 
 def lexicon_for(schema):

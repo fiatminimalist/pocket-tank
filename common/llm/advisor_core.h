@@ -30,6 +30,7 @@ q4_model_t *advisor_core_model(void);           /* for q4_model_bench */
 
 /* encode fish idx's state line per schema (no trailing " ->") */
 void advisor_core_encode(const tank_t *t, int idx, char *out, size_t n);
+const char *advisor_core_species_word(const fish_t *f);   /* the species token, or `fish` when the vocab lacks it */
 
 /* run the model on a state line. Returns the goal (id == GOAL_COUNT if the
  * output was unparseable: keep the previous goal), with confidence and

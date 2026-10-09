@@ -1,7 +1,8 @@
 # Species (2026-10-05)
 
-Nine new creatures join the classic fish: **seahorse, octopus, pufferfish,
-anglerfish, electric eel, hammerhead shark, squid, crab, lobster**. Each one breeds, comes
+Ten new creatures join the classic fish: **seahorse, octopus, pufferfish,
+anglerfish, electric eel, hammerhead shark, squid, crab, lobster**, and since
+2026-10-09 the **jellyfish**. Each one breeds, comes
 in several designs, rolls its own personality inside its species' range, and
 moves the way the real animal does. The distilled model still chooses every
 creature's goal; the species decides how that goal is carried out.
@@ -9,7 +10,7 @@ creature's goal; the species decides how that goal is carried out.
 ## Where they come from
 
 - **The shop:** each species is a sand-dollar item that brings **one
-  juvenile** (`SD_ITEM_SP_*`, nine items, `progression_buy` →
+  juvenile** (`SD_ITEM_SP_*`, ten items, `progression_buy` →
   `tank_add_species_n(.., 1)`; one a purchase since 2026-10-07, a pair before).
   It needs one free place in the tank (`progression_has_room_one`) and can be
   bought as often as there is room: two of a kind are what breed, so a keeper
@@ -27,8 +28,9 @@ creature's goal; the species decides how that goal is carried out.
 - **Prices** (`SD_PRICE_SP_*`): every creature is 10 sand dollars (since
   2026-10-07; before that a pair, on an exotic ladder from crabs 140 to
   hammerheads 400), and sells back from its card for 10 at most
-  (`progression_fish_value`). The items are 7..15 in species
-  order (`SD_ITEM_SP_FIRST` + species - 1), on the shop's pages 2..4.
+  (`progression_fish_value`). The items are 7..16 in species
+  order (`SD_ITEM_SP_FIRST` + species - 1), on the shop's pages 2..5 (the
+  jellyfish, item 16 / bit 16, is the fifth page's one row).
 - **The bit** of a species' item means "some of them are in the tank"
   (`progression_species_sync`, run on load, after a sale, a birth and a
   buy): it clears when the last one is sold and a surprise hatched in the
@@ -97,6 +99,7 @@ modal's school two rows.
 | squid | `squid` | 0.90-1.10 | 0.30-0.60 | 0.70-0.95 | 6.0 | 0.30 | 3.5 | `LOCO_JET` (hovers in open water) |
 | crab | `crab` | 0.80-1.00 | 0.40-0.80 | 0.20-0.50 | 6.5 | 0.50 | 3.5 | `LOCO_SIDEWALK` |
 | lobster | `lobster` | 1.10-1.40 | 0.50-0.85 | 0.05-0.25 | 5.5 | 0.60 | 2.0 | `LOCO_WALK` |
+| jellyfish | `jellyfish` | 0.95-1.15 | 0.10-0.40 | 0.40-0.75 | 5.0 | 0.70 | 1.6 | `LOCO_HOVER` (pulses, drifts) |
 
 Sizes are tank-scaled (a "pup" hammerhead, a dwarf seahorse): 1.0 is the
 classic fish's ~42 px. A newborn's size, bold and social are rolled inside
@@ -120,6 +123,8 @@ other).
 - **Squid:** 0 pink (chromatophore dots), 1 firefly blue (glowing dots), 2 bigfin white, 3 reef amber
 - **Crab:** 0 red rock, 1 blue (orange-tipped claws), 2 Sally Lightfoot (orange, blue flecks), 3 green shore crab
 - **Lobster:** 0 common (dark olive, orange antennae), 1 rare blue, 2 spiny (teal, gold spots), 3 calico (red, cream patches)
+- **Jellyfish:** 0 peach, 1 pearl, 2 rose, 3 blue - a bell and arms in the
+  body / fin colours; the theme decides the look (docs/THEMES.md "Jellyfish")
 
 ## How they move (the reflex layer, tank.c)
 
@@ -164,6 +169,15 @@ step turn it into the animal's own motion.
   antennae sweeping; REST in a den under rock. Startle: the **tail-flip** -
   a few fast backward strokes of its tail that shoot it backward (burst ×2.2),
   then it walks again. Like the crab it stays on the floor and rocks.
+- **Jellyfish (`LOCO_HOVER`, pulsing)** - an upright bell that never turns
+  on its side: `fish_t.jet` is its pulse phase, and one phase drives both
+  the thrust (the speed swells and fades with each contraction, ~0.6 Hz
+  exploring) and the bell the renderer draws, so motion and picture agree.
+  It drifts slowly in the open water (speed ×0.40, a gentle bob, climbs as
+  readily as it travels) and keeps out of the floor band and the surface.
+  REST: it hangs still in mid-water near the middle, the pulse slowed to
+  ~0.2 Hz. A startle quickens the pulse (~1.3 Hz) and nothing else: no ink,
+  no spark, no puff, no idle flourish (it never visits the surface).
 
 ## The gentle tank
 
@@ -190,3 +204,12 @@ which it never trained on. So the advisor sends `species <token>` only to a
 model keeps deciding as before, from each creature's species-shaped traits.
 The retrain runbook is `docs/retrain-v5.md`; the schema-5 model **v5m** ships
 since 2026-10-07 (its numbers: docs/stats.md, "Schema v5 data cycle").
+
+**A species added after a model** (the jellyfish, 2026-10-09): its word is
+appended to the tokenizer (`jellyfish`, id 65; vocab 66) and the advisor
+sends it only when the loaded vocabulary has it (`advisor_core_species_word`,
+checked at init); a model whose vocabulary stops at 65 words hears the
+jellyfish as `species fish` - its traits and the reflex layer still make it
+a jellyfish. The jellyfish's own labels (a `--focus jellyfish` run of
+`gen_traces.py`) and the retrained model are **v5j** (docs/stats.md,
+"The jellyfish, v5j").

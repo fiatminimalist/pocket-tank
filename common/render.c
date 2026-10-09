@@ -3,6 +3,7 @@
  * the keeper trims. Everything is drawn
  * into a bare RGB565 buffer; night dims the palette. */
 #include "render.h"
+#include "theme.h"
 #include "icons.h"
 #include "progression.h"
 #include "tank_events.h"
@@ -222,8 +223,10 @@ static float yaw_at(float yh, float yt, float lx) {
 /* `mark` scales the accent stripes: 1 in the tank (every stage wears the
  * same 2 x 5 px marks), the preview's size so they read on a big fish */
 static void draw_creature(ctx_t *c, const fish_t *f, float clock, bool asleep);   /* the species, below */
+static void draw_lagoon_fish(ctx_t *c,const fish_t *f,float clock,bool asleep);
 static void draw_fish_core(ctx_t *c, const fish_t *f, float clock, bool asleep, float mark) {
     if (f->species != SP_FISH) { draw_creature(c, f, clock, asleep); return; }
+    if(theme_active()==THEME_QUIET_LAGOON){draw_lagoon_fish(c,f,clock,asleep);return;}
     float tail = sinf(clock * (8 + f->speed * 0.055f) + f->wander) *
                  (0.32f + f->speed * 0.007f);
     float stress = f->stress / 10.0f;
@@ -240,11 +243,43 @@ static void draw_fish_core(ctx_t *c, const fish_t *f, float clock, bool asleep, 
     float yh = yaw_ease(f->yaw), yt = yaw_ease(f->yaw_tail);
     bool elder = f->stage == STAGE_ELDER, grown = f->stage >= STAGE_ADULT;
     float tail_len = elder ? 1.22f : 1.0f;
-    uint32_t body = mix(mix(f->color, 0xf25b65, stress * 0.22f), 0x7a8a8e, pale);
-    uint32_t fin  = mix(mix(f->fin, 0xf25b65, stress * 0.18f), 0x5a6a6e, pale);
+    uint32_t body = mix(mix(theme_creature_color(f->color, 0), 0xf25b65, stress * 0.22f), 0x7a8a8e, pale);
+    uint32_t fin  = mix(mix(theme_creature_color(f->fin, 1), 0xf25b65, stress * 0.18f), 0x5a6a6e, pale);
 #define TX(lx, ly) (f->x + yaw_at(yh, yt, lx) * ((lx) * cp - (ly) * sp) * f->size)
 #define TY(lx, ly) (f->y + ((lx) * sp + (ly) * cp) * f->size)
 
+    if (theme_active()) {
+        bool club = theme_active() == THEME_TIDEPOOL_CLUB;
+        /* Different silhouettes at every stage, with the original yaw/pitch animation. */
+        float lx[7] = {-10,-25,-23,-19,-23,-25,-10};
+        float ly[7] = {0,-9-tail*5,-3,0,3,9+tail*5,0};
+        float xs[20],ys[20];
+        for (int i=0;i<7;i++) { xs[i]=TX(lx[i],ly[i]); ys[i]=TY(lx[i],ly[i]); }
+        fill_poly(c,xs,ys,7,fin);
+        if (grown) {
+            float fx[4]={-10,-5,3,8},fy[4]={-6,elder?-16:-12,-12,-5};
+            for(int i=0;i<4;i++){xs[i]=TX(fx[i],fy[i]);ys[i]=TY(fx[i],fy[i]);}
+            fill_poly(c,xs,ys,4,fin);
+        }
+        for(int i=0;i<20;i++) {
+            float a=TAU*i/20,xx=club?14*cosf(a):16*cosf(a);
+            float yy=(club?11:7.8f)*sinf(a)*(club?1:0.82f+0.18f*cosf(a));
+            xs[i]=TX(xx,yy);ys[i]=TY(xx,yy);
+        }
+        fill_poly(c,xs,ys,20,body);
+        float face=fabsf(yh);
+        fill_ellipse(c,TX(1,1),TY(1,1),fmaxf(2.5f*f->size,9*face*f->size),
+                     (club?7:4.5f)*f->size,mix(body,0xffefd0,.20f),210);
+        if (f->stage>=STAGE_JUV) for(int i=0;i<3;i++) {
+            float xx=-7+i*5, yy=club?(i==1?-3:2):0;
+            fill_ellipse(c,TX(xx,yy),TY(xx,yy),fmaxf(.6f,(club?2.1f:1)*face*f->size),
+                         (club?2.1f:4)*f->size,theme_creature_color(f->accent,1),180);
+        }
+        fill_ellipse(c,TX(-3,3),TY(-3,3),3*f->size*fmaxf(face,.2f),2*f->size,fin,230);
+        fill_ellipse(c,TX(8,-2),TY(8,-2),club?2.5f:1.8f,asleep?.6f:club?2.5f:1.8f,0xfff9df,255);
+        if(!asleep)fill_ellipse(c,TX(8.5f,-2),TY(8.5f,-2),1,1,0x193d32,255);
+        return;
+    }
     /* tail fin (triangle, flaps with tail phase) */
     {
         float lx[3] = {-11, -26 * tail_len, -26 * tail_len}, ly[3] = {0, -10 - tail * 8, 10 + tail * 8};
@@ -265,7 +300,7 @@ static void draw_fish_core(ctx_t *c, const fish_t *f, float clock, bool asleep, 
         static const float blx[10] = { 16, 10, 2, -8, -15, -18, -15, -8, 2, 10 };
         static const float bly[10] = { 0, -7, -10, -9, -6, 0, 6, 9, 10, 7 };
         float xs[10], ys[10];
-        for (int i = 0; i < 10; i++) { xs[i] = TX(blx[i], bly[i]); ys[i] = TY(blx[i], bly[i]); }
+        for (int i = 0; i < 10; i++) { xs[i] = TX(blx[i], bly[i]); ys[i] = TY(blx[i], bly[i] * (theme_active() == THEME_TIDEPOOL_CLUB ? 1.16f : 1.0f)); }
         fill_poly(c, xs, ys, 10, body);
         /* its thickness: the cross-section at the deepest point, widening as
          * the fish turns toward the glass (sin of the yaw angle) */
@@ -280,7 +315,7 @@ static void draw_fish_core(ctx_t *c, const fish_t *f, float clock, bool asleep, 
         float lx = -3 + i * 6, s = fabsf(yaw_at(yh, yt, lx));
         if (s > 0.25f)
             fill_ellipse(c, TX(lx, 0), TY(lx, 0), 2 * mark * s, 5 * mark,
-                         f->accent, (int)(150 * (s - 0.25f) / 0.75f));
+                         theme_creature_color(f->accent, 1), (int)(150 * (s - 0.25f) / 0.75f));
     }
     /* eye — closed to a lid line when asleep (resting at night) */
     if (asleep) {
@@ -457,9 +492,9 @@ static void sk_setup(sk_t *k, ctx_t *c, const fish_t *f, float clock, bool aslee
     k->cp = cosf(p); k->sp = sinf(p);
     float stress = f->stress / 10.0f;
     float pale = f->hunger > 7 ? (f->hunger - 7) / 3.0f * 0.35f : 0;
-    k->body = mix(mix(f->color, 0xf25b65, stress * 0.22f), 0x7a8a8e, pale);
-    k->fin  = mix(mix(f->fin, 0xf25b65, stress * 0.18f), 0x5a6a6e, pale);
-    k->acc  = f->accent;
+    k->body = mix(mix(theme_creature_color(f->color, 0), 0xf25b65, stress * 0.22f), 0x7a8a8e, pale);
+    k->fin  = mix(mix(theme_creature_color(f->fin, 1), 0xf25b65, stress * 0.18f), 0x5a6a6e, pale);
+    k->acc  = theme_creature_color(f->accent, 1);
 }
 static inline void sk_lean(sk_t *k, float p) { k->cp = cosf(p); k->sp = sinf(p); }
 
@@ -498,17 +533,23 @@ static void draw_ink(const sk_t *k) {
     float u = clamp01(1 - f->ink / (ink0 > 2.5f ? ink0 : 2.5f));
     float R = (8 + 20 * u) * k->s, a = 190 * (1 - u) + 10;
     oy -= 5 * u * k->s;                         /* it rises a little as it spreads */
-    src_t dk = src_color(0x140c18, k->c->dim), mid = src_color(0x2a1e2c, k->c->dim);
+    uint32_t dark=theme_active()==THEME_QUIET_LAGOON?0x244d48:theme_active()==THEME_TIDEPOOL_CLUB?0x596a82:0x140c18;
+    uint32_t middle=theme_active()==THEME_QUIET_LAGOON?0x537f71:theme_active()==THEME_TIDEPOOL_CLUB?0x8997ad:0x2a1e2c;
+    src_t dk = src_color(dark, k->c->dim), mid = src_color(middle, k->c->dim);
     static const float BX[5] = { 0, -0.5f, 0.55f, -0.2f, 0.3f }, BY[5] = { 0, -0.35f, -0.25f, 0.4f, 0.3f }, BR[5] = { 0.75f, 0.55f, 0.6f, 0.5f, 0.45f };
     fill_ellipse_s(k->c, ox, oy, R, R * 0.8f, &mid, (int)(a * 0.35f));
     for (int i = 0; i < 5; i++)
-        fill_ellipse_s(k->c, ox + BX[i] * R, oy + BY[i] * R, BR[i] * R, BR[i] * R * 0.85f, &dk, (int)(a * 0.5f));
+        fill_ellipse_s(k->c, ox + BX[i] * R, oy + BY[i] * R, BR[i] * R, BR[i] * R * (theme_active()==THEME_TIDEPOOL_CLUB?1:0.85f), &dk, (int)(a * (theme_active()==THEME_QUIET_LAGOON?.33f:.5f)));
 }
 
 /* ---- seahorse: upright, the snout a tube, the coronet, a pot belly
    ringed with plates, a prehensile tail curled under, and the little dorsal
    fan that is its whole engine. Leans into its slow swim. ---- */
+#include "living_lagoon.inc"
+#include "theme_creatures.inc"
+
 static void draw_seahorse(sk_t *k) {
+    if(theme_active()){draw_theme_species(k,SP_SEAHORSE);return;}
     const fish_t *f = k->f; float t = k->t; int v = f->variant & 3;
     sk_lean(k, 0.24f * clamp01(f->speed / 25));
     /* the dorsal fan, fluttering */
@@ -576,6 +617,7 @@ static void draw_seahorse(sk_t *k) {
    together, flaring between pulses). Camouflage takes on f->camo_rgb and
    the pattern fades with it. ---- */
 static void draw_octopus(sk_t *k) {
+    if(theme_active()){draw_theme_species(k,SP_OCTOPUS);return;}
     const fish_t *f = k->f; float t = k->t; int v = f->variant & 3;
     float jk = k->pose;
     float camo = clamp01(f->camo);
@@ -684,6 +726,7 @@ static void draw_octopus(sk_t *k) {
    fins sculling. f->puff swells it into a near-round ball and the spines
    stand out. ---- */
 static void draw_puffer(sk_t *k) {
+    if(theme_active()){draw_theme_species(k,SP_PUFFER);return;}
     const fish_t *f = k->f; float t = k->t; int v = f->variant & 3;
     float p = clamp01(f->puff);
     static float flat[16][2]; static bool built;
@@ -767,6 +810,7 @@ static void draw_puffer(sk_t *k) {
    GLOWS: its colour skips the night dim (the card does the same), with a
    halo, brightest as f->lure rises. ---- */
 static void draw_angler(sk_t *k) {
+    if(theme_active()){draw_theme_species(k,SP_ANGLER);return;}
     const fish_t *f = k->f; float t = k->t; int v = f->variant & 3;
     float w = 1.2f * fast_sin(t * 3 + f->wander);
     { float lx[5] = { -13.5f, -21, -23.5f, -21, -13.5f }, ly[5] = { -2.5f, -6.5f + w, w, 6.5f + w, 2.5f }; sk_poly(k, lx, ly, 5, k->fin, 255); }
@@ -815,6 +859,7 @@ static void draw_angler(sk_t *k) {
    A startle's f->spark crackles along it, undimmed. ---- */
 #define EEL_N 14
 static void draw_eel(sk_t *k) {
+    if(theme_active()){draw_theme_species(k,SP_EEL);return;}
     const fish_t *f = k->f; float t = k->t; int v = f->variant & 3;
     float lx[EEL_N], ly[EEL_N], r[EEL_N];
     float amp = 0.35f + 0.65f * clamp01(f->speed / 35), ph = f->jet * TAU;
@@ -885,6 +930,7 @@ static void draw_eel(sk_t *k) {
    into the T as the shark comes head-on), the tall first dorsal, pectorals,
    the heterocercal tail beating slowly, a pale belly. ---- */
 static void draw_shark(sk_t *k) {
+    if(theme_active()){draw_theme_species(k,SP_SHARK);return;}
     const fish_t *f = k->f; float t = k->t; int v = f->variant & 3;
     uint32_t tip = v == 2 ? mix(k->fin, 0x000000, 0.45f) : k->fin;
     float tw = 1.8f * fast_sin(f->jet * TAU);
@@ -938,6 +984,7 @@ static void draw_shark(sk_t *k) {
    flicker in f->accent (the firefly's glow, undimmed). It swims either way:
    mantle first it jets, arms closed behind it. ---- */
 static void draw_squid(sk_t *k) {
+    if(theme_active()){draw_theme_species(k,SP_SQUID);return;}
     const fish_t *f = k->f; float t = k->t; int v = f->variant & 3;
     float jk = k->pose, jp = f->jet - floorf(f->jet);
     float pulse = jp < 0.3f ? fast_sin(jp * (TAU * 0.5f / 0.3f)) : 0, my = 1 - 0.12f * pulse * jk;
@@ -1019,6 +1066,7 @@ static void draw_squid(sk_t *k) {
    little toward the side it shows. f->puff is its threat display: the claws
    go up and out. No pitch - it walks the floor. ---- */
 static void draw_crab(sk_t *k) {
+    if(theme_active()){draw_theme_species(k,SP_CRAB);return;}
     const fish_t *f = k->f; float t = k->t; int v = f->variant & 3;
     float q = 1.6f * k->yh;                        /* the face, slid toward the side it shows */
     k->yh = k->yt = 1; k->zq = 0;                  /* drawn straight on: no mirroring, no foreshortening */
@@ -1085,6 +1133,7 @@ static void draw_crab(sk_t *k) {
    instead), the long antennae sweeping, the walking legs stepping. A
    tail-flip (sp_mode SPM_FLIP, f->jet > 0.5) curls the tail under it. ---- */
 static void draw_lobster(sk_t *k) {
+    if(theme_active()){draw_theme_species(k,SP_LOBSTER);return;}
     const fish_t *f = k->f; float t = k->t; int v = f->variant & 3;
     float curl = f->sp_mode == SPM_FLIP && f->jet > 0.5f ? clamp01((f->jet - 0.5f) * 8) : 0;
     float ph = t * (2.0f + clamp01(f->speed / 20) * 7), mv = clamp01(f->speed / 6);
@@ -1170,6 +1219,8 @@ static void draw_lobster(sk_t *k) {
     sk_eye(k, 14.8f, -6.0f, 1.1f, true);
 }
 
+#include "jellyfish.inc"
+
 /* every species but the classic fish: dispatch on f->species */
 static void draw_creature(ctx_t *c, const fish_t *f, float clock, bool asleep) {
     sk_t k;
@@ -1187,6 +1238,7 @@ static void draw_creature(ctx_t *c, const fish_t *f, float clock, bool asleep) {
         sk_setup(&k, c, f, clock, asleep, -23, 12, 0.5f, clamp01(f->speed / 25)); k.pose = jk; draw_squid(&k); break; }
     case SP_CRAB:     sk_setup(&k, c, f, clock, asleep, -12, 12, 0, 0); draw_crab(&k); break;
     case SP_LOBSTER:  sk_setup(&k, c, f, clock, asleep, -26, 22, 0.3f, f->sp_mode == SPM_FLIP ? 1.0f : 0.0f); draw_lobster(&k); break;
+    case SP_JELLYFISH: sk_setup(&k,c,f,clock,asleep,-18,18,0,0); draw_jellyfish(&k); break;
     default: break;
     }
 }
@@ -1225,6 +1277,15 @@ static const char *const SHRIMP_DART[8] = {      /* the escape: tail snapped und
     "..................", "aaaa..ohhs........", "....ohrrrhhhs.....", "...orrrrrrrrrea...",
     "...ttrrrrrrrrrr...", "...tt.oorrrroo....", "..................", ".................." };
 static void draw_shrimp(ctx_t *c, const shrimp_t *q, const src_t *pal) {
+    if(theme_active()) {
+        bool club=theme_active()==THEME_TIDEPOOL_CLUB;
+        float dir=q->yaw<0?-1:1;
+        for(int i=0;i<5;i++)fill_ellipse(c,q->x+dir*(3-i*2),q->y-1+i*.35f,2,club?2:1.4f,
+                     i%2?(club?0xe89f77:0xc9bba2):(club?0xb77359:0x89a69a),255);
+        fill_ellipse(c,q->x+dir*4,q->y-2,.65f,.65f,0x29463b,255);
+        for(int i=0;i<4;i++){px_blend(c,(int)(q->x+dir*(4+i)),(int)(q->y-3-i*.4f),0xd4d9b7,200);px_blend(c,(int)(q->x-i*2),(int)(q->y+2),0xa78768,220);}
+        return;
+    }
     float sp2 = q->vx * q->vx + q->vy * q->vy;
     const char *const *fr = q->dart > 0 ? SHRIMP_DART
                           : q->pecking ? (fmodf(q->ph * 3, 1) < 0.5f ? SHRIMP_PECK : SHRIMP_IDLE_A)
@@ -1304,7 +1365,7 @@ static inline int vig_alpha(int x, int y) {
     float dy = (y - TANK_H * 0.5f) / (TANK_H * 0.5f);
     float d2 = dx * dx + dy * dy;
     if (d2 <= 0.72f) return 0;
-    int a = (int)((d2 - 0.72f) * 220);
+    int a = (int)((d2 - 0.72f) * (theme_active() == THEME_TIDEPOOL_CLUB ? 18 : theme_active() == THEME_QUIET_LAGOON ? 65 : 220));
     return a > 255 ? 255 : a;
 }
 
@@ -1343,8 +1404,9 @@ static inline void span_final(ctx_t *c, int x0, int x1, int y, const src_t *s, i
 static inline uint32_t water_rgb(int y) {
     float p = (float)y / TANK_BOT;                 /* the gradient runs surface to floor; under a bowl's sand line it holds */
     if (p > 1) p = 1;
-    return p < 0.45f ? mix(0x0a3c46, 0x08272f, p / 0.45f)
-                     : mix(0x08272f, 0x031015, (p - 0.45f) / 0.55f);
+    const uint32_t *water = theme_palette(theme_active())->water;
+    return p < 0.45f ? mix(water[0], water[1], p / 0.45f)
+                     : mix(water[1], water[2], (p - 0.45f) / 0.55f);
 }
 
 /* Fronds are drawn OPAQUE from a per-row pre-tinted palette (2026-09-04):
@@ -1358,7 +1420,7 @@ static inline uint32_t water_rgb(int y) {
 static uint16_t g_veg_row[4][TANK_H];   /* grass pair, then the sword plant's yellow-green pair */
 static float    g_veg_row_dim = -1;
 static void veg_tint_fill(float dim) {
-    static const uint32_t frond[4] = { 0x3f8b55, 0x2e7d4f, 0x8dbb48, 0x6c9d38 };
+    const uint32_t *frond = theme_palette(theme_active())->grass;
     if (g_veg_row_dim == dim) return;
     for (int y = 0; y < TANK_H; y++) {
         uint32_t w = water_rgb(y);
@@ -1454,11 +1516,28 @@ static void draw_veg(ctx_t *c, const tank_t *t, int b, int seed, int layer, bool
             float u = sp / (segs > 1 ? segs - 1 : 1);
             float half = sword ? 1.2f + 6.0f * (u < 0.4f ? u / 0.4f : (1 - u) / 0.6f)
                                : root - (root - tip) * u;
+            if (theme_active()) {
+                bool club=theme_active()==THEME_TIDEPOOL_CLUB;
+                float leaf=0.5f+0.5f*cosf(sp*(sword?0.58f:1.25f)+i*.7f);
+                if(sword) half=club ? 1.0f+7.0f*sinf(u*3.14159f)*(0.7f+0.3f*leaf)
+                                                  : .8f+5.8f*sinf(u*3.14159f);
+                else half=club ? .8f+3.7f*leaf*(1-u*.65f) : .7f+2.2f*sinf(u*3.14159f)*(1-u*.3f);
+            }
             if (half < tip) half = tip;
             int k = (int)sp; float fr = sp - k;
             float cx = xs[k] + (xs[k + 1] - xs[k]) * fr;
             src_t s; s.v = pal[y];                              /* opaque: only .v is read */
             veg_span(c, (int)(cx - half), (int)(cx + half), y, &s, final);
+            if(theme_active()==THEME_QUIET_LAGOON && half>1.5f) {
+                src_t lit={.v=g_veg_row[sword?2:0][y]},shade={.v=g_veg_row[sword?3:1][y]};
+                veg_span(c,(int)(cx-half),(int)cx,y,&lit,final);
+                veg_span(c,(int)cx+1,(int)(cx+half),y,&shade,final);
+                if(sword && y%9==0)veg_span(c,(int)(cx-half*.7f),(int)cx,y,&shade,final);
+            }
+            if (theme_active() && half>2) {
+                src_t vein; vein.v=g_veg_row[(sword?2:0)+1-((i+seed)&1)][y];
+                veg_span(c,(int)cx,(int)cx,y,&vein,final);
+            }
         }
     }
 }
@@ -1695,7 +1774,80 @@ static void castle_front_row(const cst_t *k) {
 }
 /* the whole castle (front = 0: the keep, then the front row over it - the
  * scene bake), or the front row alone (front = 1: over the fish) */
+/* A quiet rounded ruin / a sculpted sandcastle. Same footprint and swim-through arch. */
+/* Limestone ruin: relief, joints and moss are baked through the same depth mask. */
+static void draw_lagoon_castle(ctx_t *c,int cx,int front,bool final) {
+    cst_t k={c,cx,front,final};
+    uint16_t tones[16];
+    for(int i=0;i<16;i++)tones[i]=rgb565(mix(0xc0c1a6,0x3e6259,i/15.f),c->dim);
+    for(int y=CASTLE_FY-128;y<=CASTLE_FY+3;y++) {
+        if(y<c->oy||y>=c->oy+c->h)continue;
+        int h=CASTLE_FY-y;
+        int left=c->ox-cx;if(left< -88)left=-88;
+        int right=c->ox+c->w-1-cx;if(right>88)right=88;
+        for(int x=left;x<=right;x++) {
+            int d=abs(x)-61;
+            bool tower=abs(d)<20&&h>=0&&h<(x<0?108:118);
+            bool crown=tower&&h>(x<0?96:105);
+            if(crown && ((x+100)/11)%2==0)tower=false;
+            bool wall=abs(x)<43&&h>=0&&h<66;
+            bool foot=abs(x)<84&&h>=-3&&h<8;
+            if(!(tower||wall||foot))continue;
+            bool opening=abs(x)<26&&h>=0&&(h<24||x*x+(h-24)*(h-24)<26*26);
+            if(opening){if(!front)castle_put(&k,cx+x,y,rgb565(mix(water_rgb(y),0x173e3e,.5f),c->dim));continue;}
+            bool trim=abs(x)<31&&h>=0&&(h<24||x*x+(h-24)*(h-24)<31*31);
+            unsigned noise=((unsigned)(x+100)*1237u+(unsigned)h*719u)^((unsigned)(x+130)*(unsigned)(h+17));
+            int tone=4+(x+88)/35+(int)(noise%3);
+            if(tower)tone=3+(d+20)/6+(int)(noise%3);
+            if(h%14==0||((x+100+(h/14%2)*11)%23==0&&h%14<13))tone+=3;
+            if(h%14==1)tone-=2;
+            if(trim)tone=abs(x)>28?2:9;
+            if(foot)tone=7+(h<1?4:0);
+            if(tone<0)tone=0;
+            if(tone>15)tone=15;
+            uint16_t v=tones[tone];
+            if(h>65&&h<81&&abs(d)<4)v=tones[15];
+            if(h<18&&noise%11<4)v=rgb565(mix(0x4f7757,0x78916b,(noise%3)/3.f),c->dim);
+            castle_put(&k,cx+x,y,v);
+        }
+    }
+}
+static void draw_theme_castle(ctx_t *c,int cx,int front,bool final) {
+    if(theme_active()==THEME_QUIET_LAGOON){draw_lagoon_castle(c,cx,front,final);return;}
+    bool club=theme_active()==THEME_TIDEPOOL_CLUB;
+    cst_t k={c,cx,front,final};
+    uint32_t wall=club?0xe6bb7d:0x9ead9b, edge=club?0xc08455:0x617e70;
+    for(int y=CASTLE_FY-142;y<=CASTLE_FY+5;y++) {
+        if(y<c->oy || y>=c->oy+c->h)continue;
+        int h=CASTLE_FY-y;
+        uint16_t light=rgb565(mix(water_rgb(y),wall,.9f),c->dim);
+        uint16_t shade=rgb565(mix(water_rgb(y),edge,.9f),c->dim);
+        uint16_t roof=rgb565(club?0xd17d59:0x78958a,c->dim);
+        for(int x=-90;x<=90;x++) {
+            bool base=h>=-3&&h<10&&x*x+(h-2)*(h-2)*25<8100;
+            bool center=abs(x)<47&&h>=0&&h<(club?64:70);
+            int d=abs(x)-(club?65:62);
+            bool tower=abs(d)<(club?19:17)&&h>=0&&h<(club?92:98);
+            bool dome=d*d+(h-(club?92:98))*(h-(club?92:98))<(club?19*19:17*17)&&h>=(club?92:98);
+            bool battlement=club&&h>=64&&h<76&&abs(x)<47&&((x+50)/13)%2==0;
+            if(!(base||center||tower||dome||battlement))continue;
+            bool opening=abs(x)<26&&h>=0&&(h<24 || x*x+(h-24)*(h-24)<26*26);
+            if(opening) { if(!front)castle_put(&k,cx+x,y,rgb565(mix(water_rgb(y),0x173e38,.55f),c->dim)); continue; }
+            bool trim=abs(x)<31&&h>=0&&(h<24 || x*x+(h-24)*(h-24)<31*31);
+            bool window=abs(d)<5&&h>61&&h<78;
+            bool seam=club ? ((h==18||h==43)&&abs(x)>33) : ((h%24==0&&abs(x)>33)||((x+90+(h/24%2)*12)%32==0&&h%24>18));
+            uint16_t v=(trim||seam||d>12)?shade:light;
+            if(dome || battlement)v=roof;
+            if(window)v=shade;
+            /* Cream dots on the playful turrets; moss plaques on the quiet ruin. */
+            if(club && tower && h>30 && h<53 && d*d+(h-42)*(h-42)<20)v=rgb565(0xffe6b3,c->dim);
+            if(!club && h>6&&h<15&&(x+83)%29<18)v=rgb565(0x6e9375,c->dim);
+            castle_put(&k,cx+x,y,v);
+        }
+    }
+}
 static void draw_castle(ctx_t *c, int cx, int front, bool final) {
+    if(theme_active()){draw_theme_castle(c,cx,front,final);return;}
     castle_tint_fill(c->dim);
     cst_t k = { c, cx, 1, final };
     if (front) { castle_front_row(&k); return; }
@@ -1814,6 +1966,23 @@ static const coral_seg_t CORAL_SEGS[] = {
 #define CORAL_TOP_X   18.0f                                  /* the crown's root: the trunk tip's end, in cells */
 #define CORAL_TOP_Y   (41.0f * CORAL_Y_SCALE)
 static float coral_sd(float px, float py, float g, bool *tip) {
+    if(theme_active()) {
+        bool club=theme_active()==THEME_TIDEPOOL_CLUB;
+        float scale=.2f+.8f*fminf(fmaxf(g,0),1), best=1e9f;
+        px=16+(px-16)/scale;py/=scale;*tip=false;
+        for(int i=0;i<7;i++) {
+            float ex=i==0?18:16+(i%2?1:-1)*(6+(i/2)*3);
+            float ey=i==0?CORAL_TOP_Y:32-(i/2)*6;
+            float sx=16,sy=i==0?0:5+(i/2)*4;
+            float dx=ex-sx,dy=ey-sy,u=fminf(1,fmaxf(0,((px-sx)*dx+(py-sy)*dy)/(dx*dx+dy*dy)));
+            float bend=club?0:1.8f*sinf(u*3.14159f)*(i%2?1:-1);
+            float ax=px-sx-dx*u-bend,ay=py-sy-dy*u;
+            float r=club?2.2f+u*.6f:1.05f+(1-u)*.5f;
+            float d=sqrtf(ax*ax+ay*ay)-r;if(d<best)best=d;
+            if((px-ex)*(px-ex)+(py-ey)*(py-ey)<(r+1)*(r+1))*tip=true;
+        }
+        return best*scale;
+    }
     float best = 1e9f; *tip = false;
     if (g > 1) g = 1;
     float thin = 0.72f + 0.28f * g;                          /* a young coral is slimmer all over */
@@ -1870,7 +2039,7 @@ static void coral_build(float g) {
                 else if (edge) t = (out_r || out_d) ? CO_RIM : CO_LIT;
                 else {
                     uint32_t h = chash(i, j) % 100;
-                    t = h < 22 ? CO_SHADE : h < 28 ? CO_LIT : CO_BODY;
+                    t = theme_active()==THEME_TIDEPOOL_CLUB ? CO_BODY : h < 22 ? CO_SHADE : h < 28 ? CO_LIT : CO_BODY;
                 }
             }
             ds()->co_sprite[j][i] = t;
@@ -1883,6 +2052,8 @@ int render_coral_cells(float growth) {                       /* the selftest: ho
 }
 static void coral_tint_fill(uint32_t rgb, float dim) {
     if (g_coral_rgb == rgb && g_coral_dim == dim) return;
+    uint32_t saved_rgb=rgb;
+    if(theme_active())rgb=mix(rgb,theme_active()==THEME_TIDEPOOL_CLUB?0xefad91:0xbd8c65,theme_active()==THEME_QUIET_LAGOON?.65f:.4f);
     uint32_t tone[CO_N];
     tone[CO_NONE]  = 0;
     tone[CO_RIM]   = mix(rgb, 0x30060e, 0.58f);
@@ -1895,7 +2066,7 @@ static void coral_tint_fill(uint32_t rgb, float dim) {
         uint32_t w = water_rgb(y < 0 ? 0 : y >= TANK_H ? TANK_H - 1 : y);
         for (int k = 1; k < CO_N; k++) ds()->co_row[k][r] = rgb565(mix(w, tone[k], k == CO_TIP ? 0.94f : 0.90f), dim);   /* a light haze: the art's colour stays saturated */
     }
-    g_coral_rgb = rgb; g_coral_dim = dim;
+    g_coral_rgb = saved_rgb; g_coral_dim = dim;
 }
 /* the crown (2026-09-23, Strato: "after it's fully grown it should sprout a
  * ring of delicate tentacles out of the top"): CORAL_TENT one-pixel
@@ -1969,6 +2140,10 @@ static void draw_floor_mound(ctx_t *c, int cx, int half_w, int rise, bool final)
             float up = (float)(fl - y) / rise;                           /* 0 at the floor line, 1 at the crest */
             if (up > 0) col = mix(col, 0x56684f, 0.25f + 0.40f * up);   /* the hump rises into the light; its skirt is the floor */
             if (up > 0.15f && (chash(x, y) & 15) == 0) col = 0x6e7f66;   /* a few lit grains */
+            if(theme_active()==THEME_QUIET_LAGOON) {
+                col=mix(0x98a68e,0xc5c5aa,clamp01(up)*.55f);
+                if((h2%37)==0)col=mix(col,0xe2dfbf,.2f);
+            }
             uint16_t *p = &CTX_PX(c, x, y);
             *p = rgb565(col, c->dim);
             rec_px(x, y);
@@ -2050,6 +2225,7 @@ static inline bool sn_seg(float lx, float ly, float x0, float y0, float x1, floa
 /* the shell's tone from its lighting terms: band = the whorl's lit / mid /
  * groove, lit = -1..1 (upper left .. lower right), rim = on the edge */
 static inline int sn_shell_tone(int band, float lit, bool rim) {
+    if(theme_active()==THEME_TIDEPOOL_CLUB)return rim?3:band==3?2:lit>.35f?0:1;
     int tone = band;
     if (lit > 0.35f) tone--; else if (lit < -0.15f) tone++;
     if (lit < -0.55f) tone++;
@@ -2073,7 +2249,7 @@ static int snail_upright_tone(int lx, int ly, float top, float clock, const sn_s
     if (r <= R) {
         float ax = lx - (cx - 1.5f), ay = ly - (cy + 0.5f);
         float ar = sqrtf(ax * ax + ay * ay), th = atan2f(ay, ax);
-        const float pitch = 2.25f;                                 /* ~4 turns: Strato asked for one more groove */
+        const float pitch = theme_active()==THEME_TIDEPOOL_CLUB?5.0f:theme_active()?4.3f:2.25f;                                 /* ~4 turns: Strato asked for one more groove */
         float w = fmodf(ar - th / TAU * pitch, pitch); if (w < 0) w += pitch; w /= pitch;
         int tone = sn_shell_tone(w < 0.5f ? 1 : w < 0.74f ? 2 : 3, (-dx * 0.55f - dy * 0.83f) / R, r > R - 1.3f);
         if (ar < 2.2f) tone = 3;                                   /* the apex whorl is tight and dark */
@@ -2130,7 +2306,7 @@ static int snail_glass_body(float lx, float ly, float sx, float sy, float clock,
     float qx = lx / 11.0f, qy = (ly + 2.5f) / 10.6f;
     float sr = sqrtf(qx * qx + qy * qy);
     if (sr <= 1 && ly < 6.5f) {
-        float lobe = fast_sin(atan2f(ly + 2.5f, lx) * 5.0f - 0.3f + 8 * TAU);
+        float lobe = fast_sin(atan2f(ly + 2.5f, lx) * (theme_active()==THEME_TIDEPOOL_CLUB?8.0f:theme_active()?3.0f:5.0f) - 0.3f + 8 * TAU);
         int tone = sn_shell_tone(lobe > 0.15f ? 1 : 2, lit, sr > 0.88f);
         if (sr < 0.78f) tone++;                                    /* shadow where the foot meets it */
         { float gx = sx + 5.0f, gy = sy + 7.8f; if (gx * gx + gy * gy < 2.9f) tone = 0; }   /* gleam */
@@ -2153,7 +2329,12 @@ typedef struct { int y; uint32_t w; uint16_t have; src_t s[SN_NONE]; } sn_row_t;
 static inline void snail_put(ctx_t *c, int x, int y, int tone, float tint, sn_row_t *r) {
     if (tone == SN_NONE || !CTX_IN(c, x, y)) return;
     if (r->y != y) { r->y = y; r->have = 0; r->w = water_rgb(y < 0 ? 0 : y >= TANK_H ? TANK_H - 1 : y); }
-    if (!(r->have >> tone & 1)) { r->s[tone] = src_color(mix(r->w, SNAIL_RGB[tone], tint), c->dim); r->have |= (uint16_t)(1u << tone); }
+    if (!(r->have >> tone & 1)) {
+        static const uint32_t lagoon[SN_NONE]={0xead5b3,0xbd8c65,0xa47553,0x79533d,0x503d31,0xd8dcc3,0x9ebbaa,0x6f9682,0x496e60,0x244b40,0x19392f};
+        static const uint32_t club[SN_NONE]={0xffe6ab,0xefad79,0xb7684c,0x8f513c,0x623e30,0xf3dca5,0xd9bc83,0xb39662,0x8a7454,0x334e3a,0x223c2e};
+        uint32_t rgb=theme_active()==THEME_QUIET_LAGOON?lagoon[tone]:theme_active()==THEME_TIDEPOOL_CLUB?club[tone]:SNAIL_RGB[tone];
+        r->s[tone]=src_color(mix(r->w,rgb,tint),c->dim);r->have|=(uint16_t)(1u<<tone);
+    }
     px_blend_s(c, x, y, &r->s[tone], 255);
 }
 /* ON THE GLASS the shell and the empty corners depend only on the heading:
@@ -2303,6 +2484,18 @@ static int urchin_tone(float lx, float ly, const ur_pose_t *p) {
 }
 static void draw_urchin(ctx_t *c, const tank_t *t) {
     if (!(t->sd_unlocks & SD_ITEM_URCHIN) || t->urchin_x < 0) return;
+    if(theme_active()) {
+        bool club=theme_active()==THEME_TIDEPOOL_CLUB;
+        float cx=t->urchin_x,cy=URCHIN_FLOOR_Y;
+        uint32_t body=club?0xcf9e95:0x849f96,tip=club?0xffdf9a:0xd5dfbd;
+        for(int i=0;i<11;i++) {
+            float a=3.14159f+i*3.14159f/10,rr=11+1.2f*sinf(t->clock*2+i);
+            for(int j=7;j<=(int)rr;j++)fill_ellipse(c,cx+cosf(a)*j,cy+sinf(a)*j,club?1.6f:.8f,club?1.6f:.8f,j+1>rr?tip:body,255);
+        }
+        fill_ellipse(c,cx,cy,10,7,body,255);
+        for(int i=0;i<5;i++)fill_ellipse(c,cx-6+i*3,cy-2+(i%2)*3,club?1.3f:.65f,club?1.3f:.65f,tip,240);
+        return;
+    }
     ur_pose_t p; urchin_pose(&p, t->clock, tank_urchin_chewing(t));
     int cx = (int)floorf(t->urchin_x + 0.5f), cy = (int)URCHIN_FLOOR_Y;
     for (int ly = -16; ly <= (int)UR_BASE; ly++) {
@@ -2408,6 +2601,11 @@ static float cl_sd(int e, int pass, float px, float py, bool *deep) {
     } else if (e == CLE_TUBE) {
         const cl_cap_t *k = &CL_TUBES[pass];
         best = cl_cap_sd(px, py, k, 1);
+        if(theme_active()) {
+            float height=(py-k->y0)/(k->y1-k->y0), center=k->x0+(k->x1-k->x0)*fminf(1,fmaxf(0,height));
+            float width=theme_active()==THEME_TIDEPOOL_CLUB ? k->r*(.75f+.25f*cosf(height*TAU*3)) : k->r*(.45f+.55f*fmaxf(0,height));
+            best=fmaxf(fabsf(px-center)-width,fmaxf(k->y0-py,py-k->y1-1));
+        }
         float mx = (px - k->x1) / (k->r - 1.3f), my = (py - k->y1) / 1.7f;
         *deep = mx * mx + my * my < 1;                           /* the mouth */
     } else if (e == CLE_BRAIN) {
@@ -2417,6 +2615,11 @@ static float cl_sd(int e, int pass, float px, float py, bool *deep) {
             if (d < best) { second = best; best = d; } else if (d < second) second = d;
         }
         float v = fast_sin(px * 1.3f + py * 0.9f) + 0.6f * fast_sin(py * 2.1f - px * 0.5f);
+        if(theme_active()) {
+            float ax=(px-35)/12,ay=(py-9)/9;best=(sqrtf(ax*ax+ay*ay)-1)*9;
+            *deep=theme_active()==THEME_TIDEPOOL_CLUB ? ((int)px%5==0&&(int)py%5<2) : (v>.8f&&best<-.5f);
+            return best;
+        }
         *deep = best < -0.8f && ((second < 0.5f && second > -1.2f) || v > 0.95f);   /* the seams, and a few winding grooves */
     }
     return best;
@@ -2444,7 +2647,7 @@ static void cl_paint(int e, int pass, float s) {
             else if (out_r || out_d) v = CLV_RIM;
             else if (out_l || out_u) v = CLV_LIT;
             else if (deep) v = CLV_DEEP;                        /* the rock's moss: never on its edge */
-            else { uint32_t h = chash(i + 97 * e, j) % 100; v = h < 20 ? CLV_SHADE : h < 26 ? CLV_LIT : CLV_BODY; }
+            else { uint32_t h = chash(i + 97 * e, j) % 100; v = theme_active()==THEME_TIDEPOOL_CLUB?CLV_BODY:h < 20 ? CLV_SHADE : h < 26 ? CLV_LIT : CLV_BODY; }
             if (e == CLE_TUBE && deep && (out_u || out_l)) v = CLV_RIM;   /* the mouth's far lip */
             ds()->cl_sprite[j][i] = (uint8_t)CL_TONE(e, v);
         }
@@ -2471,6 +2674,11 @@ static void cl_tint_fill(int scheme, float dim) {
     uint32_t tone[CL_TONES]; tone[0] = 0;
     for (int e = 0; e < CLE_N; e++) {
         uint32_t c = base[e];
+        if(theme_active()) {
+            static const uint32_t quiet[CLE_N]={0xa9b39c,0x769f86,0xcaa58b,0x94b5a8,0xc6c697};
+            static const uint32_t club[CLE_N]={0xe5c89b,0x79a86a,0xe99d7f,0xbb9fb2,0xe4bc70};
+            c=mix(c,theme_active()==THEME_TIDEPOOL_CLUB?club[e]:quiet[e],theme_active()==THEME_QUIET_LAGOON?.92f:.7f);
+        }
         tone[CL_TONE(e, CLV_BODY)]  = c;
         tone[CL_TONE(e, CLV_LIT)]   = mix(c, 0xfff0b0, e == CLE_ROCK ? 0.22f : 0.36f);
         tone[CL_TONE(e, CLV_RIM)]   = mix(c, e == CLE_ROCK ? 0x2a2620 : 0x20060e, 0.55f);
@@ -2655,6 +2863,18 @@ static int g_scene_cl_x = -2, g_scene_cl_z = -1, g_scene_cl_q = -1, g_scene_cl_s
  * bowl: the same speckle in 2 px grains over a bed that runs ~70 px down to
  * the glass, pebbles scattered through it, darkening with depth. */
 static inline uint32_t floor_rgb(int x, int y) {
+    if(theme_active()==THEME_QUIET_LAGOON) {
+        unsigned grain=(unsigned)x*73856093u^(unsigned)y*19349663u;
+        float depth=clamp01((y-(TANK_BOT-14))/(float)(TANK_H-(TANK_BOT-14)));
+        uint32_t sand=mix(0xb7b8a0,0x627f6d,depth*.65f);
+        return grain%37==0?mix(sand,0xd7d7bc,.2f):grain%41==0?mix(sand,0x47695e,.25f):sand;
+    }
+    if (theme_active()) {
+        const uint32_t *sand = theme_palette(theme_active())->sand;
+        unsigned cell = (unsigned)(x / 9) * 73856093u ^ (unsigned)(y / 6) * 19349663u;
+        int dx = x % 9 - 4, dy = y % 6 - 3;
+        return sand[dx * dx + dy * dy * 2 < 13 ? (cell >> 4) % 3 : 3];
+    }
 #ifdef TANK_ROUND
     uint32_t g = (uint32_t)(x >> 1) * 0x9E3779B1u ^ (uint32_t)(y >> 1) * 0x85EBCA77u;
     g ^= g >> 15; g *= 0x2C1B3C6Du; g ^= g >> 12;
@@ -2677,12 +2897,21 @@ static inline uint32_t floor_rgb(int x, int y) {
     return tone < 2 ? 0x2e3b2c : tone < 5 ? 0x22301f : tone < 8 ? 0x1a2418 : 0x101a12;
 #endif
 }
+/* Soft stationary light belongs only to the approved Living Lagoon direction.
+ * Evaluated while baking, so the effect adds no work to a cached frame. */
+static uint32_t lagoon_water(int x,int y,uint32_t water) {
+    float across=x-y*.32f;
+    float a=1-fabsf(across-TANK_W*.23f)/34;
+    float b=1-fabsf(across-TANK_W*.48f)/17;
+    float light=fmaxf(0,fmaxf(a,b))*(1-clamp01(y/(float)TANK_BOT))*.12f;
+    return mix(water,0xd8e0bc,light);
+}
 static void draw_scene(const tank_t *t, uint16_t *fb, int stride, float dim) {
     ctx_t c = ctx_full(fb, stride, dim);
     /* water gradient #0a3c46 → #08272f → #031015 */
     for (int y = 0; y < TANK_H; y++) {
         uint16_t v = rgb565(water_rgb(y), dim);
-        for (int x = 0; x < TANK_W; x++) fb[y * stride + x] = v;
+        for (int x = 0; x < TANK_W; x++) fb[y * stride + x] = theme_active()==THEME_QUIET_LAGOON?rgb565(lagoon_water(x,y,water_rgb(y)),dim):v;
     }
     /* pebbled bottom: irregular top edge, speckled stones in three tones.
        All variation comes from a position hash so it is stable every frame. */
@@ -2715,6 +2944,10 @@ static void bake_scene(const tank_t *t, uint16_t *sc, float dim) {
         uint32_t col = water_rgb(y);
         int r = (int)(((col >> 16) & 255) * dim), g = (int)(((col >> 8) & 255) * dim), b = (int)((col & 255) * dim);
         for (int x = 0; x < TANK_W; x++) {
+            if(theme_active()==THEME_QUIET_LAGOON) {
+                uint32_t lit=lagoon_water(x,y,col);
+                r=(int)(((lit>>16)&255)*dim);g=(int)(((lit>>8)&255)*dim);b=(int)((lit&255)*dim);
+            }
             int a = vig_alpha(x, y);
             if (g_vig) g_vig[y * TANK_W + x] = (uint8_t)a;
             int inv = 256 - a, d = bayer[y & 3][x & 3];
@@ -2763,6 +2996,7 @@ static void bake_scene(const tank_t *t, uint16_t *sc, float dim) {
 }
 
 void render_tank(const tank_t *t, uint16_t *fb, int stride) {
+    render_use_theme(t->theme);
     float dim = t->night ? 0.45f : 1.0f;
     ctx_t c = ctx_full(fb, stride, dim);
     int64_t p0 = PROF_MARK();
@@ -2835,25 +3069,47 @@ void render_tank(const tank_t *t, uint16_t *fb, int stride) {
        it (setup): three stones and a glint - dynamic, since it can move */
     {
         float ax = t->bubble_x, ay = TANK_BOT - 17;
-        fill_ellipse(&c, ax - 6, ay + 1, 7, 4, 0x2a3634, 255);
-        fill_ellipse(&c, ax + 5, ay + 2, 6, 3.5f, 0x22302c, 255);
-        fill_ellipse(&c, ax, ay - 2, 6, 3.5f, 0x3a4a48, 255);
+        fill_ellipse(&c, ax - 6, ay + 1, 7, 4, theme_active()==THEME_TIDEPOOL_CLUB?0xcaac87:theme_active()?0x788f7a:0x2a3634, 255);
+        fill_ellipse(&c, ax + 5, ay + 2, 6, 3.5f, theme_active()==THEME_TIDEPOOL_CLUB?0xa78767:theme_active()?0x536e63:0x22302c, 255);
+        fill_ellipse(&c, ax, ay - 2, 6, 3.5f, theme_active()==THEME_TIDEPOOL_CLUB?0xead6ad:theme_active()?0x96aa90:0x3a4a48, 255);
         fill_ellipse(&c, ax - 1, ay - 3, 2, 1.2f, 0x5a6a68, 200);
         DYN_RECT((int)ax - 14, (int)ay - 7, (int)ax + 12, (int)ay + 7);
     }
     /* food pellets */
     for (int i = 0; i < MAX_FOOD; i++)
         if (t->food[i].alive) {
+            if(theme_active()) {
+                float x=t->food[i].x,y=t->food[i].y;
+                if(theme_active()==THEME_QUIET_LAGOON) {
+                    float xx[4]={x-3,x+1,x+3,x-1},yy[4]={y-1,y-3,y+1,y+3};fill_poly(&c,xx,yy,4,0xddc790);
+                    fill_ellipse(&c,x,y,1.6f,.6f,0xf3e7b9,230);
+                } else {
+                    fill_ellipse(&c,x,y,3.2f,3.2f,0xc07a45,255);
+                    fill_ellipse(&c,x,y-.5f,2,2,0xffd889,255);
+                    fill_ellipse(&c,x,y,.7f,.7f,0xc07a45,255);
+                }
+            } else {
             fill_ellipse(&c, t->food[i].x, t->food[i].y, 2.6f, 2.6f, 0xffbd59, 255);
             fill_ellipse(&c, t->food[i].x - 0.8f, t->food[i].y - 0.8f, 1.0f, 1.0f, 0xffe9bd, 255);
+            }
             DYN_RECT((int)t->food[i].x - 5, (int)t->food[i].y - 5, (int)t->food[i].x + 5, (int)t->food[i].y + 5);
         }
     /* bubbles */
     for (int i = 0; i < MAX_BUBBLE; i++) {
         const bubble_t *b = &t->bubble[i];
         float r = b->column ? 2.6f : 1.8f;
-        fill_ellipse(&c, b->x, b->y, r, r, 0x9fd8e2, 60);
-        px_blend(&c, (int)(b->x - r * 0.4f), (int)(b->y - r * 0.4f), 0xffffff, 120);
+        if(theme_active()) {
+            bool club=theme_active()==THEME_TIDEPOOL_CLUB;
+            r=club?r+0.6f:r;
+            for(int j=0;j<12;j++) {
+                float a=TAU*j/12;
+                px_blend(&c,(int)(b->x+cosf(a)*r),(int)(b->y+sinf(a)*r),club?0x3d8e83:0xc4e6d1,club?140:110);
+            }
+            fill_ellipse(&c,b->x-r*.4f,b->y-r*.5f,club?1:.65f,.65f,0xfff6d9,240);
+        } else {
+            fill_ellipse(&c, b->x, b->y, r, r, 0x9fd8e2, 60);
+            px_blend(&c, (int)(b->x - r * 0.4f), (int)(b->y - r * 0.4f), 0xffffff, 120);
+        }
         DYN_RECT((int)b->x - 5, (int)b->y - 5, (int)b->x + 5, (int)b->y + 5);
     }
     /* the shrimp school: on the sand and in the grass, under the fish and
@@ -2970,7 +3226,7 @@ void render_tank(const tank_t *t, uint16_t *fb, int stride) {
                     float dx = (x - TANK_W * 0.5f) / (TANK_W * 0.5f);
                     float d2 = dx * dx + dy * dy;
                     if (d2 > 0.72f) {
-                        int a = (int)((d2 - 0.72f) * 220);
+                        int a = (int)((d2 - 0.72f) * (theme_active() == THEME_TIDEPOOL_CLUB ? 18 : theme_active() == THEME_QUIET_LAGOON ? 65 : 220));
                         if (a > 0) px_blend(&c, x, y, 0x000000, a > 255 ? 255 : a);
                     }
                 }
@@ -3037,13 +3293,42 @@ static int bolt_room(int H) { return (int)bolt_w(H * 1.25f) + H / 4 + 2; }   /* 
 
 /* a battery at (X, Y), body W x H, `line` px of outline, the nub on the right;
    on the cable the bolt stands left of it (the caller leaves the room) */
+static void round_fill(ctx_t *c,int x,int y,int w,int h,int r,uint32_t rgb);
 static void draw_battery(ctx_t *c, int X, int Y, int W, int H, int line, float frac, int state, float clock) {
+    if(theme_active()) {
+        const theme_palette_t *p=theme_palette(theme_active());
+        bool club=theme_active()==THEME_TIDEPOOL_CLUB,power=BAT_ON_POWER(state);
+        frac=fminf(1,fmaxf(0,frac));int pad=H>25?4:2;
+        uint32_t ink=frac<.2f?0xc36c51:p->accent;
+        round_fill(c,X,Y,W,H,club?H/4:4,p->border);
+        round_fill(c,X+1,Y+1,W-2,H-2,club?H/4:4,p->panel);
+        round_fill(c,X+W,Y+H/3,line+2,H/3,1,p->border);
+        int inside=W-pad*2,fill=(int)(inside*frac);
+        if(club) {
+            int gap=H>25?4:2,cw=(inside-gap*3)/4;
+            for(int i=0;i<4;i++) {
+                int x=X+pad+i*(cw+gap),fw=(int)(cw*fminf(1,fmaxf(0,frac*4-i)));
+                round_fill(c,x,Y+pad,cw,H-pad*2,2,p->border);
+                if(fw>0)round_fill(c,x,Y+pad,fw,H-pad*2,2,ink);
+            }
+        } else if(fill>0) {
+            round_fill(c,X+pad,Y+pad,fill,H-pad*2,3,ink);
+            src_t gleam=src_color(mix(ink,0xf1edcf,.35f),1);
+            span(c,X+pad+2,X+pad+fill-3,Y+pad+1,&gleam,255);
+        }
+        if(state==BAT_CHARGING && fill>3) {
+            int sweep=X+pad+(int)(fmodf(clock,2)/2*fmaxf(1,fill-2));
+            for(int y=Y+pad+1;y<Y+H-pad-1;y++)px_blend(c,sweep,y,p->on_accent,160);
+        }
+        if(power)draw_bolt(c,X-bolt_room(H),Y-H/8.f,H*1.25f,p->accent);
+        return;
+    }
     if (frac < 0) frac = 0;
     if (frac > 1) frac = 1;
     bool pw = BAT_ON_POWER(state);
     uint32_t col = pw ? 0x78d67d : frac < 0.2f ? 0xf25b65 : frac < 0.45f ? 0xffbd59 : 0x78d67d;
     uint32_t edge = pw ? 0xdfeef0 : 0x9fb4b8;                  /* on the cable the rim brightens too */
-    src_t bg = src_color(0x04141a, 1.0f), e = src_color(edge, 1.0f), f = src_color(col, 1.0f);
+    src_t bg = src_color(theme_ui_color(0x04141a), 1.0f), e = src_color(theme_ui_color(edge), 1.0f), f = src_color(col, 1.0f);
     for (int y = Y; y < Y + H; y++) span(c, X, X + W - 1, y, &bg, 215);
     for (int k = 0; k < line; k++) {
         span(c, X, X + W - 1, Y + k, &e, 255); span(c, X, X + W - 1, Y + H - 1 - k, &e, 255);
@@ -3098,6 +3383,7 @@ static void px565_blend(ctx_t *c, int x, int y, uint16_t v, int a) {
  * alpha scales the icon's own alpha plane: 255 = as drawn, lower = dimmed
  * (unrevealed traits, torn thought bubbles). */
 static void blit_icon(ctx_t *c, int x, int y, const icon_t *ic, int alpha) {
+    ic = theme_icon(ic);
     for (int j = 0; j < ic->h; j++)
         for (int i = 0; i < ic->w; i++) {
             int a = ic->a[j * ic->w + i];
@@ -3113,7 +3399,7 @@ static void meter(ctx_t *c, int x, int y, int segs, int sw, float frac, uint32_t
     if (frac < 0) frac = 0;
     if (frac > 1) frac = 1;
     float per = 1.0f / segs;
-    src_t on = src_color(rgb, c->dim), off = src_color(0x2a3f45, c->dim);
+    src_t on = src_color(rgb, c->dim), off = src_color(theme_ui_color(0x2a3f45), c->dim);
     for (int s = 0; s < segs; s++) {
         int sx = x + s * (sw + 2);
         float have = (frac - s * per) / per;                   /* 0..1 of this segment */
@@ -3175,7 +3461,7 @@ static void card_draw(ctx_t c, const tank_t *t, int fish_idx) {
     const int X = RENDER_CARD_X, Y = RENDER_CARD_Y, W = RENDER_CARD_W, H = RENDER_CARD_H; /* x clear of the curved bezel */
     /* backdrop: 28k blended pixels - hoisted (this alone was most of the
      * card's ~12 ms/frame on the device through per-pixel px_blend) */
-    src_t bg = src_color(0x04141a, 1.0f);
+    src_t bg = src_color(theme_ui_color(0x04141a), 1.0f);
     for (int y = Y; y < Y + H; y++) span(&c, X, X + W - 1, y, &bg, 215);
     for (int x = X; x < X + W; x++) { px(&c, x, Y, rgb565(f->color, 1)); px(&c, x, Y + H - 1, rgb565(f->color, 1)); }
     for (int y = Y; y < Y + H; y++) { px(&c, X, y, rgb565(f->color, 1)); px(&c, X + W - 1, y, rgb565(f->color, 1)); }
@@ -3252,7 +3538,7 @@ static void blit_icon_scaled(ctx_t *c, int x, int y, const icon_t *ic, int s, bo
 static void snail_card_draw(ctx_t *c, const tank_t *t) {
     ring(c, t->snail_x, t->snail_y, 20, 0x9fd8e2);
     const int W = SNAIL_CARD_W, H = SNAIL_CARD_H, X = (TANK_W - W) / 2, Y = (TANK_H - H) / 2;
-    src_t bg = src_color(0x04141a, 1.0f);
+    src_t bg = src_color(theme_ui_color(0x04141a), 1.0f);
     for (int y = Y; y < Y + H; y++) span(c, X, X + W - 1, y, &bg, 235);
     rect_edge(c, X, Y, W, H, 0x9fd8e2); rect_edge(c, X + 1, Y + 1, W - 2, H - 2, 0x1c2f36);
     const icon_t *ic = &icon_snail_upright;
@@ -3272,7 +3558,7 @@ static void snail_card_draw(ctx_t *c, const tank_t *t) {
 static void urchin_card_draw(ctx_t *c, const tank_t *t) {
     ring(c, t->urchin_x, URCHIN_FLOOR_Y - 3, 22, 0x9fd8e2);
     const int W = URCHIN_CARD_W, H = URCHIN_CARD_H, X = (TANK_W - W) / 2, Y = (TANK_H - H) / 2;
-    src_t bg = src_color(0x04141a, 1.0f);
+    src_t bg = src_color(theme_ui_color(0x04141a), 1.0f);
     for (int y = Y; y < Y + H; y++) span(c, X, X + W - 1, y, &bg, 235);
     rect_edge(c, X, Y, W, H, 0x9fd8e2); rect_edge(c, X + 1, Y + 1, W - 2, H - 2, 0x1c2f36);
     ur_pose_t p; urchin_pose(&p, t->clock, tank_urchin_chewing(t));
@@ -3309,7 +3595,7 @@ static void shrimp_card_draw(ctx_t *c, const tank_t *t) {
     for (int i = 0; i < n; i++) { float d = tank_dist(cx, cy, t->shrimp[i].x, t->shrimp[i].y); if (d > r) r = d; }
     ring(c, cx, cy, fminf(fmaxf(r + 14, 22), 90), 0x9fd8e2);
     const int W = SHRIMP_CARD_W, H = SHRIMP_CARD_H, X = (TANK_W - W) / 2, Y = (TANK_H - H) / 2;
-    src_t bg = src_color(0x04141a, 1.0f);
+    src_t bg = src_color(theme_ui_color(0x04141a), 1.0f);
     for (int y = Y; y < Y + H; y++) span(c, X, X + W - 1, y, &bg, 235);
     rect_edge(c, X, Y, W, H, 0x9fd8e2); rect_edge(c, X + 1, Y + 1, W - 2, H - 2, 0x1c2f36);
     /* a shrimp at 4x, its legs paddling */
@@ -3355,6 +3641,7 @@ static void shrimp_card_draw(ctx_t *c, const tank_t *t) {
 
 static void tools_draw(ctx_t *c, const tank_t *t);   /* the toolbox, below */
 void render_stats_card(const tank_t *t, int fish_idx, uint16_t *fb, int stride) {
+    render_use_theme(t->theme);
     if (fish_idx == RENDER_CARD_SHRIMP) {
         if (!(t->sd_unlocks & SD_ITEM_SHRIMP) || t->shrimp_n <= 0) return;
         ctx_t sc = ctx_full(fb, stride, 1.0f);
@@ -3401,7 +3688,7 @@ void render_stats_card(const tank_t *t, int fish_idx, uint16_t *fb, int stride) 
  * dark (~8.7k pixels for the price of a copy; blended, the card's 28k cost
  * ~7 ms on the device). */
 static void shade_box(ctx_t *c, int x, int y, int w, int h) {
-    const uint16_t base = rgb565(0x04141a, 0.875f);
+    const uint16_t base = rgb565(theme_ui_color(0x04141a), 0.875f);
     for (int yy = y; yy < y + h; yy++) {
         if ((unsigned)(yy - c->oy) >= (unsigned)c->h) continue;
         int x0 = x < c->ox ? c->ox : x, x1 = x + w - 1 > c->ox + c->w - 1 ? c->ox + c->w - 1 : x + w - 1;
@@ -3445,6 +3732,7 @@ int render_tools_hit(float x, float y) {
 #define TOOL_CHIP_H 40
 static int tool_chip_w(void) { return 8 + 24 + 8 + text_w("DONE", 2) + 10; }
 void render_tool_chip(const tank_t *t, int fish_idx, uint16_t *fb, int stride) {
+    render_use_theme(t->theme);
     if (t->tool == TOOL_HAND || (fish_idx >= 0 && fish_idx < t->n_fish)) return;
     ctx_t c = ctx_full(fb, stride, 1.0f);
     const int X = TOOL_CHIP_X, Y = TOOL_CHIP_Y, W = tool_chip_w(), H = TOOL_CHIP_H;
@@ -3521,7 +3809,19 @@ static const uint8_t *glyph(char ch) {
 }
 static int text_w(const char *s, int scale) { int n = (int)strlen(s); return n ? n * 6 * scale - scale : 0; }
 static void draw_text(ctx_t *c, int x, int y, int scale, uint32_t rgb, const char *s) {
-    src_t col = src_color(rgb, c->dim);
+    src_t col = src_color(theme_ui_color(rgb), c->dim);
+    if (theme_active() && (scale == 2 || scale == 3)) {
+        int w = 5 * scale, h = 7 * scale;
+        for (; *s; s++, x += 6 * scale) {
+            const uint8_t *g = theme_font_glyph(theme_active(), scale, (unsigned char)*s);
+            if (!g) continue;
+            for (int yy = 0; yy < h; yy++) for (int xx = 0; xx < w; xx++) {
+                int k = yy * w + xx, a = ((k & 1) ? g[k / 2] & 15 : g[k / 2] >> 4) * 17;
+                if (a) span(c, x + xx, x + xx, y + yy, &col, a);
+            }
+        }
+        return;
+    }
     for (; *s; s++, x += 6 * scale) {
         const uint8_t *g = glyph(*s);
         if (!g) continue;
@@ -3539,7 +3839,7 @@ static void draw_text(ctx_t *c, int x, int y, int scale, uint32_t rgb, const cha
  * only lengthens strokes and never thickens a bar - Strato wanted the line
  * smaller than the page's text (14 px) but not the font's 7 px. */
 static void draw_text_8px(ctx_t *c, int x, int y, uint32_t rgb, const char *s) {
-    src_t col = src_color(rgb, c->dim);
+    src_t col = src_color(theme_ui_color(rgb), c->dim);
     for (; *s; s++, x += 6) {
         const uint8_t *g = glyph(*s);
         if (!g) continue;
@@ -3557,15 +3857,41 @@ static void draw_text_8px(ctx_t *c, int x, int y, uint32_t rgb, const char *s) {
  * asks before the save is wiped. Opaque stores only, so a frame with it up
  * costs about what the milestones page does. */
 static void rect_fill(ctx_t *c, int x, int y, int w, int h, uint32_t rgb) {
-    src_t f = src_color(rgb, 1.0f);
+    src_t f = src_color(theme_ui_color(rgb), 1.0f);
     for (int yy = y; yy < y + h; yy++) span(c, x, x + w - 1, yy, &f, 255);
 }
 static void rect_edge(ctx_t *c, int x, int y, int w, int h, uint32_t rgb) {
-    src_t e = src_color(rgb, 1.0f);
+    src_t e = src_color(theme_ui_color(rgb), 1.0f);
     span(c, x, x + w - 1, y, &e, 255); span(c, x, x + w - 1, y + h - 1, &e, 255);
     for (int yy = y + 1; yy < y + h - 1; yy++) { px(c, x, yy, e.v); px(c, x + w - 1, yy, e.v); }
 }
+static void round_fill(ctx_t *c, int x, int y, int w, int h, int r, uint32_t rgb) {
+    if (r > h / 2) r = h / 2;
+    if (r > w / 2) r = w / 2;
+    src_t color = src_color(rgb, 1.0f);
+    for (int row = 0; row < h; row++) {
+        int inset = 0, dy = row < r ? r - row - 1 : row >= h-r ? row - (h-r) : -1;
+        if (dy >= 0) inset = r - (int)sqrtf((float)(r*r - dy*dy));
+        span(c, x + inset, x + w - 1 - inset, y + row, &color, 255);
+    }
+}
 static void button(ctx_t *c, int x, int y, int W, int H, uint32_t fill, uint32_t edge, const char *label, int scale) {
+    if (theme_active()) {
+        const theme_palette_t *p = theme_palette(theme_active());
+        uint32_t fg = theme_ui_color(fill), border = theme_ui_color(edge);
+        bool club=theme_active()==THEME_TIDEPOOL_CLUB;
+        int r=club?(H<40?H/2:14):7;
+        if(!club && fg==p->panel)fg=0x214d4e;
+        round_fill(c,x,y,W,H,r,club?p->accent:border);
+        round_fill(c,x+(club?2:1),y+1,W-(club?4:2),H-(club?4:2),r-1,fg);
+        if(!club) {
+            src_t glint=src_color(mix(fg,0xb1c9b9,.18f),1);
+            span(c,x+r,x+W-r-1,y+1,&glint,255);
+        }
+        draw_text(c, x + (W - text_w(label, scale)) / 2, y + (H - 7 * scale) / 2,
+                  scale, fg == p->accent ? p->on_accent : p->text, label);
+        return;
+    }
     rect_fill(c, x, y, W, H, fill);
     rect_edge(c, x, y, W, H, edge); rect_edge(c, x + 1, y + 1, W - 2, H - 2, edge);
     draw_text(c, x + (W - text_w(label, scale)) / 2, y + (H - 7 * scale) / 2, scale, 0xffffff, label);
@@ -3582,7 +3908,7 @@ void render_rect_edge(uint16_t *fb, int stride, int x, int y, int w, int h, uint
     ctx_t c = ctx_page(fb, stride); rect_edge(&c, x, y, w, h, rgb);
 }
 void render_rect_blend(uint16_t *fb, int stride, int x, int y, int w, int h, uint32_t rgb, int alpha) {
-    ctx_t c = ctx_page(fb, stride); src_t s = src_color(rgb, 1.0f);
+    ctx_t c = ctx_page(fb, stride); src_t s = src_color(theme_ui_color(rgb), 1.0f);
     for (int yy = y; yy < y + h; yy++) span(&c, x, x + w - 1, yy, &s, alpha);
 }
 void render_ring(uint16_t *fb, int stride, float cx, float cy, float r, uint32_t rgb) {
@@ -3592,7 +3918,7 @@ void render_button(uint16_t *fb, int stride, int x, int y, int w, int h, uint32_
     ctx_t c = ctx_page(fb, stride); button(&c, x, y, w, h, fill, edge, label, scale);
 }
 void render_glyph(uint16_t *fb, int stride, int x, int y, int scale, uint32_t rgb, const uint8_t *rows) {
-    ctx_t c = ctx_page(fb, stride); src_t col = src_color(rgb, 1.0f);
+    ctx_t c = ctx_page(fb, stride); src_t col = src_color(theme_ui_color(rgb), 1.0f);
     for (int r = 0; r < 7; r++)
         for (int k = 0; k < 5; k++)
             if (rows[r] & (0x10 >> k))
@@ -3633,8 +3959,8 @@ void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size
 }
 /* how big a species draws (2026-10-05): its half-length at size 1 (a page
    fits a creature by it) and the selection ring's radius round it */
-static const float SP_HALF_LEN[SP_COUNT] = { 22, 22, 24, 22, 24, 36, 34, 26, 18, 30 };
-static const float SP_RING_R[SP_COUNT]   = { 17, 19, 20, 17, 19, 28, 28, 19, 16, 24 };
+static const float SP_HALF_LEN[SP_COUNT] = { 22, 22, 24, 22, 24, 36, 34, 26, 18, 30, 30 };
+static const float SP_RING_R[SP_COUNT]   = { 17, 19, 20, 17, 19, 28, 28, 19, 16, 24, 31 };
 float render_species_half_len(int species) { return SP_HALF_LEN[species > 0 && species < SP_COUNT ? species : 0]; }
 /* a fish of the tank as the pages show it (2026-10-05): its species and
    design, in the colours given (its own, or a page's dim silhouette);
@@ -3700,7 +4026,7 @@ void render_battery_info(uint16_t *fb, int stride, const bat_info_t *bi, float c
         battery_fmt_dur(d, sizeof d, bi->life_min); snprintf(val[nr], sizeof val[nr], "~%s", d); nr++;
     }
     const int W = 336, H = (bi->mv > 0 ? 170 : 154) + nr * 26, X = (TANK_W - W) / 2, Y = (TANK_H - H) / 2;
-    src_t bg = src_color(0x04141a, 1.0f);
+    src_t bg = src_color(theme_ui_color(0x04141a), 1.0f);
     for (int y = Y; y < Y + H; y++) span(&c, X, X + W - 1, y, &bg, 240);
     rect_edge(&c, X, Y, W, H, 0x9fd8e2); rect_edge(&c, X + 1, Y + 1, W - 2, H - 2, 0x1c2f36);
     /* the battery, its percent beside it */
@@ -3877,6 +4203,7 @@ static void ms_school(const tank_t *t, uint16_t *fb, int stride, int X, int Y, i
 /* a locked badge: the same art as a flat grey silhouette - luminance keeps
  * the shapes readable, the low alpha keeps it quiet on the ink */
 static uint32_t locked_rgb(uint16_t v) {
+    if (theme_active()) return theme_palette(theme_active())->muted;
     int r = (v >> 11) << 3, g = ((v >> 5) & 63) << 2, b = (v & 31) << 3;
     int l = (r * 77 + g * 151 + b * 28) >> 8;                /* 0..255 luminance */
     int k = 140 + l * 115 / 255;                              /* 0.55 .. 1.0, in 1/255 */
@@ -3884,6 +4211,7 @@ static uint32_t locked_rgb(uint16_t v) {
          | (uint32_t)(20 + (0x45 * k >> 8));
 }
 static void blit_icon_locked(ctx_t *c, int x, int y, const icon_t *ic) {
+    ic = theme_icon(ic);
     for (int j = 0; j < ic->h; j++)
         for (int i = 0; i < ic->w; i++) {
             int a = ic->a[j * ic->w + i];
@@ -3892,6 +4220,7 @@ static void blit_icon_locked(ctx_t *c, int x, int y, const icon_t *ic) {
 }
 /* the same art at an integer scale (the detail modal), lit or as the silhouette */
 static void blit_icon_scaled(ctx_t *c, int x, int y, const icon_t *ic, int s, bool lit) {
+    ic = theme_icon(ic);
     for (int j = 0; j < ic->h; j++)
         for (int i = 0; i < ic->w; i++) {
             int a = ic->a[j * ic->w + i];
@@ -3989,9 +4318,10 @@ static void ms_step(const tank_t *t, int dir) {
 }
 
 void render_milestones(const tank_t *t, uint16_t *fb, int stride) {
+    render_use_theme(t->theme);
     ctx_t c = ctx_page(fb, stride);
     for (int y = 0; y < TANK_H; y++)
-        for (int x = 0; x < TANK_W; x++) fb[y * stride + x] = rgb565(MSP_INK, 1);
+        for (int x = 0; x < TANK_W; x++) fb[y * stride + x] = rgb565(theme_ui_color(MSP_INK), 1);
     fry_req_t req[FRY_REQ_MAX]; bool staged;
     int nreq = progression_next_fry(t, req, &staged);
     int fpages = fish_pages(t, nreq);
@@ -4000,6 +4330,11 @@ void render_milestones(const tank_t *t, uint16_t *fb, int stride) {
     for (int i = r0; i < t->n_fish && i < r0 + MSP_FISH_ROWS; i++) {
         const fish_t *f = &t->fish[i];
         int top = MSP_ROW_Y0 + (i - r0) * MSP_ROW_H;
+        if(theme_active()) {
+            const theme_palette_t *p=theme_palette(theme_active());
+            if(theme_active()==THEME_TIDEPOOL_CLUB)round_fill(&c,38,top-2,PAGE_W-76,MSP_ROW_H-2,10,p->panel);
+            else rect_fill(&c,88,top+MSP_ROW_H-3,PAGE_W-128,1,p->border);
+        }
         float rs = f->species && f->size > MSP_ROW_SP_MAX ? MSP_ROW_SP_MAX : f->size;   /* (a grown hammerhead or eel would leave its row) */
         fish_preview(fb, stride, MSP_FISH_X, top + MSP_ROW_MID, rs, f, f->color, f->fin, f->accent, t->clock, false);
         draw_text(&c, 92, top + 2, 2, 0xffffff, f->name);
@@ -4320,6 +4655,7 @@ static void ms_close(void) { g_ms_sell_armed = false; g_ms_sell_asked = false; g
                                      g_ms_row = -1; g_ms_k = -1; g_ms_tankrow = false; g_ms_fryrow = false; }
 void render_milestones_leave(void) { ms_close(); g_ms_tpage = 0; g_ms_fpage = 0; }
 void render_milestones_show_fish(const tank_t *t, int fish) {
+    render_use_theme(t->theme);
     if (fish >= 0 && fish < t->n_fish) ms_open(t, fish, false, false, -1, NULL, 0, false);
 }
 bool render_milestones_card(const tank_t *t, int *fish, int *rename_x, int *sell_x, int *btn_y) {
@@ -4354,6 +4690,7 @@ bool render_milestones_pager(const tank_t *t, int *x, int *y) {
  * 2x (a fish's own sprite for a stage), the name, the caption, and a thin
  * bar along the foot that runs out with the notice's time. */
 void render_notice(const tank_t *t, uint16_t *fb, int stride, int kind, int fish, uint32_t bit, float frac_left) {
+    render_use_theme(t->theme);
     ctx_t c = ctx_page(fb, stride);
     const int X = MSP_MODAL_X, W = MSP_MODAL_W, Y = MSP_MODAL_Y, H = MSP_MODAL_H;
     rect_fill(&c, X, Y, W, H, 0x04141a);
@@ -4431,7 +4768,7 @@ static bool g_shp_sell_armed;        /* SELL tapped once: the next tap on it sel
 static const icon_t *shop_icon(int item) {
     static const icon_t *const SP_ICONS[SP_COUNT - 1] = {   /* the species' pairs (2026-10-05), in species order */
         &icon_shop_seahorse, &icon_shop_octopus, &icon_shop_puffer, &icon_shop_angler, &icon_shop_eel,
-        &icon_shop_shark, &icon_shop_squid, &icon_shop_crab, &icon_shop_lobster };
+        &icon_shop_shark, &icon_shop_squid, &icon_shop_crab, &icon_shop_lobster, &icon_shop_jellyfish };
     if (progression_item_species(item) > 0) return SP_ICONS[progression_item_species(item) - 1];
     return item == 0 ? &icon_shop_plant : item == 1 ? &icon_shop_snail : item == 2 ? &icon_shop_castle : item == 3 ? &icon_shop_coral : item == 4 ? &icon_shop_cluster : item == 5 ? &icon_shop_shrimp : &icon_shop_urchin; }
 /* a species' creature needs one free place (2026-10-07; a pair needed two): with no room its UNLOCK reads NO ROOM, dim */
@@ -4456,6 +4793,7 @@ static void price_tag(ctx_t *c, int x, int y, int price, uint32_t rgb) {   /* th
     draw_text(c, x + 20, y, 2, rgb, n);
 }
 void render_shop(const tank_t *t, uint16_t *fb, int stride) {
+    render_use_theme(t->theme);
     ctx_t c = ctx_page(fb, stride);
     rect_fill(&c, -PAGE_X, -PAGE_Y, TANK_W, TANK_H, MSP_INK);
     blit_icon(&c, SHP_COIN_X, SHP_COIN_Y, &icon_shop_sand_dollar_64, 255);
@@ -4470,6 +4808,14 @@ void render_shop(const tank_t *t, uint16_t *fb, int stride) {
     for (int i = g_shp_page * SHP_PER_PAGE; i < SD_ITEM_COUNT && i < (g_shp_page + 1) * SHP_PER_PAGE; i++) {
         const sd_item_t *it = &SD_ITEMS[i];
         int top = SHP_ROW_Y0 + (i - g_shp_page * SHP_PER_PAGE) * SHP_ROW_DY;
+        if(theme_active()==THEME_TIDEPOOL_CLUB) {
+            const theme_palette_t *p=theme_palette(theme_active());
+            round_fill(&c,25,top-5,PAGE_W-50,SHP_ROW_DY-8,14,p->border);
+            round_fill(&c,26,top-4,PAGE_W-52,SHP_ROW_DY-11,13,p->panel);
+        } else if(theme_active()==THEME_QUIET_LAGOON) {
+            const theme_palette_t *p=theme_palette(theme_active());
+            rect_fill(&c,28,top+SHP_ROW_DY-9,PAGE_W-56,1,p->border);
+        }
         /* (a species' row is never "owned": one is bought as often as there is room, 2026-10-07) */
         bool owned = (t->sd_unlocks & it->bit) != 0 && progression_item_species(i) <= 0, room = !shop_no_room(t, i), can = t->sd_balance >= it->price && room;
         /* a thing not yet bought is its silhouette; a species is always shown as the creature
@@ -4482,7 +4828,7 @@ void render_shop(const tank_t *t, uint16_t *fb, int stride) {
         if (owned)     button(&c, SHP_BTN_X, top, SHP_BTN_W, SHP_BTN_H, MSP_INK, MSP_DIM, "IN TANK", 2);
         else if (!room) button(&c, SHP_BTN_X, top, SHP_BTN_W, SHP_BTN_H, 0x1c2f36, MSP_DIM, "NO ROOM", 2);
         else if (can) { button(&c, SHP_BTN_X, top, SHP_BTN_W, SHP_BTN_H, MSP_TEAL, MSP_TEAL, "UNLOCK", 2);
-                        draw_text(&c, SHP_BTN_X + (SHP_BTN_W - text_w("UNLOCK", 2)) / 2, top + (SHP_BTN_H - 14) / 2, 2, MSP_INK, "UNLOCK"); }
+                        if(!theme_active())draw_text(&c, SHP_BTN_X + (SHP_BTN_W - text_w("UNLOCK", 2)) / 2, top + (SHP_BTN_H - 14) / 2, 2, MSP_INK, "UNLOCK"); }
         else           button(&c, SHP_BTN_X, top, SHP_BTN_W, SHP_BTN_H, 0x1c2f36, MSP_DIM, "UNLOCK", 2);
     }
     button(&c, SHP_EARN_X, MSP_CLOSE_Y, SHP_EARN_W, MSP_CLOSE_H, 0x1c2f36, MSP_TEAL, "HOW TO EARN", 2);
@@ -4579,6 +4925,7 @@ void render_shop_leave(void) { g_shp_modal = -1; g_shp_earn = false; g_shp_page 
 static int   g_toast_n;
 static float g_toast_until = -1;
 void render_sd_toast(const tank_t *t, uint16_t *fb, int stride) {
+    render_use_theme(t->theme);
     int n = progression_sd_take_award();
     if (n > 0) {
         if (t->clock < g_toast_until) g_toast_n += n; else g_toast_n = n;
@@ -4589,7 +4936,7 @@ void render_sd_toast(const tank_t *t, uint16_t *fb, int stride) {
     char txt[16]; snprintf(txt, sizeof txt, "+%d", g_toast_n);
     const int W = 30 + text_w(txt, 2), H = 22, X = (TANK_W - W) / 2, Y = PAGE_BOWL ? 44 : 8;   /* (the bowl's top is a narrow cap: lower) */
     for (int y = Y; y < Y + H; y++)
-        for (int x = X; x < X + W; x++) px_blend(&c, x, y, 0x04141a, 215);
+        for (int x = X; x < X + W; x++) px_blend(&c, x, y, theme_ui_color(0x04141a), 215);
     rect_edge(&c, X, Y, W, H, MSP_TEAL);
     blit_icon(&c, X + 5, Y + 3, &icon_shop_sand_dollar_16, 255);
     draw_text(&c, X + 25, Y + 4, 2, 0xffffff, txt);
@@ -4652,10 +4999,11 @@ static void set_lock_icon(ctx_t *c, int cx, int cy, bool locked, uint32_t rgb) {
     rect_fill(c, cx - 4, top, 2, cy - 1 - top, rgb);
     rect_fill(c, cx + 2, top, 2, locked ? cy - 1 - top : 4, rgb);
 }
-void render_settings(const tank_t *t, uint16_t *fb, int stride, int bright_pct, int volume) {
+static void render_original_settings(const tank_t *t, uint16_t *fb, int stride, int bright_pct, int volume) {
+    render_use_theme(t->theme);
     ctx_t c = ctx_page(fb, stride);
     rect_fill(&c, -PAGE_X, -PAGE_Y, TANK_W, TANK_H, MSP_INK);
-    draw_text(&c, (PAGE_W - text_w("SETTINGS", 3)) / 2, SET_TITLE_Y, 3, 0xffffff, "SETTINGS");
+    button(&c, (PAGE_W - 244) / 2, SET_TITLE_Y - 8, 244, 40, MSP_INK, MSP_DIM, "SETTINGS / THEMES", 2);
     int bi = bright_pct <= 30 ? 0 : bright_pct <= 60 ? 1 : 2;
     set_row(&c, SET_ROW1_Y, "BRIGHTNESS", SET_BRIGHT, 3, bi);
     set_row(&c, SET_ROW2_Y, "VOLUME", SET_VOLUME, 3, volume < 0 ? 0 : volume > 2 ? 2 : volume);
@@ -4714,9 +5062,12 @@ static int set_segment(float x, int n) {
  * VOLUME 0..2, FEED 1 = ON, SCREEN 1 = TURNED; ROTATE carries none (a
  * toggle); the LIGHTS OUT row's own hits are LIGHT_PREV / LIGHT_NEXT (its
  * left and right halves). */
-enum { SET_HIT_LIGHT_PREV = 100, SET_HIT_LIGHT_NEXT };
-int render_settings_tap(float x, float y, int *value) {
+enum { SET_HIT_LIGHT_PREV = 100, SET_HIT_LIGHT_NEXT, SET_HIT_THEMES, SET_HIT_THEME_PICK, SET_HIT_THEME_BACK, SET_HIT_PAGE, SET_HIT_CYCLE_BRIGHT, SET_HIT_CYCLE_VOLUME, SET_HIT_TOGGLE_FEED, SET_HIT_TOGGLE_SCREEN };
+static bool g_settings_themes;
+static int g_settings_page, g_settings_bright = 60, g_settings_volume = 2;
+static int original_settings_tap(float x, float y, int *value) {
     x -= PAGE_X; y -= PAGE_Y;                    /* the page's own coordinates */
+    if (x >= (PAGE_W - 244) / 2 && x < (PAGE_W + 244) / 2 && y >= SET_TITLE_Y - 8 && y < SET_TITLE_Y + 32) return SET_HIT_THEMES;
     if (x >= SET_CLOSE_X - 8 && y >= SET_FOOT_Y - 4) return SET_TAP_CLOSE;
     if (x < SET_UPD_X + SET_UPD_W + 8 && y >= SET_FOOT_Y - 4) return SET_TAP_UPDATES;
     /* the row bands: from a little above each segment down to the next row
@@ -4736,8 +5087,111 @@ int render_settings_tap(float x, float y, int *value) {
     }
     return SET_TAP_NONE;
 }
+/* Short pages inside an inscribed rectangle; all targets share these bounds. */
+void render_settings_bounds(int *x, int *y, int *w, int *h) {
+#if PAGE_BOWL
+    *x = 73; *y = 81; *w = 320; *h = 304;
+#elif TANK_WORN
+    *x = 28; *y = 33; *w = 354; *h = 436;
+#else
+    *x = 22; *y = 20; *w = 404; *h = 328;
+#endif
+}
+void render_settings_leave(void) { g_settings_themes = false; g_settings_page = 0; }
+static int modern_row_y(int y, int h, int row) {
+    return y + 64 + row * (h > 350 ? 90 : 64);
+}
+static bool hit_rect(float x, float y, int bx, int by, int w, int h) {
+    return x >= bx && y >= by && x < bx+w && y < by+h;
+}
+void render_settings(const tank_t *t, uint16_t *fb, int stride, int bright_pct, int volume) {
+    render_use_theme(t->theme);
+    g_settings_bright = bright_pct;
+    g_settings_volume = volume < 0 ? 0 : volume > 2 ? 2 : volume;
+    if (!g_settings_themes && !theme_active()) { render_original_settings(t, fb, stride, bright_pct, volume); return; }
+    int x,y,w,h; render_settings_bounds(&x,&y,&w,&h);
+    const theme_palette_t *p = theme_palette(t->theme);
+    ctx_t c = ctx_full(fb,stride,1); g_dirty_hold = true;
+    rect_fill(&c,0,0,TANK_W,TANK_H,p->background);
+    draw_text(&c,x,y+2,3,p->text,g_settings_themes ? "CHOOSE A THEME" : "SETTINGS");
+    draw_text(&c,x,y+34,2,p->muted,g_settings_themes ? "YOUR TANK, YOUR STYLE" : "CREATURE COMFORTS");
+    if (g_settings_themes) {
+        for (int i=0;i<THEME_COUNT;i++) {
+            int by = y+64+i*62;
+            const theme_palette_t *tile = theme_palette(i);
+            /* A tile previews its own colours; restore the active palette before returning. */
+            theme_activate(i);
+            round_fill(&c,x,by,w,56,i==THEME_TIDEPOOL_CLUB?18:6,i==t->theme ? tile->accent : p->border);
+            round_fill(&c,x+2,by+2,w-4,52,i==THEME_TIDEPOOL_CLUB?16:4,tile->panel);
+            const icon_t *ic = theme_preview_icon(i);
+            if (ic) blit_icon(&c,x+8,by+8,ic,255);
+            else {
+                fish_t f; memset(&f,0,sizeof f); f.x=x+34; f.y=by+29; f.size=.85f;
+                f.yaw=f.yaw_tail=1; f.color=0x66caca; f.fin=0x417b96; f.accent=0x92dcaf;
+                f.stage=STAGE_ADULT; draw_fish_core(&c,&f,0,false,1);
+            }
+            draw_text(&c,x+66,by+12,2,tile->text,tile->name);
+            round_fill(&c,x+66,by+36,22,6,3,tile->accent);
+            round_fill(&c,x+92,by+36,22,6,3,tile->gold);
+            if (i==t->theme) {
+                fill_ellipse(&c,x+w-21,by+28,7,7,tile->accent,255);
+                draw_text(&c,x+w-26,by+22,1,tile->on_accent,"+");
+            }
+        }
+        theme_activate(theme_valid(t->theme));
+        button(&c,x+(w-112)/2,y+h-44,112,44,p->panel,p->border,"DONE",2);
+        return;
+    }
+    for (int row=0;row<3;row++) {
+        int by=modern_row_y(y,h,row), rh=h>350?72:54;
+        const char *label, *value;
+        if (!g_settings_page) {
+            label=row==0?"THEME":row==1?"BRIGHTNESS":"SOUND";
+            value=row==0?p->name:row==1?SET_BRIGHT[bright_pct<=30?0:bright_pct<=60?1:2]:SET_VOLUME[g_settings_volume];
+        } else {
+            label=row==0?"LIGHTS OUT":row==1?"AUTO FEED":TANK_WORN?"SCREEN":"ROTATION";
+            value=row==0?SET_LIGHT[tank_light_choice(t)]:row==1?SET_FEED[t->autofeed_off?1:0]:
+                TANK_WORN?(t->screen_turned?"TURNED":"NORMAL"):(t->orient_lock?"LOCKED":"FREE");
+        }
+        button(&c,x,by,w,rh,p->panel,p->border,"",2);
+        draw_text(&c,x+12,by+9,2,p->muted,label);
+        draw_text(&c,x+12,by+31,2,p->text,value);
+        if (g_settings_page && row==0) {
+            button(&c,x+w-100,by+5,44,44,p->accent,p->accent,"-",2);
+            button(&c,x+w-50,by+5,44,44,p->accent,p->accent,"+",2);
+        } else draw_text(&c,x+w-28,by+(rh-14)/2,2,p->accent,"+");
+    }
+    button(&c,x,y+h-44,72,44,p->panel,p->border,g_settings_page?"BACK":"MORE",2);
+    button(&c,x+80,y+h-44,104,44,p->panel,p->border,"UPDATES",2);
+    button(&c,x+w-112,y+h-44,112,44,p->accent,p->accent,"DONE",2);
+}
+int render_settings_tap(float tx, float ty, int *value) {
+    *value=0;
+    int x,y,w,h; render_settings_bounds(&x,&y,&w,&h);
+    if (g_settings_themes) {
+        for (int i=0;i<THEME_COUNT;i++) if (hit_rect(tx,ty,x,y+64+i*62,w,56)) { *value=i; return SET_HIT_THEME_PICK; }
+        return hit_rect(tx,ty,x+(w-112)/2,y+h-44,112,44)?SET_HIT_THEME_BACK:SET_TAP_NONE;
+    }
+    if (!theme_active()) return original_settings_tap(tx,ty,value);
+    if (!hit_rect(tx,ty,x,y,w,h)) return SET_TAP_NONE;
+    if (hit_rect(tx,ty,x,y+h-44,72,44)) return SET_HIT_PAGE;
+    if (hit_rect(tx,ty,x+80,y+h-44,104,44)) return SET_TAP_UPDATES;
+    if (hit_rect(tx,ty,x+w-112,y+h-44,112,44)) return SET_TAP_CLOSE;
+    for (int row=0;row<3;row++) {
+        int by=modern_row_y(y,h,row),rh=h>350?72:54;
+        if (!hit_rect(tx,ty,x,by,w,rh)) continue;
+        if (!g_settings_page) return row==0?SET_HIT_THEMES:row==1?SET_HIT_CYCLE_BRIGHT:SET_HIT_CYCLE_VOLUME;
+        if (row==1) return SET_HIT_TOGGLE_FEED;
+        if (row==2) return TANK_WORN?SET_HIT_TOGGLE_SCREEN:SET_TAP_ROTATE;
+        if (hit_rect(tx,ty,x+w-100,by+5,44,44)) return SET_HIT_LIGHT_PREV;
+        if (hit_rect(tx,ty,x+w-50,by+5,44,44)) return SET_HIT_LIGHT_NEXT;
+    }
+    return SET_TAP_NONE;
+}
+
 int render_settings_touch(tank_t *t, float x, float y, bool down, int *value) {
     static bool s_down; static float s_px, s_py; static int s_hit, s_hv;
+    render_use_theme(t->theme);
     int r = SET_TAP_NONE; *value = 0;
     if (down && !s_down) {                                  /* press */
         s_px = x; s_py = y;
@@ -4745,7 +5199,36 @@ int render_settings_touch(tank_t *t, float x, float y, bool down, int *value) {
     } else if (!down && s_down) {                           /* release: a tap, if it stayed on what it pressed */
         int v = 0, h = render_settings_tap(x, y, &v);
         float dx = x - s_px, dy = y - s_py;
-        if (h == s_hit && dx * dx + dy * dy < 24 * 24) {
+        if (h == s_hit && v == s_hv && dx * dx + dy * dy < 24 * 24) {
+            if (h == SET_HIT_THEMES) { g_settings_themes = true; }
+            else if (h == SET_HIT_THEME_BACK) { g_settings_themes = false; }
+            else if (h == SET_HIT_THEME_PICK) {
+                if (t->theme != v) {
+                    t->theme = (uint8_t)theme_valid(v);
+                    render_use_theme(t->theme);
+                    progression_settings_changed();
+                    progression_save(t); /* theme selections survive an immediate restart */
+                    tank_emit(TEV_WHEEL_TICK, -1);
+                }
+                r = SET_TAP_THEME; *value = t->theme;
+            }
+            else if (h == SET_HIT_PAGE) { g_settings_page = !g_settings_page; }
+            else if (h == SET_HIT_CYCLE_BRIGHT) {
+                int bi = g_settings_bright <= 30 ? 0 : g_settings_bright <= 60 ? 1 : 2;
+                *value = g_settings_bright = SET_BRIGHT_PCT[(bi + 1) % 3]; r = SET_TAP_BRIGHT;
+            }
+            else if (h == SET_HIT_CYCLE_VOLUME) {
+                *value = g_settings_volume = (g_settings_volume + 1) % 3; r = SET_TAP_VOLUME;
+            }
+            else if (h == SET_HIT_TOGGLE_FEED) {
+                t->autofeed_off = !t->autofeed_off; progression_settings_changed();
+                r = SET_TAP_FEED; *value = !t->autofeed_off;
+            }
+            else if (h == SET_HIT_TOGGLE_SCREEN) {
+                tank_screen_set(t, !t->screen_turned); progression_settings_changed();
+                r = SET_TAP_SCREEN; *value = t->screen_turned;
+            }
+            else
             if (h == SET_HIT_LIGHT_PREV || h == SET_HIT_LIGHT_NEXT) {   /* one choice along; either way the light comes on */
                 int was = tank_light_choice(t), now = was + (h == SET_HIT_LIGHT_NEXT ? 1 : -1);
                 if (now >= 0 && now <= LIGHT_IDLE_N) {
@@ -4766,5 +5249,19 @@ int render_settings_touch(tank_t *t, float x, float y, bool down, int *value) {
         }
     }
     s_down = down;
+    if (r == SET_TAP_CLOSE || r == SET_TAP_UPDATES) { g_settings_themes = false; g_settings_page = 0; }
     return r;
+}
+
+void render_use_theme(int id) {
+    id = theme_valid(id);
+    if (theme_active() == id) return;
+    theme_activate(id);
+    g_scene_dim = g_veg_row_dim = g_castle_dim = g_coral_dim = g_cl_dim = -1;
+    g_vig_filled = false;
+    g_coral_q=g_cl_q=-1; g_sng_heading=1e9f;
+    memset(g_castle_mask,0,sizeof g_castle_mask);
+    g_card_fish = -1; g_card_t = -1;
+    g_primed_fb = NULL;
+    ++g_scene_epoch;
 }

@@ -11,6 +11,14 @@ execute_process(COMMAND git describe --always --dirty --exclude=*
 if(PT_BUILD_ID)
     set(PROJECT_VER ${PT_BUILD_ID})
 endif()
+# Optional local build label keeps successive uncommitted browser builds distinct.
+if(DEFINED PT_BUILD_LABEL AND NOT PT_BUILD_LABEL STREQUAL "")
+    string(LENGTH "${PT_BUILD_LABEL}" PT_BUILD_LABEL_LENGTH)
+    if(PT_BUILD_LABEL_LENGTH GREATER 31)
+        message(FATAL_ERROR "PT_BUILD_LABEL must fit the 31-byte app version")
+    endif()
+    set(PROJECT_VER "${PT_BUILD_LABEL}")
+endif()
 # execute_process runs at configure time only: without this, a build after a
 # new commit keeps the previous id (2026-09-30: the tank reported bb7751a from
 # a 092a913 tree). A change of HEAD or of the branch's ref reconfigures.

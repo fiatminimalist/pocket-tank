@@ -15,7 +15,7 @@ from export import load_checkpoint
 import train_tokenizer as tok
 
 torch.manual_seed(0); random.seed(0)
-model = load_checkpoint(_args.ckpt or os.path.join(MODEL_DIR, "out", {2: "ckpt_v2w.pt", 3: "ckpt_v3m.pt", 4: "ckpt_v4m.pt", 5: "ckpt_v5m.pt"}[_args.schema]))
+model = load_checkpoint(_args.ckpt or os.path.join(MODEL_DIR, "out", {2: "ckpt_v2w.pt", 3: "ckpt_v3m.pt", 4: "ckpt_v4m.pt", 5: "ckpt_v5j.pt"}[_args.schema]))
 GOALS = ["seek_food","flee_shadow","visit_bubbles","follow_friend","explore","rest","dart_play","inspect_reef"]
 GID = [tok.encode(g)[0] for g in GOALS]
 
@@ -124,7 +124,8 @@ if _args.schema >= 5:
     # the same content / night / starving states - the species word must move
     # the distribution its own way, never past hunger
     RANGES = {"fish": (5, 5, 6), "seahorse": (2, 6, 4), "octopus": (5, 1, 8), "puffer": (4, 3, 7), "angler": (6, 1, 2),
-              "eel": (7, 2, 4), "shark": (8, 6, 5), "squid": (4, 7, 6), "crab": (5, 3, 6), "lobster": (6, 1, 5)}
+              "eel": (7, 2, 4), "shark": (8, 6, 5), "squid": (4, 7, 6), "crab": (5, 3, 6), "lobster": (6, 1, 5),
+              "jellyfish": (2, 5, 5)}
     print("\n== species (v5): content day / content night / starving, each at its species' typical bold social curiosity ==")
     for sp, (b, so, cu) in RANGES.items():
         kw = dict(species=sp, bold=b, social=so, curiosity=cu, zone=5 if sp in ("octopus", "angler", "crab", "lobster", "eel") else 2)

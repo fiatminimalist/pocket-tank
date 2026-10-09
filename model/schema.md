@@ -1,6 +1,6 @@
 # State & Goal Schema — v2, FROZEN
 
-**Status: v5 SHIPS (2026-10-07, model v5m; the species - the v5 section at the bottom,
+**Status: v5 SHIPS (2026-10-07, model v5m; model v5j 2026-10-09 adds the jellyfish word; the species - the v5 section at the bottom,
 docs/retrain-v5.md, docs/stats.md); v4, v3 and v2 remain readable by their kept
 artifacts.** (v1 approved 2026-08-19; v2 personality/stage
 fields approved 2026-08-20 for the progression layer — see `docs/progression.md`.) The tokenizer and
@@ -207,7 +207,7 @@ Bored 3-9 behaviour comes only from v4 teacher data. Runbook: docs/retrain-v4.md
 
 ---
 
-## v5 — SHIPPED 2026-10-07 (model v5m; species; docs/species.md)
+## v5 — SHIPPED 2026-10-07 (model v5m; v5j 2026-10-09 with the jellyfish; species; docs/species.md)
 
 One change. Encoders: `gen_traces.py --schema 5` (`render_v5` / `parse_v5`, the
 field list `V5_FIELDS`) and `common/llm/advisor_core.c` (selected automatically
@@ -236,6 +236,12 @@ Example:
 ```
 zone 5 hunger 2 energy 7 stress 0 curiosity 3 bold 6 social 1 stage adult species angler trust 5 bored 1 food none friend mid 3 bubble far 10 reef mid 7 wall near 6 last rest time day
 ```
+
+**2026-10-09, the jellyfish:** one more species word, `jellyfish`, APPENDED as
+id 65 (vocab 66; `train_tokenizer.py --schema 5` writes it). The line, the
+field order and every other id are unchanged. The C advisor sends `species
+jellyfish` only when the loaded tokenizer has the word (v5m's 65-word vocab
+hears `species fish` for it), so a tokenizer may again go out before its model.
 
 At most 41 words (v4: 39): a prompt of 43 tokens with `->` and BOS, 46 with
 the reply, of the 64-position KV cache. `friend` is still the nearest other

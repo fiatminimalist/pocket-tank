@@ -9,7 +9,7 @@ student/teacher agreement (top-line distillation metric).
   python3 eval.py --count 20                 # student only, prints a table
   python3 eval.py --count 50 --teacher       # adds gemma4:26b agreement
   python3 eval.py --schema 5 --teacher --count 400 --run-bin ./runq4 \
-      --model-bin out/model_q4_v5m.bin --tok-bin out/tokenizer_v5.bin   # + per-species agreement
+      --model-bin out/model_q4_v5j.bin --tok-bin out/tokenizer_v5j.bin   # + per-species agreement
 
 With --schema 5 the agreement is also broken down per species (the v5
 acceptance is >= 72% overall AND for every species); --min-per-species makes

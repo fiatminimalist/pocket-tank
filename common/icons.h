@@ -41,6 +41,8 @@ extern const icon_t icon_shop_coral;
 extern const icon_t icon_shop_crab;
 extern const icon_t icon_shop_eel;
 extern const icon_t icon_shop_lobster;
+extern const icon_t icon_shop_jellyfish;
+const icon_t *jellyfish_theme_icon(int theme);
 extern const icon_t icon_shop_octopus;
 extern const icon_t icon_shop_plant;
 extern const icon_t icon_shop_puffer;

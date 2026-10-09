@@ -781,7 +781,7 @@ seven-minute prompt check before an overnight run is always worth it.
 - ✅ New species: seahorses, octopuses, pufferfish, anglerfish,
   electric eels, hammerheads, squid, crabs and lobsters, one at a time from
   the shop, breeding within their kind, up to 25 creatures a tank, and a
-  model (v5m) that knows each one's species
+  model (v5j) that knows each one's species, the jellyfish included
   ([docs/species.md](docs/species.md))
 - 🚧 Next: more to unlock: more plants, corals, and more tank maintenance
   critters

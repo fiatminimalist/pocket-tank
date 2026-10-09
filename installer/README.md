@@ -14,10 +14,10 @@ tools/make_installer.py                            # -> installer/dist/
 python3 -m http.server -d installer/dist 8765      # local check at http://localhost:8765
 ```
 
-The page follows stratobuilds.com's design (the `#f8f8f8` page, white /
-`#222` / lavender cards at 10px, Inter Tight and Roboto Mono from Google
-Fonts, the red button). When only the page changed, re-uploading
-`index.html` is enough - the binaries and `vendor/` are untouched.
+The local theme installer uses a cream and lagoon-green layout with previews of
+Original, Quiet Lagoon and Tidepool Club. It requires an explicit board choice
+before enabling Install, and validates the selected manifest. ESP Web Tools and
+all artwork are served locally, with no external runtime dependencies.
 
 `installer/dist/` is the whole thing: `index.html`, `manifest.json`,
 `manifest-erase.json`, `firmware/*.bin` (bootloader, partition table, app,
@@ -155,3 +155,30 @@ the real board with `esptool.py write_flash` (the exact operation ESP Web
 Tools performs, from the same files), and the tank booted; the page, manifest
 and vendor bundle were checked from a local server. The browser's own port
 picker is a native dialog, so the click-through itself is a human test.
+
+## Local theme build (2026-10-09)
+
+Built all three boards with the cached `espressif/idf:v5.4.1` image. Build outputs
+are in `~/.cache/aquapets-idf/build/{amoled18,round175c,watch206}`. Assemble with:
+
+```sh
+python3 tools/make_installer.py \
+  --build-dir ~/.cache/aquapets-idf/build/amoled18 \
+  --board-build ~/.cache/aquapets-idf/build/round175c \
+  --board-build ~/.cache/aquapets-idf/build/watch206
+```
+
+The existing server at `~/.cache/aquapets-installer/serve.py` serves
+`installer/dist` on `0.0.0.0:8765` (HTTP) and `0.0.0.0:8766` (HTTPS).
+Use `https://100.66.66.66:8766` over Tailscale or
+`https://192.168.88.216:8766` on the LAN. HTTPS uses the machine's existing
+self-signed certificate; the client must accept/trust that certificate.
+An alternative is `ssh -N -L 8765:127.0.0.1:8765 alvin@100.66.66.66`, then
+`http://localhost:8765` on the client. Plain remote HTTP cannot use Web Serial.
+
+The artifact set was checked for valid RSA signatures, correct board markers,
+partition fit and NVS preservation. All three signed apps are 2,428,928 bytes,
+leaving 192,512 bytes in each app slot. The local build is `jelly-d226e71952`;
+it adds the approved jellyfish to Original, Quiet Lagoon and Tidepool Club, with pulsing movement, growth, feeding and breeding. Buy it on Upgrades page 5 for 10 sand dollars. The approved Living Lagoon artwork and other creature behaviours are retained. `installer/dist/SHA256SUMS`
+records the served binary hashes. These checks do not claim a physical flash
+or device boot; the USB selection and flashing are performed by the user.

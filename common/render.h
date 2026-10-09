@@ -7,6 +7,9 @@
 #include <stddef.h>
 #include "tank.h"
 #include "battery.h"
+#include "theme.h"
+
+void render_use_theme(int id);
 
 /* fb is TANK_W x TANK_H, RGB565, stride in PIXELS (usually TANK_W). */
 /* PAGE space (2026-10-01): the full-screen pages (milestones, shop, settings,
@@ -310,7 +313,10 @@ enum { SET_TAP_NONE = 0, SET_TAP_CLOSE = 1, SET_TAP_BRIGHT = 2, SET_TAP_VOLUME =
        SET_TAP_SCREEN = 7,      /* a worn tank's SCREEN row (2026-10-02): *value 1 = TURNED, already applied and marked
                                    for the save - the platform only logs it (the picture turns on the next frame) */
        SET_TAP_FEED = 8,        /* AUTO FEED (0.3.2): *value 1 = ON; applied and marked for the save */
-       SET_TAP_ROTATE = 9 };    /* ROTATION (0.3.2): *value 1 = locked; applied and marked for the save */
+       SET_TAP_ROTATE = 9, SET_TAP_THEME = 10 };    /* ROTATION (0.3.2): *value 1 = locked; applied and marked for the save */
+void render_settings_leave(void);
+/* Native-frame geometry shared with the settings hit tests and simulator. */
+void render_settings_bounds(int *x, int *y, int *w, int *h);
 void render_settings(const tank_t *t, uint16_t *fb, int stride, int bright_pct, int volume);
 int  render_settings_tap(float x, float y, int *value);
 int  render_settings_touch(tank_t *t, float x, float y, bool down, int *value);

@@ -1203,7 +1203,7 @@ static int selftest_sleep(void) {
 #include <dirent.h>
 static const size_t SAVE_CUTS[] = { 448, 1112, 1304, 1408, 1432, 1440, 1456, 1480, 1608, 1616, 1624, 1640, 1656, 1664, 1672, 1680, 1688,
                                     2092, 2096 };   /* (2092: fish 7..10's tail without the struct's closing pad; 2096: that build's sizeof) */
-#define SAVE_NOW 3592                    /* today's sizeof(save_t): fish 7..25, 2026-10-07 (1692 + 19 x 100; 2096 was the ten's) */
+#define SAVE_NOW 3600                    /* append-only theme byte + padding after the 3592-byte population save */
 static uint32_t sv_u32(const uint8_t *e, size_t off) { uint32_t v; memcpy(&v, e + off, 4); return v; }
 static float    sv_f32(const uint8_t *e, size_t off) { float v; memcpy(&v, e + off, 4); return v; }
 static int name_cmp(const void *a, const void *b) { return strcmp(*(char *const *)a, *(char *const *)b); }
@@ -2253,6 +2253,7 @@ static int selftest_llm(int minutes) {
         tank_add_species_pair(&tank, SP_ANGLER);
         tank_add_species_pair(&tank, SP_SQUID);
         tank_add_species_pair(&tank, SP_CRAB);
+        tank_add_species_pair(&tank, SP_JELLYFISH);   /* heard as `jellyfish` by a 66-word vocab, as `fish` by v5m's 65 */
     }
     if (getenv("POCKET_CURIOUS")) {               /* reproduce a state: POCKET_CURIOUS=9 = the
                                                      device after days of the old economy */
@@ -2359,7 +2360,10 @@ static int selftest_encoder(const char *tok_path) {
             char line[400], want[96];
             advisor_core_encode(&tank, i, line, sizeof line);
             const fish_t *f = &tank.fish[i];
-            snprintf(want, sizeof want, " stage %s species %s trust ", STAGE_NAMES[f->stage], tank_species(f)->token);
+            /* a species the vocab lacks (the jellyfish against a 65-word v5 tokenizer) is sent as the classic fish */
+            bool heard = advisor_core_unknown_words(tank_species(f)->token) == 0;
+            snprintf(want, sizeof want, " stage %s species %s trust ", STAGE_NAMES[f->stage], heard ? tank_species(f)->token : "fish");
+            if (strcmp(advisor_core_species_word(f), heard ? tank_species(f)->token : "fish") != 0) { fails++; printf("FAIL: species word %s for %s\n", advisor_core_species_word(f), tank_species(f)->token); }
             int words = 0;
             for (const char *c = line; *c; c++) words += (c == line || c[-1] == ' ') && *c != ' ';
             if (words > maxw) maxw = words;
@@ -3362,7 +3366,7 @@ static int selftest_shop(void) {
            walls; BEHIND the fish and the grass pass in front of it; the spot and
            the depth survive a save */
         {
-            if (SD_ITEM_COUNT != 16 || SD_ITEMS[2].bit != SD_ITEM_CASTLE || SD_ITEMS[2].price != SD_PRICE_CASTLE) { printf("FAIL: the castle is not the third item\n"); return 1; }
+            if (SD_ITEM_COUNT != 17 || SD_ITEMS[2].bit != SD_ITEM_CASTLE || SD_ITEMS[2].price != SD_PRICE_CASTLE) { printf("FAIL: the castle is not the third item\n"); return 1; }
             if (!tank_decor_placeable(2) || tank_decor_z_count(2) != 2 || tank_decor_z_at(2, 0) != DECOR_Z_BACK || tank_decor_z_at(2, 1) != DECOR_Z_FRONT
                 || tank_decor_z_index(2, DECOR_Z_FRONT) != 1 || tank_decor_z_index(2, DECOR_Z_BACK) != 0) { printf("FAIL: the castle's depths\n"); return 1; }
             tank.sd_balance = SD_PRICE_CASTLE - 1;
@@ -3926,7 +3930,7 @@ static int selftest_shop(void) {
         char keep[700]; snprintf(keep, sizeof keep, "cp %s %s.keep", sav, sav);
         progression_save(&tank); (void)system(keep);           /* the tank so far, for the blocks after this one */
         tank_init(&tank, 9191); progression_fresh(&tank); progression_setup_done(&tank); tank.trickle_off = true;
-        if (SHP_PAGES != 4) { printf("FAIL: %d shop pages for %d items\n", SHP_PAGES, SD_ITEM_COUNT); return 1; }
+        if (SHP_PAGES != 5) { printf("FAIL: %d shop pages for %d items\n", SHP_PAGES, SD_ITEM_COUNT); return 1; }
         for (int sp = 1; sp < SP_COUNT; sp++) {
             int item = SD_ITEM_SP_FIRST + sp - 1; const sd_item_t *it = &SD_ITEMS[item];
             if (progression_item_species(item) != sp || it->bit != 1u << item || tank_decor_placeable(item)
@@ -4343,6 +4347,8 @@ static int species_sheet(const char *prefix) {
         { .sp = SP_SQUID, .v = 1, .st = STAGE_ADULT, .x = 90, .y = 80, .speed = 5 },
         { .sp = SP_EEL, .v = 1, .st = STAGE_ADULT, .x = 300, .y = 90, .heading = 3.14159265f, .speed = 30, .spark = 1.0f },
         { .sp = SP_SEAHORSE, .v = 2, .st = STAGE_ADULT, .x = 400, .y = 200, .rest = true },        /* asleep */
+        { .sp = SP_JELLYFISH, .v = 0, .st = STAGE_ADULT, .x = 130, .y = 190, .speed = 4, .jet = 0.25f },                 /* the bell contracted, rising */
+        { .sp = SP_JELLYFISH, .v = 2, .st = STAGE_ADULT, .x = 230, .y = 200, .heading = 3.14159265f, .speed = 2, .jet = 0.75f },   /* relaxed, drifting left */
         { .sp = SP_PUFFER, .v = 3, .st = STAGE_ADULT, .x = 250, .y = 190, .heading = 3.14159265f, .rest = true },
         { .sp = SP_OCTOPUS, .v = 1, .st = STAGE_ADULT, .x = 100, .y = 190, .speed = 5, .rest = true },
         { .sp = SP_SEAHORSE, .v = 0, .st = STAGE_ADULT, .x = 400, .y = 120, .anchor = 1 },                         /* holding its frond (awake) */
@@ -4637,13 +4643,16 @@ static void sp_tank(uint32_t seed, int species) {
     tank_init(&tank, seed); tank_new_population(&tank);
     for (int i = 0; i < tank.n_fish; i++) tank.fish[i].stage = STAGE_ADULT;
     if (species > 0) tank_add_species_pair(&tank, species);
+    /* Baseline gait/reflex tests exclude idle flourishes, which have their own
+       surface/ink/spark/care-priority checks in --selftest-themes. */
+    for(int i=0;i<tank.n_fish;i++)tank.fish[i].flourish_wait=1e6f;
     g_sp_goal = GOAL_COUNT; g_sp_only = -1;
 }
 /* the body's two ends (fish_t's convention) inside the glass */
 static bool sp_inside(const fish_t *f) {
     if (f->species == SP_FISH) return !isnan(f->x) && !isnan(f->y);   /* the classic fish keeps its own (older) bounds */
     float hl = tank_body_half_len(f) * 0.85f, ax, ay;
-    if (f->species == SP_SEAHORSE) { ax = 0; ay = 1; }
+    if (f->species == SP_SEAHORSE || f->species == SP_JELLYFISH) { ax = 0; ay = 1; }   /* the upright two */
     else if (f->species == SP_CRAB) { ax = 1; ay = 0; }
     else { float a = atan2f(sinf(f->heading), (f->facing ? f->facing : 1) * fabsf(cosf(f->heading))); ax = cosf(a); ay = sinf(a); }
     for (int k = -1; k <= 1; k += 2) {
@@ -4773,6 +4782,47 @@ static int selftest_species(void) {
     if (sp_run(120, tr, 2, 3)) return 1;
     printf("species: puffer     mean %.1f px/s (fish %.1f)\n", tr[1].speed_sum / tr[1].n, tr[0].speed_sum / tr[0].n);
 
+    /* the jellyfish (2026-10-09): a slow drifter in the open water, never on the
+     * floor, pulsing ~0.6 Hz as it explores and ~0.2 Hz at rest in mid-water;
+     * a startle quickens the pulse and nothing else - no ink, no spark, no puff */
+    sp_tank(540, SP_JELLYFISH);
+    { int ground = 0, n = 0, wraps = 0; float jv = 0, fv = 0, ysum = 0;
+      g_sp_goal = GOAL_EXPLORE; g_sp_only = SP_JELLYFISH;
+      for (int i = 0; i < 60 / SP_DT; i++) {
+          float pj = tank.fish[2].jet;
+          if (sp_tick()) return 1;
+          if (tank.fish[2].jet < pj) wraps++;
+          for (int k = 2; k <= 3; k++) { ground += sp_on_ground(&tank.fish[k], 4); jv += tank.fish[k].speed; n++; }
+          fv += tank.fish[0].speed + tank.fish[1].speed;
+      }
+      float groundp = 100.0f * ground / n, jmean = jv / n, fmean = fv / n;
+      if (groundp > 2 || jmean > fmean * 0.6f || wraps < 28 || wraps > 44)
+          SP_FAIL("the jellyfish exploring: on the floor %.0f%% of the time, %.1f px/s (the fish %.1f), %d pulses in 60 s", groundp, jmean, fmean, wraps);
+      g_sp_goal = GOAL_REST;
+      for (int i = 0; i < 30 / SP_DT; i++) if (sp_tick()) return 1;        /* down to its spot first */
+      int rest_wraps = 0; float rv = 0; n = 0; ysum = 0;
+      for (int i = 0; i < 60 / SP_DT; i++) {
+          float pj = tank.fish[2].jet;
+          if (sp_tick()) return 1;
+          if (tank.fish[2].jet < pj) rest_wraps++;
+          for (int k = 2; k <= 3; k++) { rv += tank.fish[k].speed; ysum += tank.fish[k].y; n++; }
+      }
+      float rmean = rv / n, ymean = ysum / n;
+      if (rest_wraps < 7 || rest_wraps > 15 || rmean > 4 || ymean < TANK_BOT * 0.35f || ymean > TANK_BOT * 0.75f)
+          SP_FAIL("the jellyfish at rest: %d pulses in 60 s, %.1f px/s, mean depth %.0f of %d", rest_wraps, rmean, ymean, TANK_BOT);
+      g_sp_goal = GOAL_COUNT;
+      { fish_t *f = &tank.fish[2]; int fw = 0; bool clean = true;
+        sp_spook(f->x + 12, fmaxf(f->y, tank_glass_top(f->x) + FEED_ZONE_Y + 10));
+        for (int i = 0; i < 4 / SP_DT; i++) {
+            float pj = f->jet;
+            if (sp_tick()) return 1;
+            if (f->jet < pj) fw++;
+            clean &= f->ink == 0 && f->spark == 0 && f->puff == 0;
+        }
+        if (fw < 3 || !clean) SP_FAIL("a spooked jellyfish: %d pulses in 4 s, ink %.1f spark %.1f puff %.1f", fw, f->ink, f->spark, f->puff);
+        printf("species: jellyfish  exploring %.1f px/s (fish %.1f), %d pulses a minute, on the floor %.0f%%; at rest %d pulses, %.1f px/s at depth %.0f; spooked: %d pulses in 4 s, no ink or spark\n",
+               jmean, fmean, wraps, groundp, rest_wraps, rmean, ymean, fw); } }
+
     /* the anglerfish: low, still, short walks */
     sp_tank(505, SP_ANGLER);
     { int low = 0, n = 0; float lure_lo = 1, lure_hi = 0;
@@ -4895,18 +4945,21 @@ static int selftest_species(void) {
           printf("species: courtship  a %s pair danced %.0f s of 90\n", SPECIES[pairs[s]].name, tank.spawn_danced);
       } }
 
-    /* everyone together, ten of them, a night's sleep and the wake */
+    /* everyone together, twelve of them, a night's sleep and the wake */
     sp_tank(530, SP_EEL);
     tank_add_species_pair(&tank, SP_OCTOPUS); tank_add_species_pair(&tank, SP_CRAB); tank_add_species_pair(&tank, SP_SQUID);
-    if (tank.n_fish != 10) SP_FAIL("ten places, %d creatures", tank.n_fish);
+    tank_add_species_pair(&tank, SP_JELLYFISH);
+    if (tank.n_fish != 12) SP_FAIL("twelve places, %d creatures", tank.n_fish);
     for (int i = 0; i < 60 / SP_DT; i++) if (sp_tick()) return 1;
     sp_spook(TANK_W * 0.5f, TANK_BOT * 0.6f);
     for (int i = 0; i < 5 / SP_DT; i++) if (sp_tick()) return 1;
     tank_tick_sleep(&tank, 6 * 3600);
     for (int i = 0; i < 60 / SP_DT; i++) if (sp_tick()) return 1;
-    printf("species: ten creatures, a startle, a 6 h sleep and the wake: all inside the glass. selftest-species ok\n");
+    printf("species: twelve creatures, a startle, a 6 h sleep and the wake: all inside the glass. selftest-species ok\n");
     return 0;
 }
+
+extern int selftest_themes(const char *prefix);
 
 int main(int argc, char **argv) {
     for (int a = 1; a < argc; a++)
@@ -4917,6 +4970,7 @@ int main(int argc, char **argv) {
             return clip(argv[a + 1], a + 2 < argc ? atoi(argv[a + 2]) : 6);
         if (strcmp(argv[a], "--snapshot") == 0 && a + 1 < argc)
             return snapshot(argv[a + 1], a + 2 < argc ? atoi(argv[a + 2]) : 20);
+        if (strcmp(argv[a], "--selftest-themes") == 0) return selftest_themes(a + 1 < argc ? argv[a + 1] : NULL);
         if (strcmp(argv[a], "--selftest") == 0) return selftest();
         if (strcmp(argv[a], "--bench") == 0) return bench();
         if (strcmp(argv[a], "--species-sheet") == 0 && a + 1 < argc) return species_sheet(argv[a + 1]);
@@ -5044,6 +5098,7 @@ int main(int argc, char **argv) {
             else if (r == SET_TAP_SCREEN) printf("screen: %s\n", v ? "TURNED" : "NORMAL");
             else if (r == SET_TAP_IDLE) printf("lights out after %d s still\n", v);
             else if (r == SET_TAP_FEED) printf("auto feed: %s\n", v ? "ON" : "OFF");
+            else if (r == SET_TAP_THEME) printf("theme: %s\n", theme_palette(v)->name);
             else if (r == SET_TAP_ROTATE) printf("rotation: %s\n", v ? "LOCKED" : "unlocked");
         } else if (updates_view && !confirm_view) {              /* the UPDATES page: CHECK, FORGET, CLOSE */
             int r = updates_page_touch((float)mx, (float)my, mpress);

@@ -224,6 +224,11 @@ const species_def_t SPECIES[SP_COUNT] = {
         { "SPINY", 0x3a8a7a, 0x2a5a50, 0xf2d23a }, { "CALICO", 0xd8402a, 0x9a2a1c, 0xf2e6cc } },
       1.10f, 1.40f, 0.50f, 0.85f, 0.05f, 0.25f, 5.5f, 0.6f, 2.0f, LOCO_WALK,
       0.40f, 2.20f, 0.30f, 0.0f, 38, false },
+    { "JELLYFISH", "jellyfish", { "jelly", "wisp", "moon", "ripple" },
+      { { "PEACH", 0xe5a777, 0x73a69b, 0xf1d29e }, { "PEARL", 0xb6d2c1, 0x639e92, 0xe4dec0 },
+        { "ROSE", 0xd99bb5, 0x8677ad, 0xf3d5df }, { "BLUE", 0x82bacd, 0x6286ad, 0xc9e8df } },
+      0.95f, 1.15f, 0.10f, 0.40f, 0.40f, 0.75f, 5.0f, 0.7f, 1.6f, LOCO_HOVER,
+      0.40f, 0.75f, 1.10f, 0.0f, 38, false },
 };
 
 /* the keeper's palettes (setup.c): the six roster bodies + a blue and a
@@ -312,6 +317,7 @@ void tank_make_fish(tank_t *t, int slot, int preset, float sociable, float bold,
     f->puff = 0; f->ink = 0; f->jet = (float)((slot * 29) % 100) / 100.0f; f->camo = 0; f->camo_rgb = 0;
     f->air_s = 60.0f + (float)((slot * 41) % 60); f->spark = 0; f->lure = 0; f->anchor = -1;
     f->sp_mode = SPM_NONE; f->sp_t = 0; f->sp_x = -1;
+    f->flourish_wait=45+(slot*37)%80;f->surface_s=0;f->flourish_cycle=0;
 }
 
 /* ---- species (docs/species.md) ---- */
@@ -331,6 +337,7 @@ void tank_set_species(tank_t *t, int slot, int species, int variant) {
     const species_def_t *s = &SPECIES[species];
     const sp_variant_t *v = &s->var[(variant % SP_VARIANTS + SP_VARIANTS) % SP_VARIANTS];
     f->species = (uint8_t)species; f->variant = (uint8_t)((variant % SP_VARIANTS + SP_VARIANTS) % SP_VARIANTS);
+    f->flourish_wait=45+(slot*37)%80;f->surface_s=0;f->flourish_cycle=0;
     f->base_size = tank_species_size(f); f->size = f->base_size;
     f->turn_rate = s->turn_rate; f->lazy = s->lazy; f->curiosity = s->curiosity;
     f->color = v->color; f->fin = v->fin; f->accent = v->accent;
@@ -491,7 +498,7 @@ void tank_init(tank_t *t, uint32_t seed) {
     t->clock = 0; t->night = false; t->idle_s = 0;
     t->light_idle_s = LIGHT_IDLE_S; t->light_auto = false; t->light_manual_off = false; t->light_tip_seen = false;
     t->orient_lock = false; t->autofeed_off = false;
-    t->screen_turned = false;
+    t->screen_turned = false; t->theme = 0;
     t->light_override = false; t->light_on = true;
     t->hold_active = false; t->hold_time = 0; t->hold_approached = false;
     t->tap_count = 0; t->tap_burst_t = 99; t->startled = false;
@@ -1804,7 +1811,7 @@ void tank_tick_sleep(tank_t *t, float seconds) {
         f->stress = clampf(f->stress - SLEEP_STRESS_PER_H * h, 0, 10);
         f->speed = 0; f->target_speed = 0; f->bored = 0;  /* a night's sleep is a fresh start */
         if (f->species != SP_FISH) {                        /* ... the species' reflexes too: no puff, ink or flip to wake to */
-            f->puff = 0; f->ink = 0; f->spark = 0; f->sp_mode = SPM_NONE; f->sp_t = 0;
+            f->surface_s=0; f->puff = 0; f->ink = 0; f->spark = 0; f->sp_mode = SPM_NONE; f->sp_t = 0;
             if (f->air_s <= 0) f->air_s = 60;
         }
         f->goal_age += seconds; f->ask_age += seconds;  /* wake re-asks the advisor at once */
@@ -1877,6 +1884,7 @@ static const sp_motion_t SP_MOTION[SP_COUNT] = {
     { 2.5f, 0.70f, 60, 2.5f, 1.00f, 0.00f,  0 },   /* squid */
     { 4.0f, 0.00f,  0, 6.0f, 0.75f, 0.00f,  7 },   /* crab: face-on, its width the length; claws either side */
     { 1.2f, 0.90f,  0, 3.0f, 1.20f, 0.70f,  7 },   /* lobster */
+    { 1.2f, 0.30f,  0, 2.5f, 1.50f, 0.00f,  0 },   /* jellyfish: upright bell and long trailing arms */
 };
 static const sp_motion_t *sp_mo(const fish_t *f) { return &SP_MOTION[f->species < SP_COUNT ? f->species : SP_FISH]; }
 static float wrap01(float v) { return v - floorf(v); }
@@ -2012,6 +2020,30 @@ static int sp_nearest_kin(const tank_t *t, int idx) {
     return best;
 }
 
+/* Small idle displays, independent of the advisor and theme. No save-layout changes.
+ * Pause the countdown for care/rest/interaction, and abort a trip for an urgent need. */
+static void sp_flourish(tank_t *t,int idx,fish_t *f,float dt) {
+    bool visitor=f->species==SP_LOBSTER||f->species==SP_CRAB||f->species==SP_ANGLER||f->species==SP_OCTOPUS||f->species==SP_PUFFER;
+    bool effect=f->species==SP_OCTOPUS||f->species==SP_SQUID||f->species==SP_EEL;
+    if(!visitor&&!effect)return;
+    bool busy=t->night||t->startled||t->hold_active||idx==t->stage_fish||
+              (t->spawning&&(idx==t->court_a||idx==t->court_b))||
+              f->hunger>6.5f||f->energy<2.5f||f->goal.id==GOAL_FLEE_SHADOW||f->goal.id==GOAL_REST||
+              (f->goal.id==GOAL_SEEK_FOOD&&tank_nearest_food(t,f,0)>=0);
+    if(busy){f->surface_s=0;return;}
+    if(f->surface_s>0){f->surface_s-=dt;if(f->surface_s<=0)f->surface_s=-18;return;}
+    if(f->surface_s<0){f->surface_s=fminf(0,f->surface_s+dt);return;}
+    if(f->sp_mode!=SPM_NONE||f->ink>0||f->spark>0)return;
+    if((f->flourish_wait-=dt)>0)return;
+    f->flourish_wait=100+110*sp_hash01(idx+f->species*17,++f->flourish_cycle);
+    if(f->species==SP_EEL){f->spark=1.3f;return;}
+    if(f->species==SP_SQUID||(f->species==SP_OCTOPUS&&!(f->flourish_cycle&1))){
+        f->ink=3.0f;f->sp_mode=SPM_JET;f->sp_t=2.5f;f->jet=0;return;
+    }
+    f->surface_s=40;
+    if(f->species==SP_PUFFER)f->sp_t=35;
+}
+
 /* ---- per frame: the species' own state - its puff and ink, the eel's
  * breath, the angler's lure, the octopus's colour ---- */
 static void sp_state(tank_t *t, int idx, fish_t *f, float dt) {
@@ -2021,6 +2053,9 @@ static void sp_state(tank_t *t, int idx, fish_t *f, float dt) {
     case SP_PUFFER:     /* it gulps water: a ball in a quarter of a second, held, then let out slowly (~8 s) */
         if (f->sp_t > 0) { f->sp_t -= dt; f->puff = fminf(1, f->puff + dt * 4); }
         else f->puff = fmaxf(0, f->puff - dt * 0.12f);
+        break;
+    case SP_JELLYFISH:  /* the hurry after a startle runs out on its own */
+        if (f->sp_t > 0) f->sp_t = fmaxf(0, f->sp_t - dt);
         break;
     case SP_OCTOPUS: case SP_SQUID:
         if (f->goal.id == GOAL_DART_PLAY && f->sp_mode != SPM_JET) { f->sp_mode = SPM_JET; f->sp_t = 0; f->jet = 0; }
@@ -2084,6 +2119,7 @@ static void sp_startle_hit(tank_t *t, int idx, float x, float y) {
         if (f->anchor >= 0) f->sp_mode = SPM_CLING;
         break;
     case SP_CRAB:    if (f->sp_mode == SPM_NONE) { f->sp_mode = SPM_CLAWS; f->sp_t = 0.6f; } break;
+    case SP_JELLYFISH: f->sp_t = 4.0f; break;                                  /* a hurried pulse for a few seconds: its whole alarm */
     case SP_LOBSTER:                                                           /* faces the threat and shoots backward from it */
         if (f->sp_mode != SPM_FLIP) {
             f->facing = x > f->x ? 1 : -1; f->yaw = f->yaw_tail = f->facing;
@@ -2109,6 +2145,7 @@ static void sp_startle_steer(const tank_t *t, const fish_t *f, float *desired, f
     case SP_CRAB:    away = f->x >= t->startle_x ? 0 : 3.14159f; w = 1;
                      v = f->sp_mode == SPM_SCUTTLE ? 60 * s->burst_k : f->sp_mode == SPM_CLAWS ? 0 : 14; break;
     case SP_LOBSTER: away = f->x >= t->startle_x ? 0 : 3.14159f; w = 1; v = 10; break;
+    case SP_JELLYFISH: w = 0.6f; v = 22; break;     /* it pulses away, no faster than a hurried drift */
     default: break;
     }
     if (w > 0) *desired = norm_ang(*desired + norm_ang(away - *desired) * w);
@@ -2155,6 +2192,10 @@ static void sp_target(tank_t *t, int idx, goal_id_t goal, bool glance, target_t 
     tank_fish_head(f, &hx, &hy);
     if (goal == GOAL_SEEK_FOOD && tg->valid) { tg->x -= hx - f->x; tg->y -= hy - f->y; }   /* the mouth to the pellet */
     switch (f->species) {
+    case SP_JELLYFISH:
+        if(goal==GOAL_REST){tg->x=TANK_W*.5f+f->rest_dx;tg->y=TANK_BOT*.55f;tg->speed=3;}
+        else if(goal==GOAL_EXPLORE){tg->y=clampf(tg->y,tank_glass_top(tg->x)+60,TANK_BOT-75);tg->speed=fminf(tg->speed,16);}
+        break;
     case SP_SEAHORSE:
         if (goal == GOAL_REST && !glance) {
             /* rest = the tail round a stem: the nearest frond, its middle */
@@ -2383,22 +2424,30 @@ static void sp_swim(tank_t *t, int idx, fish_t *f, const target_t *tg, float des
     float pivot = 1 - mo->brake * (1 - fabsf(f->yaw));
     if (rev) want = fminf(want * 0.6f, 12);
     if (!steer_only && !jetting && !snap && tg->valid) want *= clampf(dist / 25, 0, 1);   /* it can stop dead at its spot */
-    if (f->species == SP_PUFFER) want *= 1 - 0.8f * f->puff;                          /* a ball barely moves */
+    if (f->species == SP_PUFFER && f->surface_s<=0) want *= 1 - 0.8f * f->puff;                          /* a ball barely moves */
     if (f->species != SP_SEAHORSE)
         for (int b = 0; b < tank_veg_beds(t); b++) if (veg_inside(t, b, f->x, f->y)) { want *= VEG_SLOW; break; }
-    if (jetting) {
+    float jelly_hz=0;                                          /* the jellyfish's pulse: rest slows it, flight hurries it */
+    if(f->species==SP_JELLYFISH) {
+        bool hurried = f->sp_t > 0 || f->goal.id == GOAL_FLEE_SHADOW;   /* a startle (sp_startle_hit), or a flight */
+        jelly_hz = hurried ? 1.3f : f->goal.id == GOAL_REST ? .18f : .6f;
+        f->jet=wrap01(f->jet+dt*jelly_hz);
+        float thrust=.5f+.5f*sinf(f->jet*TAU);
+        f->speed=lerpf(f->speed,want*(.35f+thrust*.95f),clampf(dt*3,0,1));
+    } else if (jetting) {
         f->jet = wrap01(f->jet + dt * 1.25f);                                       /* ~1.25 pulses a second */
         if (f->jet < 0.3f) f->speed += (want * 1.25f - f->speed) * clampf(dt * 9, 0, 1);
         else f->speed *= 1 - clampf(dt * 2.6f, 0, 1);
     } else {
         f->speed = lerpf(f->speed, want, clampf(dt * (snap ? 12 : mo->resp), 0, 1));
-        static const float FIN_HZ[SP_COUNT] = { 0, 3.0f, 0.5f, 1.6f, 0.4f, 0, 0, 0.9f, 0, 0 };
+        static const float FIN_HZ[SP_COUNT] = { 0, 3.0f, 0.5f, 1.6f, 0.4f, 0, 0, 0.9f, 0, 0, 0 };
         f->jet = wrap01(f->jet + dt * (f->species == SP_EEL ? 0.4f + f->speed / 30 : FIN_HZ[f->species]));
     }
     float hc = cosf(f->heading), hs = sinf(f->heading);
     float vx = rev ? hc : side * f->yaw * fabsf(hc);
     float bob = f->species == SP_PUFFER ? sinf(t->clock * 2.2f + f->wander) * 3
               : f->species == SP_SEAHORSE ? sinf(t->clock * 1.1f + f->wander) * 2
+              : f->species == SP_JELLYFISH ? -sinf(f->jet*TAU)*jelly_hz*23   /* the contraction lifts it ~4 px, it settles as the bell opens */
               : f->species == SP_SQUID ? sinf(t->clock * 1.3f + f->wander) * 1.5f : 0;
     f->x += vx * f->speed * pivot * dt;
     f->y += hs * f->speed * pivot * dt + bob * dt;
@@ -2420,8 +2469,8 @@ static bool sp_walking(const tank_t *t, const fish_t *f) {
  * eel or shark along the side glass, the bowl's curve, the watch's corners),
  * then the middle */
 static void sp_clamp_body(fish_t *f) {
-    float hl = tank_body_half_len(f) * 0.9f, th = 8 * f->size, ax, ay;
-    if (f->species == SP_SEAHORSE) { ax = 0; ay = 1; }
+    float hl = tank_body_half_len(f) * 0.9f, th = (f->species==SP_JELLYFISH?18:8) * f->size, ax, ay;
+    if (f->species == SP_SEAHORSE || f->species == SP_JELLYFISH) { ax = 0; ay = 1; }
     else if (f->species == SP_CRAB) { ax = 1; ay = 0; }
     else { float a = body_axis(f); ax = cosf(a); ay = sinf(a); }
     for (int pass = 0; pass < 2; pass++) {             /* twice: in the bowl, bringing one end in can take the other out */
@@ -2444,7 +2493,8 @@ static void sp_bounds(fish_t *f, bool walker) {
 }
 static void sp_move(tank_t *t, int idx, fish_t *f, const target_t *tg, float desired, float want, bool override, float dt) {
     bool walker = false;
-    if (f->species == SP_LOBSTER && f->sp_mode == SPM_FLIP) sp_flip(f, dt);
+    if (f->surface_s!=0) sp_swim(t,idx,f,tg,desired,want,override,dt);
+    else if (f->species == SP_LOBSTER && f->sp_mode == SPM_FLIP) sp_flip(f, dt);
     else if (f->species == SP_SEAHORSE && f->anchor >= 0 && ((f->goal.id == GOAL_REST && !override) || f->sp_mode == SPM_CLING) && sp_hold(t, f, dt)) {}
     else if (f->species == SP_SHARK) sp_cruise(f, desired, want, dt);
     else if ((walker = sp_walking(t, f))) sp_walk(t, idx, f, tg->x, want, override, desired, dt);
@@ -2719,7 +2769,7 @@ static void update_fish(tank_t *t, int idx, float dt) {
 
     /* a species' own state first: its puff, ink, breath, lure (sp_state) */
     bool sp = f->species != SP_FISH && f->species < SP_COUNT;
-    if (sp) sp_state(t, idx, f, dt);
+    if (sp) { sp_state(t, idx, f, dt); sp_flourish(t,idx,f,dt); }
     target_t tg = target_for_goal(t, idx, f->goal.id, false);
     /* fish prefer shallow climb/dive angles while cruising; full vertical
      * agility stays available for urgent goals (a species has its own
@@ -2781,6 +2831,11 @@ static void update_fish(tank_t *t, int idx, float dt) {
          * gulp, whatever the goal - a reflex, as the famine's dash is */
         sp_breath(t, f, &tg);
         desired = atan2f(tg.y - f->y, tg.x - f->x);
+    } else if (sp && f->surface_s!=0) {
+        tg.x=TANK_W*.5f+sinf(t->clock*.22f+idx)*24;
+        tg.y=f->surface_s>0?tank_glass_top(tg.x)+fmaxf(32,12*f->size):tank_ground_y(t,tg.x)-tank_walk_off(f);
+        tg.valid=true;tg.speed=tank_dist(f->x,f->y,tg.x,tg.y)<18?4:f->species==SP_PUFFER?18:28;
+        desired=atan2f(tg.y-f->y,tg.x-f->x);touch_speed=tg.speed;sp_units=true;
     } else if (t->spawning && (idx == t->court_a || idx == t->court_b) &&
                f->goal.id != GOAL_FLEE_SHADOW && !(t->ravenous && f->hunger > 6.5f)) {
         /* the spawning (2026-09-24): the courtship that ends in a fry. It

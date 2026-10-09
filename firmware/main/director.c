@@ -215,7 +215,7 @@ static void help(void) {
     ESP_LOGI(TAG, "STAGED TANKS (the real one is parked first): fresh (new tank, two fry) | stages (fry juv adult elder) | stage <fish|all> <fry|juv|adult|elder>");
     ESP_LOGI(TAG, "stash (park the real tank now) | restore (bring it back) | age <fish> <hours>");
     ESP_LOGI(TAG, "milestones [off] (the page, on cue; on the device: tap the open stats card)");
-    ESP_LOGI(TAG, "shop [off] (the sand dollar page) | dollars [n] (grant n; the balance and the chore counts) | buy plant|snail|castle|coral|cluster|shrimp|urchin|<species> (at the price; a species = a pair of juveniles: seahorse octopus puffer angler eel shark squid crab lobster) | spawn <species> (a STAGED pair, free) | place [plant|castle|coral] [x [behind|among|front]] (the piece's spot; no x = the page; the castle has no among) | coral <0-7|rrggbb> (its colour) | coral grow <g> (its growth, 1 = the fan, 1.25 = the crown) | cluster look <0-2> | cluster grow <g> (1 = full size, 2 = every tentacle) | sell plant|castle|coral|cluster (20%% back)");
+    ESP_LOGI(TAG, "shop [off] (the sand dollar page) | dollars [n] (grant n; the balance and the chore counts) | buy plant|snail|castle|coral|cluster|shrimp|urchin|<species> (at the price; a species = one juvenile: seahorse octopus puffer angler eel shark squid crab lobster jellyfish) | spawn <species> (a STAGED pair, free) | place [plant|castle|coral] [x [behind|among|front]] (the piece's spot; no x = the page; the castle has no among) | coral <0-7|rrggbb> (its colour) | coral grow <g> (its growth, 1 = the fan, 1.25 = the crown) | cluster look <0-2> | cluster grow <g> (1 = full size, 2 = every tentacle) | sell plant|castle|coral|cluster (20%% back)");
     ESP_LOGI(TAG, "reset (the keeper's confirm prompt, as BOOT + tap opens it) | reset yes|no (answer it here) - YES WIPES EVERY SAVE, a parked tank too");
     ESP_LOGI(TAG, "setup [off] (the first-run flow: welcome, names, colours; off drops the panel - the birth flow too) | name <fish|idx> <newname> (up to %d letters, saved)", FISH_NAME_MAX);
     ESP_LOGI(TAG, "battery <pct> [charging|full|plugged]|real (a STAGED gauge: on battery at pct - the card's pill, and at 10 or less the low-battery notice + cue + the pill that stays - or on the cable: the bolt, the sweep while charging, the pill for a few seconds; not saved) | battery page [off] (the battery page, as a tap on the pill opens it) | battery (its numbers) | snd battery (just the notice + cue)");
@@ -369,14 +369,14 @@ static void run(tank_t *t, char *line) {
     } else if (!strcmp(c, "buy") && argc > 1) {      /* buy plant|snail|...|shrimp|<species>: the shop's sale, at the price */
         int item = !strcmp(argv[1], "plant") ? 0 : !strcmp(argv[1], "snail") ? 1 : !strcmp(argv[1], "castle") ? 2 : !strcmp(argv[1], "coral") ? 3 : !strcmp(argv[1], "cluster") ? 4 : !strcmp(argv[1], "shrimp") ? 5 : !strcmp(argv[1], "urchin") ? 6 : -1;
         if (item < 0 && species_of(argv[1]) > 0) item = SD_ITEM_SP_FIRST + species_of(argv[1]) - 1;   /* a species' pair */
-        if (item < 0) ESP_LOGW(TAG, "buy plant|snail|castle|coral|cluster|shrimp|urchin|seahorse|octopus|puffer|angler|eel|shark|squid|crab|lobster");
+        if (item < 0) ESP_LOGW(TAG, "buy plant|snail|castle|coral|cluster|shrimp|urchin|seahorse|octopus|puffer|angler|eel|shark|squid|crab|lobster|jellyfish");
         else if (progression_item_species(item) > 0 && !progression_has_room_one(t)) ESP_LOGW(TAG, "%s refused: no room (%d of %d)", SD_ITEMS[item].name, t->n_fish, POP_CAP);
         else if (progression_buy(t, item)) ESP_LOGI(TAG, "%s unlocked, %d sand dollars left%s", SD_ITEMS[item].name, (int)t->sd_balance,
                                                     tank_decor_placeable(item) ? " (`place` opens the placement page)" : "");
         else ESP_LOGW(TAG, "%s refused: owned, or %d < %d", SD_ITEMS[item].name, (int)t->sd_balance, SD_ITEMS[item].price);
     } else if (!strcmp(c, "spawn") && argc > 1) {    /* spawn <species>: a STAGED pair of juveniles, free (the real tank is parked first) */
         int sp = species_of(argv[1]);
-        if (sp < 0) { ESP_LOGW(TAG, "spawn seahorse|octopus|puffer|angler|eel|shark|squid|crab|lobster"); return; }
+        if (sp < 0) { ESP_LOGW(TAG, "spawn seahorse|octopus|puffer|angler|eel|shark|squid|crab|lobster|jellyfish"); return; }
         if (!stage_guard(t)) return;
         if (progression_spawn_pair(t, sp)) { ESP_LOGI(TAG, "a pair of %s by the reef (staged)", SD_ITEMS[SD_ITEM_SP_FIRST + sp - 1].name); show_state(t); }
         else ESP_LOGW(TAG, "no room for two (%d of %d)", t->n_fish, POP_CAP);

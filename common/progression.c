@@ -1,4 +1,5 @@
 #include "progression.h"
+#include "theme.h"
 #include "tank_events.h"
 #include "version.h"
 #include <stddef.h>
@@ -178,6 +179,8 @@ typedef struct {
      * tail of the core's in one. */
     uint8_t  n_fish_all, pad_ext[3];
     fish_ext_save_t fish_ext[N_FISH_MAX - SV_FISH];
+    uint8_t theme;                     /* 0 = Original, including every older save */
+    uint8_t pad_theme[7];
 } save_t;
 /* the smallest PTK2 save (pre-upkeep, 2026-08-30): anything shorter is not
  * ours. Every later build wrote sizeof(save_t) of its day - 448, 1112, 1304,
@@ -268,8 +271,9 @@ _Static_assert(sizeof(save_t) >= 2092, "SAVE LAYOUT LOCK: save_t only ever grows
    many" and falls back to the core's six, the rollback promise as before) */
 _Static_assert(N_FISH_MAX == 25, "SAVE LAYOUT LOCK: fish_ext holds 19 records (fish 7..25)");
 _Static_assert(sizeof(save_t) >= 3592, "SAVE LAYOUT LOCK: save_t only ever grows");
-/* (the next field: SAVE_AT(its_name, 1692 + 100 x (N_FISH_MAX - 6) = 3592) - a bigger N_FISH_MAX
-   needs its own tail then, as fish_ext would no longer be last;) */
+SAVE_AT(theme, 3592); SAVE_AT(pad_theme, 3593);
+_Static_assert(sizeof(save_t) == 3600, "SAVE LAYOUT LOCK: theme tail ends at 3600");
+/* A larger population now needs a separate tail: fish_ext is no longer last. */
 /* NVS budget: the save is one blob in the nvs partition (0x9000, 0x6000 =
  * 6 pages of 4096 B; tools/make_installer.py pins the row). A page is 126
  * entries of 32 B, and NVS keeps one page free for its garbage collection:
@@ -345,6 +349,7 @@ const sd_item_t SD_ITEMS[SD_ITEM_COUNT] = {
     { SD_ITEM_SP_SQUID,    "SQUID",       "A YOUNG ONE. IT JETS AND",  "INKS. TWO OF THEM BREED",     SD_PRICE_SP_SQUID },
     { SD_ITEM_SP_CRAB,     "CRAB",        "A YOUNG ONE THAT WALKS",    "SIDEWAYS. TWO BREED",         SD_PRICE_SP_CRAB },
     { SD_ITEM_SP_LOBSTER,  "LOBSTER",     "A YOUNG FLOOR WALKER.",     "TWO OF THEM BREED",           SD_PRICE_SP_LOBSTER },
+    { SD_ITEM_SP_JELLYFISH,"JELLYFISH",   "A YOUNG ONE. IT PULSES",    "AND DRIFTS. TWO BREED",       SD_PRICE_SP_JELLYFISH },
 };
 _Static_assert(SD_ITEM_SP_FIRST + SP_COUNT - 1 == SD_ITEM_COUNT, "a shop item per species, after the things");
 _Static_assert(SD_ITEM_COUNT <= 32, "sd_unlocks is 32 bits");
@@ -860,6 +865,7 @@ static bool load_save(tank_t *t, int64_t *saved_unix) {
     tank_screen_set(t, sv.screen_turned != 0);
     t->orient_lock = (sv.orient & 1) != 0; if (t->orient_lock) t->orient_inv = (sv.orient & 2) != 0;
     t->autofeed_off = sv.autofeed_off != 0;
+    t->theme = (uint8_t)theme_valid(sv.theme);
     t->light_override = false; t->light_on = true;   /* never restored (2026-09-15): a saved
                                                       * override once froze a tank in permanent day */
     t->feed_spot_x = sv.feed_spot_x; t->player_feedings = sv.player_feedings;
@@ -1106,6 +1112,7 @@ bool progression_save(tank_t *t) {
     sv.screen_turned = t->screen_turned;
     sv.orient = (uint8_t)(t->orient_lock ? 1 | (t->orient_inv ? 2 : 0) : 0);
     sv.autofeed_off = t->autofeed_off;
+    sv.theme = (uint8_t)theme_valid(t->theme);
     sv.arrival_pending = s_arrival_pending;
     sv.n_fish = (uint8_t)(t->n_fish < SV_FISH ? t->n_fish : SV_FISH);   /* an older build loads these six */
     sv.n_fish_all = (uint8_t)t->n_fish;

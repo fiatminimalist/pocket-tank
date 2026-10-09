@@ -207,6 +207,7 @@ const char *const *progression_fry_tip(int kind);
 #define SD_PRICE_SP_PUFFER    10
 #define SD_PRICE_SP_SQUID     10
 #define SD_PRICE_SP_LOBSTER   10
+#define SD_PRICE_SP_JELLYFISH 10
 #define SD_PRICE_SP_OCTOPUS   10
 #define SD_PRICE_SP_ANGLER    10
 #define SD_PRICE_SP_EEL       10

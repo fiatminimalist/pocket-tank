@@ -290,3 +290,28 @@ a shipped model) and torch on CPU:
   `fishsim --selftest-llm` with `POCKET_MODEL` / `POCKET_TOKENIZER` prints
   "schema v5" and passes; `--selftest-encoder` + encoder_agree.py: 60 C lines
   (10 species) and 3,000 Python lines agree.
+
+## The jellyfish (2026-10-09): one species on top of a shipped model
+
+A species added after v5m: no new schema, one word. The recipe, for the next
+one:
+
+1. The word: `train_tokenizer.py` `SPECIES_WORDS` + `"jellyfish"` (APPENDED -
+   id 65, vocab 66) and `gen_traces.py` `SPECIES` (its traits from tank.c),
+   `_habitat` (where it lives), `rules_goal` (the smoke teacher), one
+   sentence in `SPECIES_PROMPT_V5` (never touch the rest); `prompt_check.py`
+   cases + checks; `probe_dist.py` `RANGES`.
+2. The gate: `prompt_check.py --schema 5` (854 calls, ~25 min on the 1070 box):
+   the jellyfish checks pass and the old ones did not move.
+3. Its own labels: `out/run_label_v5j.sh` - `--focus jellyfish --focus-share 0.8
+   --fish-share 0.25` (~55 % of the states are jellyfish), 6,000 states over
+   the two teachers.
+4. `out/run_train_v5j.sh`: fold -> `v5f_train.jsonl` + the jellyfish ->
+   `tokenizer_v5j.bin` -> train 7,000 iters on CPU -> export -> probe -> eval
+   (>= 72 % overall and per species, the jellyfish included).
+5. Ship as v5m was (RESUME_v5.md step 5): `model_q4.bin`, `tokenizer.bin`,
+   `firmware/main/tokenizer.bin`, `PT_MODEL_*`. The tokenizer may go out
+   before the model: the C advisor sends `species jellyfish` only when the
+   loaded vocab has the word (`advisor_core_species_word`), else `species fish`.
+
+Numbers: docs/stats.md "The jellyfish, v5j".

@@ -194,6 +194,7 @@ extern const char *const TRAINED_NAMES[N_TRAINED_NAMES]; /* mira bolt kelp nori 
  * how it looks (render.c). SP_FISH is 0, so every older save reads as fish. */
 typedef enum { SP_FISH, SP_SEAHORSE, SP_OCTOPUS, SP_PUFFER, SP_ANGLER, SP_EEL, SP_SHARK, SP_SQUID,
                SP_CRAB, SP_LOBSTER,     /* the floor's two (2026-10-05, the same day) */
+               SP_JELLYFISH,           /* appended: persisted species IDs never move */
                SP_COUNT } species_t;
 #define SP_VARIANTS 4            /* designs a species (fish_t.variant) */
 #define SP_MUTATE_P 0.04f        /* a classic fish's fry hatching as a new species */
@@ -386,6 +387,8 @@ typedef struct {
                              * the tail grips the stem at (x + facing * 5 * size, y + 10 * size) */
     uint8_t sp_mode;        /* the species' reflex in play (SPM_*): a jet, the eel's breath, the crab's claws, the flip */
     float  sp_t;            /* its timer (and the walkers' stop-and-go, the seahorse's snick, the angler's lunge) */
+    float flourish_wait, surface_s; /* transient: idle event countdown; positive rise/float, negative return */
+    uint16_t flourish_cycle;       /* staggered events; never persisted */
     float  sp_x;            /* the anglerfish's home spot along the floor (-1 = not yet) */
 } fish_t;
 /* fish_t.sp_mode (not saved) */
@@ -452,6 +455,7 @@ typedef struct tank {
     bool     light_manual_off;     /* MANUAL: the keeper's last double-tap left it off (saved) */
     bool     light_tip_seen;       /* a double-tap has turned the light off once: its notice (notice.h
                                     * NOTICE_LIGHTS_OUT) came up then, and never again (saved) */
+    uint8_t  theme;                /* theme_id_t: presentation only; persisted in an append-only tail */
     bool     screen_turned;        /* a worn tank (TANK_WORN): settings SCREEN = TURNED (saved) */
     bool     orient_lock;          /* settings ROTATION = locked (0.3.2, saved): the picture keeps the way up it
                                     * had when the keeper locked it, however the tank is turned (tank_orient) */
@@ -913,7 +917,7 @@ enum { SD_ITEM_PLANT = 1u << 0, SD_ITEM_SNAIL = 1u << 1, SD_ITEM_CASTLE = 1u << 
           locks the item - a creature sells whenever there is a free place. */
        SD_ITEM_SP_SEAHORSE = 1u << 7, SD_ITEM_SP_OCTOPUS = 1u << 8, SD_ITEM_SP_PUFFER = 1u << 9, SD_ITEM_SP_ANGLER = 1u << 10,
        SD_ITEM_SP_EEL = 1u << 11, SD_ITEM_SP_SHARK = 1u << 12, SD_ITEM_SP_SQUID = 1u << 13, SD_ITEM_SP_CRAB = 1u << 14,
-       SD_ITEM_SP_LOBSTER = 1u << 15, SD_ITEM_COUNT = 16 };
+       SD_ITEM_SP_LOBSTER = 1u << 15, SD_ITEM_SP_JELLYFISH = 1u << 16, SD_ITEM_COUNT = 17 };
 #define SD_ITEM_SP_FIRST 7         /* the item index of the first species (the seahorse) */
 /* per-fish paid bits (sd_paid_fish) */
 enum { SD_PAID_JUV = 1u << 0, SD_PAID_ADULT = 1u << 1, SD_PAID_ELDER = 1u << 2, SD_PAID_TRUST = 1u << 3 };

@@ -69,6 +69,6 @@ reset the chip before anyone read the log.
   2026-09-24 13:15, archive docs/batlog/2026-09-24_1315.txt). The battery
   page's history lives in NVS namespace "bat" (fresh at that flash).
 - Model partition: v4m (model_q4_v4m.bin, flashed 2026-09-15 ~06:00). Next flash:
-  v5m (model/out/model_q4.bin since 2026-10-07; `tools/flash.sh --model`, with
+  v5j (model/out/model_q4.bin since 2026-10-09, the jellyfish; v5m before it, 2026-10-07; `tools/flash.sh --model`, with
   the firmware's v5 tokenizer - the two go together).
 - Save: mem + lira (juveniles, 0.7 h old, 20 sand dollars) at the 2026-09-24 13:15 flash - the morning's lori / mira / bolt / sol / kelp were already gone in that preflight archive (wiped between 11:16 and 13:15).

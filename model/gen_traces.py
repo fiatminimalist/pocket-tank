@@ -65,9 +65,11 @@ SPECIES = {
     "squid":    (0.30, 0.60, 0.70, 0.95, 6.0, 0.3, 0.65, "school"),
     "crab":     (0.40, 0.80, 0.20, 0.50, 6.5, 0.5, 0.50, "floor"),
     "lobster":  (0.50, 0.85, 0.05, 0.25, 5.5, 0.6, 0.40, "floor"),
+    "jellyfish": (0.10, 0.40, 0.40, 0.75, 5.0, 0.7, 0.40, "drift"),   # appended 2026-10-09 (vocab id 65)
 }
 SPECIES_TOKENS = list(SPECIES)
 FISH_SHARE = 1 / 3          # the classic fish's share of v5 creatures (the old behaviour stays the anchor)
+FOCUS, FOCUS_SHARE = None, 0.0   # --focus: a species added later gets a run of its own (the jellyfish, 2026-10-09)
 FLOOR_Y = TANK_H - 55       # floor walkers keep below this (the C tank's floor band)
 
 
@@ -217,6 +219,16 @@ SPECIES_PROMPT_V5 = (
     "it explores the floor and rocks or seeks food, and chooses rest only when its "
     "energy is very low. It never follows a friend; its dart_play is a backward "
     "tail-flip, rare. "
+    "jellyfish: a gentle drifter with hardly a will of its own - whatever its "
+    "energy, its default is a slow drift through the open water (explore) or "
+    "hanging still in mid-water (rest): choose one of those two for a jellyfish "
+    "unless hunger, boredom or the night rule says otherwise. It cannot sprint, "
+    "so it never darts; the reef holds little for it (inspect_reef is rare). The "
+    "one pull it cannot resist is the bubble column's current: with bubble near, "
+    "visit_bubbles is a frequent choice for a jellyfish (about a third of the "
+    "time), with bubble mid or far it never goes; it follows a friend only when it is strongly "
+    "social (social 7 or more) and the friend is near, and then gently. Food "
+    "drifting by is eaten like anyone's. "
     "A species' temperament never overrides hunger (a starving creature with food "
     "in view seeks food) or boredom (a bored creature still changes pastime), and "
     "its bold / social / curiosity numbers already lean its species' way. "
@@ -273,6 +285,8 @@ def species_mix(rng, n):
     while len(out) < n:
         if rng.random() < FISH_SHARE:
             sp = "fish"
+        elif FOCUS and rng.random() < FOCUS_SHARE:
+            sp = FOCUS                  # the focus run: the newcomer takes most of the new-species places
         else:                       # the new species from a shuffled bag: equal shares, not luck's
             if not _species_bag:
                 _species_bag.extend(SPECIES_TOKENS[1:])
@@ -621,6 +635,13 @@ class Tank:
             spot = rng.choice([self.reef, self.bubble])
             f.x = max(5, min(TANK_W - 5, spot[0] + rng.uniform(-90, 90)))
             f.y = max(5, min(TANK_H - 5, spot[1] + rng.uniform(-60, 60)))
+        elif sp == "jellyfish":                     # drifting in the open water, often in the bubbles' current
+            if rng.random() < 0.35:
+                f.x = max(5, min(TANK_W - 5, self.bubble[0] + rng.uniform(-70, 70)))
+                f.y = max(5, min(TANK_H - 5, self.bubble[1] + rng.uniform(-80, 80)))
+            else:
+                f.x = rng.uniform(60, TANK_W - 60); f.y = rng.uniform(40, TANK_H - 110)
+            f.energy = rng.randint(3, 9)
         f.x = max(5, min(TANK_W - 5, f.x)); f.y = max(5, min(TANK_H - 5, f.y))
         if sp in ("lobster", "eel") and rng.random() < 0.4:
             self.night = True                       # the night hunters' hours
@@ -804,10 +825,11 @@ def rules_goal(state, rng):
         "squid": {"explore": 2, "visit_bubbles": 1, "inspect_reef": 1},
         "crab": {"explore": 4, "inspect_reef": 3, "visit_bubbles": 1},
         "lobster": {"rest": 6, "explore": 1, "visit_bubbles": 0, "inspect_reef": 1},
+        "jellyfish": {"explore": 4, "rest": 3, "visit_bubbles": 2, "inspect_reef": 0},
     }.get(sp, {}))
     if friend != "none" and sp not in ("lobster", "octopus", "angler"):
         weights["follow_friend"] = 6 if sp == "squid" else 3 if v.get("social", 0) >= 7 else 0
-    if v.get("bold", 0) >= 5 and energy >= 6 and sp not in ("seahorse", "angler"):
+    if v.get("bold", 0) >= 5 and energy >= 6 and sp not in ("seahorse", "angler", "jellyfish"):
         weights["dart_play"] = 2
     if bored >= 7 and last in weights:
         weights[last] = 0
@@ -886,16 +908,21 @@ def main():
                     help="rules = a rule policy instead of Ollama (pipeline smoke tests only)")
     ap.add_argument("--fish-share", type=float, default=None,
                     help="v5: the classic fish's share of creatures (default 1/3; the old data is all fish)")
+    ap.add_argument("--focus", default=None, choices=SPECIES_TOKENS[1:],
+                    help="v5: a species that takes --focus-share of the new-species places (a newcomer's own run)")
+    ap.add_argument("--focus-share", type=float, default=0.8)
     ap.add_argument("--repopulate", type=int, default=None,
                     help="v3: rebuild the tank with a new random population every N samples")
     args = ap.parse_args()
     if args.repopulate is None:     # v5: shorter runs of a tank - ten species to see
         args.repopulate = 60 if args.schema >= 5 else 250
-    global SCHEMA, TEACHER, FISH_SHARE
+    global SCHEMA, TEACHER, FISH_SHARE, FOCUS, FOCUS_SHARE
     SCHEMA = args.schema
     TEACHER = args.teacher
     if args.fish_share is not None:
         FISH_SHARE = args.fish_share
+    if args.focus:
+        FOCUS, FOCUS_SHARE = args.focus, args.focus_share
     deadline = time.time() + args.max_minutes * 60 if args.max_minutes else None
 
     rng = random.Random(args.seed)
