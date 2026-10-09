@@ -2945,7 +2945,18 @@ static void draw_wreck_live(ctx_t *c, int cx, float clock, int *bx0, int *by0, i
     float kick = sinf(clock * 2.2f) * 2;
     fill_ellipse(c, fx - 4, fy - 1, 2.2f, 5, 0x7f8a8f, 255);                      /* the air tank */
     fill_ellipse(c, fx, fy, 3.6f, 6, suit, 255);                                  /* the torso */
-    { float px[4] = { fx + 2, fx + 9, fx + 9, fx + 2 }, py[4] = { fy - 3, fy - 6 + kick * 0.3f, fy - 4 + kick * 0.3f, fy - 1 }; fill_poly(c, px, py, 4, suit); }   /* an arm out */
+    /* an arm out - and now and then (2026-10-10) a wave: every 23 s, for 2.6 s, the arm goes up
+       and the forearm swings from the elbow, a glove at its end */
+    float wph = fmodf(clock, 23.0f);
+    if (wph < 2.6f) {
+        float swing = sinf(clock * 9.0f) * 0.55f, lift = fminf(1, wph * 4) * fminf(1, (2.6f - wph) * 4);   /* up fast, down fast */
+        float ex = fx + 6, ey = fy - 3 - 7 * lift;                                                              /* the elbow, raised */
+        float hx = ex + sinf(swing) * 7 * lift + (1 - lift) * 3, hy = ey - cosf(swing) * 7 * lift;              /* the hand */
+        { float px[4] = { fx + 2, ex + 1.2f, ex - 1.2f, fx + 2 }, py[4] = { fy - 3, ey, ey, fy - 1 }; fill_poly(c, px, py, 4, suit); }
+        { float dx = hx - ex, dy = hy - ey, l = sqrtf(dx * dx + dy * dy) + 1e-3f, nx = -dy / l * 1.1f, ny = dx / l * 1.1f;
+          float px[4] = { ex + nx, hx + nx, hx - nx, ex - nx }, py[4] = { ey + ny, hy + ny, hy - ny, ey - ny }; fill_poly(c, px, py, 4, suit); }
+        fill_ellipse(c, hx, hy, 1.6f, 1.6f, 0x1d2a33, 255);
+    } else { float px[4] = { fx + 2, fx + 9, fx + 9, fx + 2 }, py[4] = { fy - 3, fy - 6 + kick * 0.3f, fy - 4 + kick * 0.3f, fy - 1 }; fill_poly(c, px, py, 4, suit); }
     { float px[4] = { fx - 2, fx - 1, fx + 1, fx }, py[4] = { fy + 5, fy + 12 + kick, fy + 12 + kick, fy + 5 }; fill_poly(c, px, py, 4, suit); }   /* a leg */
     { float px[4] = { fx + 1, fx + 3, fx + 4, fx + 2 }, py[4] = { fy + 5, fy + 12 - kick, fy + 12 - kick, fy + 5 }; fill_poly(c, px, py, 4, suit); }
     fill_ellipse(c, fx - 0.5f, fy + 13 + kick, 3, 1.3f, 0x1d2a33, 255);           /* the flippers */
@@ -2962,7 +2973,7 @@ static void draw_wreck_live(ctx_t *c, int cx, float clock, int *bx0, int *by0, i
         fill_ellipse(c, bx, by, r, r, theme_active() == THEME_TIDEPOOL_CLUB ? 0x3d8e83 : 0xc4e6d1, a);
         if (r > 1.2f) px_blend(c, (int)(bx - 0.4f), (int)(by - 0.5f), 0xffffff, 110);
     }
-    *bx0 = (int)fminf(mx0, sx) - 2; *bx1 = mx1 + 2; *by0 = my0 - 2; *by1 = (int)(fy + 16) + 2;
+    *bx0 = (int)fminf(mx0, sx) - 2; *bx1 = (int)fx + 16; *by0 = my0 - 2; *by1 = (int)(fy + 16) + 2;   /* wide enough for the wave */
     if (sy + 6 > *by1) *by1 = (int)sy + 6;
 }
 
