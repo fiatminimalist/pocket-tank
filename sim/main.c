@@ -3979,6 +3979,9 @@ static int selftest_shop(void) {
             shop_tap(SHOP_ROW_X, SHOP_ROW_Y(item % SHP_PER_PAGE)); render_shop(&tank, fb, TANK_W);
             int r = shop_tap(SHOP_BTN_X, SHOP_BTN_Y);
             if (r != SHOP_TAP_BUY + item) { printf("FAIL: the %s modal's UNLOCK returned %d\n", it->name, r); return 1; }
+            /* decoded as the firmware decodes it (main.c: SELL before MOVE before BUY) - the jellyfish, item 16,
+               once came back as MOVE + 0, the sword plant's placement page (2026-10-10) */
+            if (r >= SHOP_TAP_SELL || r >= SHOP_TAP_MOVE || r - SHOP_TAP_BUY != item) { printf("FAIL: the %s's UNLOCK decodes as %s item %d\n", it->name, r >= SHOP_TAP_SELL ? "SELL" : r >= SHOP_TAP_MOVE ? "MOVE" : "BUY", r >= SHOP_TAP_SELL ? r - SHOP_TAP_SELL : r >= SHOP_TAP_MOVE ? r - SHOP_TAP_MOVE : r - SHOP_TAP_BUY); return 1; }
             render_shop_leave();
             /* one a purchase (2026-10-07): the first joins alone, its bit rises */
             if (!progression_buy(&tank, item) || tank.n_fish != n0 + 1 || tank.sd_balance != 0 || !(tank.sd_unlocks & it->bit)) {

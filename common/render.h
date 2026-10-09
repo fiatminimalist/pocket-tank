@@ -242,7 +242,10 @@ void render_milestones_leave(void);
  * to the milestones page, 2026-09-16),
  * SHOP_TAP_KEPT when a modal opened or closed. Page state is render-local;
  * render_shop_leave clears it when the page closes. */
-enum { SHOP_TAP_NONE = 0, SHOP_TAP_KEPT = 1, SHOP_TAP_CLOSE = 2, SHOP_TAP_BUY = 16, SHOP_TAP_MOVE = 32, SHOP_TAP_SELL = 64 };   /* BUY / MOVE / SELL + item index */
+enum { SHOP_TAP_NONE = 0, SHOP_TAP_KEPT = 1, SHOP_TAP_CLOSE = 2, SHOP_TAP_BUY = 64, SHOP_TAP_MOVE = 128, SHOP_TAP_SELL = 192 };   /* BUY / MOVE / SELL + item index */
+/* the bases were 16 apart until 2026-10-10: the jellyfish, item 16, bought as BUY + 16 = MOVE + 0 -
+ * the sword plant's placement page opened and nothing was bought. 64 apart; the guard keeps it so. */
+_Static_assert(SD_ITEM_COUNT <= SHOP_TAP_MOVE - SHOP_TAP_BUY && SD_ITEM_COUNT <= SHOP_TAP_SELL - SHOP_TAP_MOVE, "shop tap codes: an item index must not reach the next base");
 /* SHOP_TAP_SELL (2026-09-24): an owned placeable piece's modal has SELL next
  * to MOVE; the first tap arms it ("+30 OK?"), the second returns SELL + item
  * and the platform calls progression_sell. Test SELL before MOVE before BUY. */
