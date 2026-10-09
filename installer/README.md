@@ -4,7 +4,11 @@ Plug the board in, open a page, click Install: the same "flash it from the
 browser" flow ESPHome and Home Assistant use ([ESP Web
 Tools](https://esphome.github.io/esp-web-tools/), Apache-2.0, vendored under
 `vendor/`). Chrome or Edge on a desktop; it uses Web Serial, which Safari
-and Firefox don't have.
+and Firefox don't have. Chrome on Android works too (2026-10-10): it has WebUSB
+but no Web Serial, so the page installs Google's web-serial-polyfill (vendored under
+`vendor/web-serial-polyfill/`, Apache-2.0) as `navigator.serial` only when Web Serial
+is missing, and ESP Web Tools runs unchanged over the board's USB CDC interface.
+`?polyfill=1` forces it on a desktop for testing. iOS has neither API.
 
 ## Build the upload folder
 
