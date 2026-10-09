@@ -4,6 +4,14 @@ Open **Settings → SETTINGS / THEMES** in Original, or **Settings → Theme** i
 
 Original is the default for new tanks and existing saves. It keeps the original tank art, fonts, menus and character wheel, with a theme entry added to the settings heading. Quiet Lagoon implements the approved Living Lagoon direction with layered teal water, shaded naturalistic creatures, soft baked light shafts and dark-glass controls. Tidepool Club uses pale water, cream panels, green controls and bolder lettering. All three retain the live procedural creatures, their growth stages, animations and individual saved colours.
 
+Since 2026-10-10 the two new themes run about 20 % darker than their design studies
+(Quiet Lagoon's water, sand and panels scaled by 0.8; Tidepool Club's by 0.82 / 0.78 / 0.72
+on red / green / blue so it keeps its warmth): an AMOLED spends power on every lit pixel,
+and a bright water field shown all day risks burn-in. Text, accents and gold are unchanged.
+Also since that day a lagoon creature keeps its body through a turn: `lagoon_volume` draws
+a shaded cross-section that widens as it faces the glass (the species sheet's turns page,
+`fishsim --theme 1 --species-sheet <prefix>`, shows every creature side-on, mid-turn and head-on).
+
 The modern settings and seven-character naming wheel use device-specific safe bounds for the 448×368 rectangle, 466×466 circular pendant and 410×502 watch. Naming still uses the original character roll: tap a slot, swipe vertically or tap its arrows, then Done; Cancel restores the previous name.
 
 ## Assets and rebuilds

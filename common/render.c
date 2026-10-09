@@ -2148,8 +2148,8 @@ static void draw_floor_mound(ctx_t *c, int cx, int half_w, int rise, bool final)
             if (up > 0) col = mix(col, 0x56684f, 0.25f + 0.40f * up);   /* the hump rises into the light; its skirt is the floor */
             if (up > 0.15f && (chash(x, y) & 15) == 0) col = 0x6e7f66;   /* a few lit grains */
             if(theme_active()==THEME_QUIET_LAGOON) {
-                col=mix(0x98a68e,0xc5c5aa,clamp01(up)*.55f);
-                if((h2%37)==0)col=mix(col,0xe2dfbf,.2f);
+                col=mix(0x798471,0x9d9d88,clamp01(up)*.55f);
+                if((h2%37)==0)col=mix(col,0xb4b298,.2f);
             }
             uint16_t *p = &CTX_PX(c, x, y);
             *p = rgb565(col, c->dim);
@@ -2873,8 +2873,8 @@ static inline uint32_t floor_rgb(int x, int y) {
     if(theme_active()==THEME_QUIET_LAGOON) {
         unsigned grain=(unsigned)x*73856093u^(unsigned)y*19349663u;
         float depth=clamp01((y-(TANK_BOT-14))/(float)(TANK_H-(TANK_BOT-14)));
-        uint32_t sand=mix(0xb7b8a0,0x627f6d,depth*.65f);
-        return grain%37==0?mix(sand,0xd7d7bc,.2f):grain%41==0?mix(sand,0x47695e,.25f):sand;
+        uint32_t sand=mix(0x929380,0x4e6557,depth*.65f);
+        return grain%37==0?mix(sand,0xacac96,.2f):grain%41==0?mix(sand,0x38544b,.25f):sand;
     }
     if (theme_active()) {
         const uint32_t *sand = theme_palette(theme_active())->sand;
