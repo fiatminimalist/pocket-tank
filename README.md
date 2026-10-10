@@ -484,17 +484,12 @@ it.
 
 **Four themes.** Settings → SETTINGS / THEMES picks the look: Original, Quiet
 Lagoon, Tidepool Club, and since 2026-10-10 Blackwater - the realistic one.
-Near-black water over dark volcanic sand, and the sun's light moving through
-it every frame: the surface is a sum of real deep-water waves, each ray is
-refracted by the slope where it enters, and the water is bright exactly where
-the rays crowd (a deposit, so energy is conserved) - soft shafts leaning from
-the high sun, caustic ribbons that sharpen with depth and drift with the waves,
-a net of light cells creeping over the sand, a wavy mirror line with the sun's
-glints under the surface; moonlight, a third as bright and blue, at night. The
-creatures are drawn as the real animals (countershading, rayed fins, real eyes,
-scales, suckers, shells) in vivid colours lifted from the ones you chose, so
-they stand off the dark water; the castle slot holds a sunken Mayan step
-pyramid and the wreck slot a fighter plane. docs/THEMES.md has the details.
+Near-black water over dark volcanic sand, and the creatures drawn as the real
+animals (countershading, rayed fins, real eyes, scales, suckers, shells) in
+vivid colours lifted from the ones you chose, so they stand off the dark water;
+the castle slot holds a sunken Mayan step pyramid and the wreck slot a fighter
+plane. (A moving caustic light lived in it for a few hours that night and was
+taken out again.) docs/THEMES.md has the details.
 
 **One settings page.** Since 2026-10-10 every theme uses the same settings
 layout - the rows of segments and arrows, the foot of UPDATES / ABOUT / RESET /
@@ -867,7 +862,7 @@ seven-minute prompt check before an overnight run is always worth it.
 - ✅ Sand dollars: care earns points, the shop spends them; a sword plant,
   an algae-grazing snail, a swim-through castle, a sunken wreck (a different boat in each theme), a drifting frogman and a cruising submarine with a periscope; what you buy you place yourself,
   (four themes: Original, Quiet Lagoon, Tidepool Club and the realistic
-  Blackwater with its moving sunlight)
+  Blackwater)
   where along the floor and whether it stands behind, among or in front
   of the fish
 - ✅ Browser installer: one click from Chrome or Edge, from the hosted

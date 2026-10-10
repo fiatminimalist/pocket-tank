@@ -3587,174 +3587,11 @@ static void bake_scene(const tank_t *t, uint16_t *sc, float dim) {
     g_rec = NULL;
 }
 
-/* ---- the Blackwater light (2026-10-10, Alvin: "accurate moving reflective lighting in the water") ----
- * Sunlight through a rippled surface, computed every frame from the physics rather than painted:
- * the surface is a sum of four deep-water waves (dispersion: the long ones travel faster), a ray
- * entering at u refracts by (1 - 1/n) of the surface slope there and lands at u + d * slope / 4 at
- * depth d, and the light at a depth is where the rays CROWD - a deposit of equal rays, its density
- * the brightness, so energy is conserved: a caustic is bright exactly because the water beside it
- * is dark. Ten depth bands hold that 1-D pattern (a sheet of light seen edge-on: near the surface
- * nothing, the ribbons sharpening and drifting with depth), the floor takes the deepest band crossed
- * with a second wave set running into the screen (the net of cells on the sand), and the top rows
- * show the surface's underside - a wavy mirror line with the sun's glints. The frame is lit in
- * 2 x 2 blocks after everything else is drawn (the fish, the decor, the sand all take the same
- * light); a ribbon is never thinner than 3 px after the blur, so the half resolution never shows.
- * ~2 ms a frame on the S3 for the whole water (PROF stage 1, the old shafts' slot). Moonlight at
- * night: a third as bright, blue. The sun is high and left: the shafts lean right going down. */
-#define BW_NB      10                                   /* depth bands of the water column */
-#define BW_MARG    144                                  /* px beyond either edge a ray may land from */
-#define BW_LW      ((TANK_W + 2 * BW_MARG) / 2)         /* a band row, per 2 px */
-#define BW_FLOOR_TOP (TANK_BOT - 20)
-#define BW_ZN      ((TANK_H - BW_FLOOR_TOP + 1) / 2)    /* floor row pairs */
-#define BW_ZW      (BW_ZN + 64)                         /* the z axis with its margins */
-static uint8_t g_bw_band[BW_NB][BW_LW];
-static uint8_t g_bw_floor[BW_LW];
-static uint8_t g_bw_z[BW_ZW];
-static int16_t g_bw_hgt[TANK_W / 2 + 1];                /* the surface's height per pixel pair, 1/16 px */
-static int8_t  g_bw_slp[TANK_W / 2 + 1];                /* its slope, 1/64 */
-static uint8_t g_bw_ar[256], g_bw_ag[256], g_bw_ab[256];   /* the lighten LUT: 5/6/5 steps per light level */
-static int     g_bw_lut_for = -1;                       /* the LUT's night flag (-1: never filled) */
-typedef struct { float lambda, amp, dir, phase; } bw_wave_t;
-static const bw_wave_t BW_WX[4] = { {92, 3.1f, 1, 0.3f}, {55, 1.7f, -1, 2.1f}, {31, 0.32f, 1, 4.0f}, {17, 0.11f, 1, 1.2f} };
-static const bw_wave_t BW_WZ[3] = { {74, 2.6f, 1, 1.7f}, {41, 1.3f, -1, 0.4f}, {23, 0.3f, 1, 3.3f} };
-/* the slope of a wave set at u (px along its axis) at time t: d/du of sum A sin(k u - w t + p),
-   w = k c with c = 26 px/s * sqrt(lambda / 92) (deep water: the long waves outrun the short) */
-static float bw_slope(const bw_wave_t *w, int n, float u, float t, float *height) {
-    float s = 0, h = 0;
-    for (int i = 0; i < n; i++) {
-        float k = TAU / w[i].lambda, c = 26.0f * sqrtf(w[i].lambda / 92.0f);
-        float ph = k * u - w[i].dir * k * c * t + w[i].phase;
-        ph -= floorf(ph / TAU) * TAU;
-        s += w[i].amp * k * fast_sin(ph + TAU * 0.25f);
-        if (height) h += w[i].amp * fast_sin(ph);
-    }
-    if (height) *height = h;
-    return s;
-}
-/* rays from u = u0 + 2 i (i < n) refracted by slope[i] land at depth d; out[j] = the light at
-   index j (2 px wide, u = u0 + 2 j): the deposit's density over the mean (64 per index), blurred,
-   times gain / 64 */
-static void bw_deposit(uint8_t *out, int n, const float *slope, float d, float lean, int gain, bool soft) {
-    static uint16_t acc[BW_LW > BW_ZW ? BW_LW : BW_ZW];
-    memset(acc, 0, n * sizeof acc[0]);
-    for (int i = 0; i < n; i++) {
-        float x = i + d * (lean + slope[i] * 0.25f) * 0.5f;
-        int xi = (int)x;
-        if (x < 0 || xi >= n - 1) continue;
-        int f = (int)((x - xi) * 64);
-        acc[xi] += (uint16_t)(64 - f); acc[xi + 1] += (uint16_t)f;
-    }
-    for (int i = 0; i < n; i++) {
-        int l = i ? acc[i - 1] : acc[i], r = i < n - 1 ? acc[i + 1] : acc[i];
-        int v = (l + 2 * acc[i] + r) / 4 - 64;
-        if (soft) {
-            int ll = i > 1 ? acc[i - 2] : l, rr = i < n - 2 ? acc[i + 2] : r;
-            v = (ll + 2 * l + 3 * acc[i] + 2 * r + rr) / 9 - 64;
-        }
-        v = v <= 0 ? 0 : v * gain / 64;
-        out[i] = (uint8_t)(v > 255 ? 255 : v);
-    }
-}
-static void bw_light_update(float clock, bool night) {
-    float t = fmodf(clock, 3600.0f);
-    static float slope[BW_LW > BW_ZW ? BW_LW : BW_ZW];
-    for (int i = 0; i < BW_LW; i++) {
-        float h;
-        slope[i] = bw_slope(BW_WX, 4, -BW_MARG + 2.0f * i, t, &h);
-        int x2 = i - BW_MARG / 2;
-        if (x2 >= 0 && x2 <= TANK_W / 2) { g_bw_hgt[x2] = (int16_t)(h * 16); g_bw_slp[x2] = (int8_t)(slope[i] * 64); }
-    }
-    for (int b = 0; b < BW_NB; b++) bw_deposit(g_bw_band[b], BW_LW, slope, b * (float)TANK_BOT / (BW_NB - 1), 0.17f, 300, true);
-    bw_deposit(g_bw_floor, BW_LW, slope, (float)TANK_BOT, 0.17f, 300, false);
-    for (int i = 0; i < BW_ZW; i++) slope[i] = bw_slope(BW_WZ, 3, -64 + 2.0f * i, t, NULL);
-    bw_deposit(g_bw_z, BW_ZW, slope, (float)TANK_BOT, 0, 300, false);
-    if (g_bw_lut_for != (int)night) {
-        /* sunlight through blue water (warm-white, the red eaten first); moonlight a cool blue third */
-        float kr = night ? 0.12f : 0.55f, kg = night ? 0.20f : 0.92f, kb = night ? 0.36f : 1.0f;
-        for (int l = 0; l < 256; l++) {
-            g_bw_ar[l] = (uint8_t)(l * kr * 31 / 255 + 0.5f);
-            g_bw_ag[l] = (uint8_t)(l * kg * 63 / 255 + 0.5f);
-            g_bw_ab[l] = (uint8_t)(l * kb * 31 / 255 + 0.5f);
-        }
-        g_bw_lut_for = (int)night;
-    }
-}
-static inline void bw_lighten(uint16_t *p, int l) {
-    int v = *p;
-    int r = (v >> 11) + g_bw_ar[l], g = ((v >> 5) & 63) + g_bw_ag[l], b = (v & 31) + g_bw_ab[l];
-    if (r > 31) r = 31;
-    if (g > 63) g = 63;
-    if (b > 31) b = 31;
-    *p = (uint16_t)((r << 11) | (g << 5) | b);
-}
-/* the light at a block, less the vignette's darkening there (the LUT when the scene cache holds
-   one, else computed): the glass's dark rim takes little */
-#define BW_VIG(x, y) (vig ? vig[(y) * TANK_W + (x)] : vig_alpha((x), (y)))
-static void bw_light_apply(uint16_t *fb, int stride) {
-    const uint8_t *vig = g_vig && g_vig_filled ? g_vig : NULL;
-    /* the water column: 2 x 2 blocks, the band pair of the row blended, fading a little with depth */
-    for (int y = 0; y < BW_FLOOR_TOP; y += 2) {
-        int fb16 = y * (BW_NB - 1) * 256 / TANK_BOT, b = fb16 >> 8, f = fb16 & 255;
-        if (b >= BW_NB - 1) { b = BW_NB - 2; f = 255; }
-        const uint8_t *la = g_bw_band[b] + BW_MARG / 2, *lb = g_bw_band[b + 1] + BW_MARG / 2;
-        int rowgain = 48 - y * 18 / TANK_BOT;                 /* 19 % at the surface, 12 % at the floor */
-        uint16_t *row0 = fb + y * stride, *row1 = y + 1 < TANK_H ? row0 + stride : row0;
-        for (int x = 0; x < TANK_W; x += 2) {
-            int i = x >> 1, l = la[i] | lb[i];
-            if (!l) continue;
-            l = ((la[i] * (256 - f) + lb[i] * f) >> 8) * rowgain >> 8;
-            int a = BW_VIG(x, y);
-            if (a) l = l * (256 - a) >> 8;
-            if (!l) continue;
-            bw_lighten(row0 + x, l); bw_lighten(row0 + x + 1, l);
-            bw_lighten(row1 + x, l); bw_lighten(row1 + x + 1, l);
-        }
-    }
-    /* the sand: the deepest band's ribbons crossed with the second axis - cells that creep */
-    for (int y = BW_FLOOR_TOP; y < TANK_H; y += 2) {
-        int zl = g_bw_z[32 + (y - BW_FLOOR_TOP) / 2];
-        if (!zl) continue;
-        const uint8_t *lf = g_bw_floor + BW_MARG / 2;
-        uint16_t *row0 = fb + y * stride, *row1 = y + 1 < TANK_H ? row0 + stride : row0;
-        for (int x = 0; x < TANK_W; x += 2) {
-            int l = lf[x >> 1];
-            if (!l) continue;
-            l = (l * zl >> 8) * 380 >> 8;
-            if (l > 255) l = 255;
-            int a = BW_VIG(x, y);
-            if (a) l = l * (256 - a) >> 8;
-            if (!l) continue;
-            bw_lighten(row0 + x, l); bw_lighten(row0 + x + 1, l);
-            bw_lighten(row1 + x, l); bw_lighten(row1 + x + 1, l);
-        }
-    }
-    /* the surface's underside (rows 0..14): the mirror line riding the waves, the sun's glint where
-       the slope faces it, a breath of light under the line */
-    for (int x = 0; x < TANK_W; x += 2) {
-        int x2 = x >> 1;
-        int e = 7 + g_bw_hgt[x2] / 16;
-        if (e < 1) e = 1;
-        if (e > 13) e = 13;
-        int s = g_bw_slp[x2];
-        int glint = 90 - (s - 9) * (s - 9) * 2;             /* brightest where the slope is ~0.14 toward the sun */
-        if (glint < 0) glint = 0;
-        int a = BW_VIG(x, e);
-        if (a > 200) continue;
-        for (int y = e - 1; y <= e + 4 && y < TANK_H; y++) {
-            int l = y < e ? 70 + glint : y == e ? 120 + glint : (5 - (y - e)) * 24;
-            l = l * (256 - a) >> 8;
-            bw_lighten(fb + y * stride + x, l); bw_lighten(fb + y * stride + x + 1, l);
-        }
-    }
-}
-
 void render_tank(const tank_t *t, uint16_t *fb, int stride) {
     render_use_theme(t->theme);
     float dim = t->night ? 0.45f : 1.0f;
     ctx_t c = ctx_full(fb, stride, dim);
     int64_t p0 = PROF_MARK();
-    bool bw_light = theme_active() == THEME_BLACKWATER;
-    if (bw_light) bw_light_update(t->clock, t->night);
     bool cached = g_scene && g_dirty && stride == TANK_W;
     g_dirty_hold = false;                          /* the tank draws in the frame's coordinates: its marks count */
     if (cached) memset(g_dirty, 0, TANK_H * DIRTY_WORDS_PER_ROW * sizeof(uint32_t));
@@ -4016,9 +3853,6 @@ void render_tank(const tank_t *t, uint16_t *fb, int stride) {
         }
     }
     PROF_ADD(5, p0);
-    /* the Blackwater light over everything in the water (2026-10-10): after the vignette, since
-       it lights only the clear glass; before the film, which sits on the glass */
-    if (bw_light) { bw_light_apply(fb, stride); PROF_ADD(1, p0); }
     /* algae film sits ON the glass - over the water, the fish, even the
      * vignette (which is why it draws after the re-darken pass: nothing
      * behind it needs repair, and next frame's scene restore erases wiped

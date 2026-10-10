@@ -2,7 +2,7 @@
 
 Open **Settings → SETTINGS / THEMES** (the title button, in every theme). Tap Original, Quiet Lagoon, Tidepool Club or Blackwater. The selection applies immediately and is saved; Done returns to settings. The four tiles share the page above DONE (a 62 px pitch at most: 53 on the 1.8, 47 on the bowl).
 
-Original is the default for new tanks and existing saves. It keeps the original tank art, fonts, menus and character wheel, with a theme entry added to the settings heading. Quiet Lagoon implements the approved Living Lagoon direction with layered teal water, shaded naturalistic creatures, soft baked light shafts and dark-glass controls. Tidepool Club uses pale water, cream panels, green controls and bolder lettering. Blackwater (2026-10-10) is the realistic one: near-black water over dark volcanic sand, the sun's caustics moving through the water every frame, the creatures drawn as the real animals in vivid colours, a Mayan step pyramid and a fighter-plane wreck (its own section below). All four retain the live procedural creatures, their growth stages, animations and individual saved colours.
+Original is the default for new tanks and existing saves. It keeps the original tank art, fonts, menus and character wheel, with a theme entry added to the settings heading. Quiet Lagoon implements the approved Living Lagoon direction with layered teal water, shaded naturalistic creatures, soft baked light shafts and dark-glass controls. Tidepool Club uses pale water, cream panels, green controls and bolder lettering. Blackwater (2026-10-10) is the realistic one: near-black water over dark volcanic sand, the creatures drawn as the real animals in vivid colours, a Mayan step pyramid and a fighter-plane wreck (its own section below). All four retain the live procedural creatures, their growth stages, animations and individual saved colours.
 
 Since 2026-10-10 the two new themes run about 20 % darker than their design studies
 (Quiet Lagoon's water, sand and panels scaled by 0.8; Tidepool Club's by 0.82 / 0.78 / 0.72
@@ -103,32 +103,13 @@ jellyfish-focused run. A board still on v5m (65 words) hears a jellyfish as
 
 ## Blackwater (2026-10-10)
 
-Alvin asked for "a realistic version of the creatures" with "accurate moving reflective
-lighting in the water", darker water and sand, brighter creatures, and decorations unlike the
-other themes'. Blackwater is the diver's name for exactly that look - black water, vivid life.
+Alvin asked for "a realistic version of the creatures", darker water and sand, brighter creatures,
+and decorations unlike the other themes'. Blackwater is the diver's name for exactly that look - black water, vivid life.
 
-**The light** (`render.c`, "the Blackwater light"; PROF stage 1, the old shafts' slot) is
-computed from the physics every frame rather than painted:
-
-- The surface is a sum of four deep-water waves (92, 55, 31 and 17 px; dispersion, so the
-  long ones outrun the short: c = 26 px/s × √(λ/92)). The two short ones are faint - their
-  caustics focus within 40 px of the surface and read as rain.
-- A ray entering at `u` is refracted by (1 − 1/n) ≈ ¼ of the surface slope there and lands
-  at `u + d·slope/4` at depth `d` (plus `d × 0.17` for the high sun on the left: the shafts
-  lean right going down). The light at a depth is where the rays crowd: `bw_deposit` drops one
-  ray per 2 px into an accumulator, and the brightness is the density over the mean, blurred
-  and scaled. Energy is conserved - a caustic is bright exactly because the water beside it is
-  dark - and the pattern sharpens with depth and drifts with the waves, as it does in a pool.
-- Ten depth bands hold that 1-D pattern for the water column (a sheet of light seen edge-on),
-  blended between bands per row and faded a little with depth (19 % → 12 % of full light).
-  The sand takes the deepest band crossed with a second wave set running into the screen: the
-  net of cells. The top rows show the surface's underside - a mirror line riding the waves
-  with the sun's glints where the slope faces it.
-- Applied in 2 × 2 blocks after everything else is drawn, so the fish, the decor and the sand
-  all take the same light; the vignette's darkening scales it down toward the glass's rim.
-  A ribbon is never thinner than 3 px after the blur, so the half resolution never shows.
-  Night is moonlight: a third as bright, blue. On the PC bench the pass costs about what the
-  lagoon's grass does (~0.1 ms of a 0.7 ms frame; ~2 ms on the S3).
+**The light** was a physics-based caustic pass (four deep-water waves, every ray refracted and
+deposited, ten depth bands, a net on the sand, a mirror line) for a few hours on 2026-10-10;
+Alvin had it removed the same night ("remove the moving water reflective light feature"). The
+water is now a plain dark gradient like the other themes'; the code is gone (commit history has it).
 
 **The look:** water 0x0a2434 → 0x02080c, dark volcanic sand with shell grit and the odd
 rounded pebble, cyan accents, amber gold, a 120-strength vignette. `theme_creature_color` lifts
