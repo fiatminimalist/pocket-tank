@@ -493,11 +493,16 @@ opens the same NO / YES prompt as the BOOT-and-tap chord, with its timeout, so a
 stray tap wipes nothing.
 
 **About.** The settings page has an ABOUT button (2026-10-10): the game's name, who makes it
-(Softworkz Pte Ltd), the release and the build id, a fish crossing above them
-and bubbles rising - and a 30-second underwater jingle that loops while the
-page is up, synthesised on the device (`common/audio.c`: twelve bars of a
-kalimba arpeggio, a hummed melody, a soft pad and bubble chirps at 96 BPM,
-under a slow wobble and a low-pass; nothing in the sound bank). It follows the
+(Softworkz Pte Ltd), the release and the build id, the theme's creature moving
+above them (a fish crossing in Original, a seahorse drifting in Quiet Lagoon, a
+crab scuttling along the foot and raising its claws in Tidepool Club, a moon
+jelly pulsing up the side in Blackwater) and bubbles rising - and an underwater
+jingle that loops while the page is up, synthesised on the device
+(`common/audio.c`: twelve bars of an arpeggio, a hummed melody, a soft pad and
+bubble chirps under a slow wobble and a low-pass; nothing in the sound bank), a
+different tune per theme since the same night: a kalimba at 96 BPM, a slow
+Lydian lullaby at 72, a perky steel-pan tune at 120, sparse minor-key bells at
+60. It follows the
 VOLUME setting. BACK returns to the settings.
 
 **A hard shake (2026-10-10).** Shake the tank hard and every creature is

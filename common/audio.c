@@ -1,5 +1,6 @@
 /* audio.c - the sound mixer. See audio.h for the contract. */
 #include "audio.h"
+#include "theme.h"
 #include <string.h>
 #include <math.h>
 
@@ -198,7 +199,6 @@ int audio_render(int16_t *out, int n) {
  * A slow amplitude wobble and a one-pole low-pass put it under water. The
  * sequencer position wraps at the loop's end; notes still ringing carry over,
  * so the seam is silent. */
-#define J_STEP      2500                           /* samples per 16th */
 #define J_STEPS     192                            /* 12 bars x 16 */
 #define J_VOICES    10
 #define J_SINE_N    1024
@@ -211,6 +211,23 @@ static int32_t  s_jfade, s_jfade_total;            /* > 0: a fade (in while stat
 static bool     s_jfade_in;
 static float    s_jlp;                             /* the low-pass's state */
 static uint32_t s_jlfo;
+/* a tune per theme (2026-10-10 night, Alvin: "different creature, movement and music for each of
+   the theme"): the same four voices, each theme its own tempo (the 16th's samples - an integer,
+   so the loop still wraps on a sample), chords, arpeggio figure, melody, chirps and timbre:
+   Original the kalimba at 96 BPM (30 s); Quiet Lagoon a slow lullaby over Lydian chords at 72
+   (40 s), a muffled marimba, a deep wobble; Tidepool Club a perky steel-pan tune at 120 (24 s),
+   bright, chirps everywhere; Blackwater a sparse minor-key bell piece at 60 (48 s), the pad up,
+   the low-pass down - deep water. */
+typedef struct { uint8_t step; int8_t note; uint8_t len; } jnote_t;
+typedef struct {
+    uint16_t step;                 /* samples per 16th */
+    const int8_t (*chord)[4];      /* 12 bars */
+    const int8_t *arp;             /* the bar's eight 8ths: a chord tone, or -1 for a rest */
+    const jnote_t *mel; int nmel;
+    const uint8_t *chirp; int nchirp; float chirp_hz;
+    float pluck_h2, pluck_h3, pluck_decay, pluck_amp;
+    float pad_amp, hum_vib, wob, lp;
+} jsong_t;
 /* the chords, one a bar: semitones above C5 (midi 72) for the arpeggio's four tones */
 static const int8_t J_CHORD[12][4] = {
     { 0, 4, 7, 11 }, { -3, 0, 4, 7 }, { -7, -3, 0, 4 }, { -5, -1, 2, 4 },
@@ -218,7 +235,6 @@ static const int8_t J_CHORD[12][4] = {
     { -3, 0, 4, 7 }, { -7, -3, 0, 4 }, { 0, 4, 7, 11 }, { -5, 0, 2, 5 } };
 static const int8_t J_ARP[8] = { 0, 1, 2, 3, 2, 1, 0, 1 };   /* chord tones on the bar's 8ths; tone 3 an octave above tone -1 */
 /* the melody: step, semitones above C5, length in 16ths */
-typedef struct { uint8_t step; int8_t note; uint8_t len; } jnote_t;
 static const jnote_t J_MELODY[] = {
     {   0, 16, 8 }, {   8, 19, 4 }, {  12, 14, 4 },                     /* E6  G6  D6 */
     {  16, 12, 8 }, {  24, 16, 6 },                                     /* C6  E6 */
@@ -233,6 +249,50 @@ static const jnote_t J_MELODY[] = {
     { 160,  9, 8 }, { 168, 12, 4 }, { 172, 11, 4 },                     /* A5  C6  B5 */
     { 176, 14, 10 }, { 188, 11, 3 } };                                  /* D6 ... B5, into the E6 at the wrap */
 static const uint8_t J_CHIRP_STEPS[] = { 5, 23, 38, 55, 71, 87, 101, 118, 133, 150, 166, 183 };
+/* Quiet Lagoon: F Lydian, long pentatonic phrases */
+static const int8_t JL_CHORD[12][4] = {
+    { 5, 9, 12, 16 }, { 0, 4, 7, 11 }, { 2, 5, 9, 12 }, { -5, -1, 2, 7 },
+    { 5, 9, 12, 16 }, { 9, 12, 16, 19 }, { 2, 5, 9, 12 }, { -5, -1, 2, 7 },
+    { 5, 9, 12, 16 }, { 0, 4, 7, 11 }, { -3, 0, 4, 7 }, { -5, 0, 2, 7 } };
+static const int8_t JL_ARP[8] = { 0, 2, 1, 3, 2, 0, 1, 2 };
+static const jnote_t JL_MELODY[] = {
+    { 0, 12, 12 }, { 12, 9, 4 }, { 16, 14, 16 }, { 32, 12, 8 }, { 40, 9, 8 }, { 48, 7, 16 },
+    { 64, 12, 12 }, { 76, 14, 4 }, { 80, 16, 12 }, { 92, 14, 4 }, { 96, 12, 16 }, { 112, 9, 16 },
+    { 128, 14, 12 }, { 140, 16, 4 }, { 144, 19, 12 }, { 156, 17, 4 }, { 160, 14, 16 }, { 176, 12, 12 }, { 188, 9, 4 } };
+static const uint8_t JL_CHIRP[] = { 10, 42, 74, 106, 138, 170 };
+/* Tidepool Club: C major, a bouncing figure, a perky tune */
+static const int8_t JC_CHORD[12][4] = {
+    { 0, 4, 7, 12 }, { 5, 9, 12, 17 }, { -5, -1, 2, 7 }, { 0, 4, 7, 12 },
+    { 9, 12, 16, 21 }, { 5, 9, 12, 17 }, { -5, -1, 2, 7 }, { 0, 4, 7, 12 },
+    { 0, 4, 7, 12 }, { 5, 9, 12, 17 }, { -5, -1, 2, 7 }, { -5, 0, 2, 7 } };
+static const int8_t JC_ARP[8] = { 0, 2, 1, 3, 0, 2, 1, 3 };
+static const jnote_t JC_MELODY[] = {
+    { 0, 12, 2 }, { 2, 12, 2 }, { 4, 16, 4 }, { 8, 19, 4 }, { 12, 16, 4 }, { 16, 17, 4 }, { 20, 16, 2 }, { 22, 14, 2 }, { 24, 12, 8 },
+    { 32, 14, 4 }, { 36, 14, 2 }, { 38, 16, 2 }, { 40, 19, 8 }, { 48, 21, 4 }, { 52, 19, 4 }, { 56, 16, 8 },
+    { 64, 12, 2 }, { 66, 12, 2 }, { 68, 16, 4 }, { 72, 19, 4 }, { 76, 24, 4 }, { 80, 21, 4 }, { 84, 19, 2 }, { 86, 17, 2 }, { 88, 16, 8 },
+    { 96, 14, 4 }, { 100, 16, 4 }, { 104, 17, 4 }, { 108, 16, 2 }, { 110, 14, 2 }, { 112, 12, 12 },
+    { 128, 19, 4 }, { 132, 19, 2 }, { 134, 21, 2 }, { 136, 24, 8 }, { 144, 21, 4 }, { 148, 19, 4 }, { 152, 17, 8 },
+    { 160, 16, 4 }, { 164, 14, 4 }, { 168, 12, 4 }, { 172, 14, 4 }, { 176, 16, 8 }, { 184, 14, 4 }, { 188, 11, 4 } };
+static const uint8_t JC_CHIRP[] = { 3, 11, 19, 27, 35, 43, 51, 59, 67, 75, 83, 91, 99, 107, 115, 123, 131, 139, 147, 155, 163, 171, 179, 187 };
+/* Blackwater: D minor, a bell every other 8th, long low notes */
+static const int8_t JB_CHORD[12][4] = {
+    { 2, 5, 9, 14 }, { -2, 2, 5, 10 }, { -7, -3, 0, 5 }, { -5, -1, 2, 7 },
+    { 2, 5, 9, 14 }, { -3, 0, 4, 9 }, { -2, 2, 5, 10 }, { -5, -1, 2, 7 },
+    { 2, 5, 9, 14 }, { -7, -3, 0, 5 }, { -3, 0, 4, 9 }, { -5, 0, 2, 9 } };
+static const int8_t JB_ARP[8] = { 0, -1, 2, -1, 1, -1, 3, -1 };
+static const jnote_t JB_MELODY[] = {
+    { 0, 14, 16 }, { 16, 12, 8 }, { 24, 10, 8 }, { 32, 9, 16 }, { 48, 5, 16 },
+    { 64, 14, 12 }, { 76, 17, 4 }, { 80, 16, 16 }, { 96, 12, 16 }, { 112, 9, 16 },
+    { 128, 17, 12 }, { 140, 14, 4 }, { 144, 12, 16 }, { 160, 10, 12 }, { 172, 9, 4 }, { 176, 5, 12 }, { 188, 9, 4 } };
+static const uint8_t JB_CHIRP[] = { 9, 41, 73, 105, 137, 169 };
+#define J_N(a) ((int)(sizeof (a) / sizeof (a)[0]))
+static const jsong_t J_SONGS[THEME_COUNT] = {
+    { 2500, J_CHORD,  J_ARP,  J_MELODY,  J_N(J_MELODY),  J_CHIRP_STEPS, J_N(J_CHIRP_STEPS), 900, 0.35f, 0.10f, 0.99975f, 0.22f, 0.085f, 0.004f, 0.12f, 0.55f },
+    { 3333, JL_CHORD, JL_ARP, JL_MELODY, J_N(JL_MELODY), JL_CHIRP,      J_N(JL_CHIRP),      800, 0.20f, 0.04f, 0.99988f, 0.18f, 0.110f, 0.006f, 0.18f, 0.35f },
+    { 2000, JC_CHORD, JC_ARP, JC_MELODY, J_N(JC_MELODY), JC_CHIRP,      J_N(JC_CHIRP),     1100, 0.55f, 0.06f, 0.99960f, 0.24f, 0.060f, 0.003f, 0.06f, 0.75f },
+    { 4000, JB_CHORD, JB_ARP, JB_MELODY, J_N(JB_MELODY), JB_CHIRP,      J_N(JB_CHIRP),      700, 0.05f, 0.40f, 0.99992f, 0.20f, 0.140f, 0.005f, 0.20f, 0.30f } };
+static const jsong_t *s_song = &J_SONGS[0];
+#define J_STEP      ((uint32_t)s_song->step)
 static float j_hz(int semis) { return 523.2511f * powf(2.0f, semis / 12.0f); }    /* from C5 */
 static uint32_t j_inc(float hz) { return (uint32_t)(hz * (4294967296.0f / SND_RATE)); }
 static jv_t *j_slot(void) {
@@ -246,21 +306,21 @@ static void j_note(int kind, float hz, float amp, int hold_samples) {
 }
 static void j_step(int step) {
     int bar = step / 16, in = step % 16;
-    const int8_t *ch = J_CHORD[bar];
-    if (in % 2 == 0) {                                     /* the arpeggio, an 8th */
-        int tone = J_ARP[in / 2];
+    const int8_t *ch = s_song->chord[bar];
+    if (in % 2 == 0 && s_song->arp[in / 2] >= 0) {         /* the arpeggio, an 8th */
+        int tone = s_song->arp[in / 2];
         int semis = ch[tone];
         if (tone == 3 && in / 2 == 3) semis = ch[0] + 12;   /* the top of the climb: the root an octave up */
-        j_note(JV_PLUCK, j_hz(semis), in == 0 ? 0.30f : 0.22f, 0);
+        j_note(JV_PLUCK, j_hz(semis), in == 0 ? s_song->pluck_amp + 0.08f : s_song->pluck_amp, 0);
     }
     if (in == 0) {                                         /* the pad: root and fifth, for the bar */
-        j_note(JV_PAD, j_hz(ch[0]), 0.085f, 15 * J_STEP);
-        j_note(JV_PAD, j_hz(ch[2]), 0.065f, 15 * J_STEP);
+        j_note(JV_PAD, j_hz(ch[0]), s_song->pad_amp, 15 * J_STEP);
+        j_note(JV_PAD, j_hz(ch[2]), s_song->pad_amp * 0.76f, 15 * J_STEP);
     }
-    for (unsigned i = 0; i < sizeof J_MELODY / sizeof J_MELODY[0]; i++)
-        if (J_MELODY[i].step == step) j_note(JV_HUM, j_hz(J_MELODY[i].note), 0.26f, J_MELODY[i].len * J_STEP - 1500);
-    for (unsigned i = 0; i < sizeof J_CHIRP_STEPS; i++)
-        if (J_CHIRP_STEPS[i] == step) j_note(JV_CHIRP, 900.0f + (i % 3) * 180, 0.10f, 0);
+    for (int i = 0; i < s_song->nmel; i++)
+        if (s_song->mel[i].step == step) j_note(JV_HUM, j_hz(s_song->mel[i].note), 0.26f, s_song->mel[i].len * J_STEP - 1500);
+    for (int i = 0; i < s_song->nchirp; i++)
+        if (s_song->chirp[i] == step) j_note(JV_CHIRP, s_song->chirp_hz + (i % 3) * 180, 0.10f, 0);
 }
 static inline float j_sin(uint32_t ph) { return s_jsine[ph >> 22] * (1.0f / 32767); }
 void audio_jingle(bool on) {
@@ -269,6 +329,7 @@ void audio_jingle(bool on) {
         if (s_jstate == 0) {                               /* from silence: the top of the loop, a fresh voice table */
             for (int i = 0; i < J_SINE_N; i++) s_jsine[i] = (int16_t)(sinf(i * 6.2831853f / J_SINE_N) * 32767);
             memset(s_jv, 0, sizeof s_jv); s_jpos = 0; s_jlp = 0; s_jlfo = 0;
+            s_song = &J_SONGS[theme_valid(theme_active())];      /* the theme's tune (a fade-out resumed keeps its own) */
         }
         s_jstate = 1; s_jfade_in = true; s_jfade = s_jfade_total = SND_RATE / 10;
     } else if (s_jstate == 1) { s_jstate = 2; s_jfade_in = false; s_jfade = s_jfade_total = SND_RATE * 2 / 5; }
@@ -291,12 +352,12 @@ static void jingle_render(int32_t *mix, int m) {
             float s;
             switch (v->kind) {
             case JV_PLUCK:                                 /* a kalimba: fast attack, a 0.3 s decay */
-                s = j_sin(v->ph) + 0.35f * j_sin(v->ph * 2) + 0.10f * j_sin(v->ph * 3);
-                if (v->age < 64) v->env = v->age / 64.0f; else v->env *= 0.99975f;
+                s = j_sin(v->ph) + s_song->pluck_h2 * j_sin(v->ph * 2) + s_song->pluck_h3 * j_sin(v->ph * 3);
+                if (v->age < 64) v->env = v->age / 64.0f; else v->env *= s_song->pluck_decay;
                 if (v->age > 64 && v->env < 0.002f) v->kind = 0;
                 break;
             case JV_HUM: {                                 /* a hummed sine, a slow vibrato, 20 ms in, 0.25 s out */
-                uint32_t vib = (uint32_t)(sinf(v->age * (6.2831853f * 5.2f / SND_RATE)) * (float)v->inc * 0.004f);
+                uint32_t vib = (uint32_t)(sinf(v->age * (6.2831853f * 5.2f / SND_RATE)) * (float)v->inc * s_song->hum_vib);
                 v->ph += vib;
                 s = j_sin(v->ph) + 0.15f * j_sin(v->ph * 2);
                 if (v->hold > 0) { v->hold--; v->env += (1 - v->env) * 0.003f; }
@@ -318,8 +379,8 @@ static void jingle_render(int32_t *mix, int m) {
             v->ph += v->inc; v->age++;
         }
         /* under water: a slow wobble and a soft low-pass */
-        float wob = 1.0f + 0.12f * j_sin(s_jlfo); s_jlfo += j_inc(7.0f / 30);   /* seven wobbles a loop: periodic with it */
-        s_jlp += (acc * wob - s_jlp) * 0.55f;
+        float wob = 1.0f + s_song->wob * j_sin(s_jlfo); s_jlfo += j_inc(7.0f * SND_RATE / (float)(J_STEP * J_STEPS));   /* seven wobbles a loop: periodic with it */
+        s_jlp += (acc * wob - s_jlp) * s_song->lp;
         float g = master;
         if (s_jfade > 0) { float f = (float)s_jfade / s_jfade_total; g *= s_jfade_in ? 1 - f : f; if (--s_jfade == 0 && !s_jfade_in) { s_jstate = 0; } }
         mix[k] += (int32_t)(s_jlp * g);

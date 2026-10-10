@@ -5789,13 +5789,38 @@ static void render_about_page(const tank_t *t, uint16_t *fb, int stride) {
         fill_ellipse(&c, bx, by, r, r, p->accent, (int)(90 * (1 - ph * 0.6f)));
         px_blend(&c, (int)(bx - r * 0.4f), (int)(by - r * 0.4f), p->text, 120);
     }
-    /* a fish crossing above the title, turning at the ends */
-    { fish_t f; memset(&f, 0, sizeof f);
-      float u = sinf(t->clock * 0.45f);
-      f.x = cx + u * (w / 2 - 44); f.y = y + 30 + sinf(t->clock * 1.1f) * 3; f.size = 0.95f;
-      f.yaw = f.yaw_tail = cosf(t->clock * 0.45f) >= 0 ? 1 : -1; f.yaw *= fminf(1, fabsf(cosf(t->clock * 0.45f)) * 3); f.yaw_tail = f.yaw;
-      f.color = 0x66caca; f.fin = 0x417b96; f.accent = 0x92dcaf; f.stage = STAGE_ADULT;
-      draw_fish_core(&c, &f, 0, false, 1); }
+    /* the theme's creature (2026-10-10 night, Alvin: "different creature, movement and music for each
+       of the theme"): Original a fish crossing above the title, turning at the ends; Quiet Lagoon
+       a seahorse drifting on a slow loop, bobbing, facing the way it drifts; Tidepool Club a crab
+       scuttling along the foot, pausing at each end to raise its claws; Blackwater a moon jelly
+       pulsing up the left side and sinking back, its bell driven by the pulse */
+    { fish_t f; memset(&f, 0, sizeof f); float k = t->clock;
+      f.size = 0.95f; f.stage = STAGE_ADULT; f.color = 0x66caca; f.fin = 0x417b96; f.accent = 0x92dcaf; f.facing = 1;
+      if (t->theme == THEME_QUIET_LAGOON) {
+          f.species = SP_SEAHORSE; f.variant = 1; f.color = 0xe0a040; f.fin = 0xd07030; f.accent = 0xf8e0a0; f.size = 1.1f;
+          float u = sinf(k * 0.21f);
+          f.x = cx + u * (w / 2 - 84); f.y = y + 44 + sinf(k * 0.9f) * 6 + cosf(k * 0.37f) * 10;
+          float d = cosf(k * 0.21f) >= 0 ? 1 : -1; f.yaw = f.yaw_tail = d * fminf(1, fabsf(cosf(k * 0.21f)) * 2.5f + 0.3f); f.facing = (int8_t)d;
+          f.heading = d > 0 ? 0 : 3.14159f;
+      } else if (t->theme == THEME_TIDEPOOL_CLUB) {
+          f.species = SP_CRAB; f.variant = 0; f.color = 0xf0603a; f.fin = 0xffa060; f.accent = 0xffe0b0; f.size = 1.0f;
+          float ph = fmodf(k * 0.11f, 1.0f), s4 = ph < 0.4f ? ph / 0.4f : ph < 0.5f ? 1 : ph < 0.9f ? 1 - (ph - 0.5f) / 0.4f : 0;   /* across, pause, back, pause */
+          f.x = x + 50 + s4 * (w - 100); f.y = y + h - 80;
+          bool paused = ph >= 0.4f && ph < 0.5f;
+          if (ph >= 0.9f) paused = true;
+          f.yaw = f.yaw_tail = ph < 0.5f ? 1 : -1; f.facing = ph < 0.5f ? 1 : -1; f.heading = ph < 0.5f ? 0 : 3.14159f;
+          f.puff = paused ? fminf(1, fabsf(sinf(k * 2.2f)) * 1.4f) : 0;
+      } else if (t->theme == THEME_BLACKWATER) {
+          f.species = SP_JELLYFISH; f.variant = 3; f.color = 0x9fd8e2; f.fin = 0xb8e8ff; f.accent = 0xe0f8ff; f.size = 1.15f;
+          f.jet = fmodf(k * 0.55f, 1.0f);
+          f.x = x + 52 + sinf(k * 0.31f) * 16; f.y = y + h / 2 - 10 - sinf(k * 0.17f) * (h / 2 - 70) + sinf(f.jet * 6.2831853f) * 2;
+          f.yaw = f.yaw_tail = 1;
+      } else {
+          float u = sinf(k * 0.45f);
+          f.x = cx + u * (w / 2 - 44); f.y = y + 30 + sinf(k * 1.1f) * 3;
+          f.yaw = f.yaw_tail = cosf(k * 0.45f) >= 0 ? 1 : -1; f.yaw *= fminf(1, fabsf(cosf(k * 0.45f)) * 3); f.yaw_tail = f.yaw;
+      }
+      draw_fish_core(&c, &f, k, false, 1); }
     draw_text(&c, cx - text_w("AQUA PETS", 3) / 2, ty, 3, p->text, "AQUA PETS");
     round_fill(&c, cx - 40, ty + 30, 80, 3, 1, p->accent);
     draw_text(&c, cx - text_w("DEVELOPED BY", 2) / 2, ty + 48, 2, p->muted, "DEVELOPED BY");

@@ -236,7 +236,15 @@ void audio_port_sleep(void);                          // amp low, codec down, AL
   ringing at the wrap carry over, so the seam is silent; the sequencer just
   starts its next bar. Fades in over 0.1 s and out over 0.4 s, follows the
   VOLUME setting and the master level, counts as a live voice (the codec
-  stays up while it plays; `audio_stop_all` / a sleep ends it). Starts when
+  stays up while it plays; `audio_stop_all` / a sleep ends it). Since that
+  night each theme has its own tune on the same four voices (`J_SONGS`, a
+  `jsong_t` each: the 16th's sample count - an integer, so every loop still
+  wraps on a sample -, chords, arpeggio figure with rests, melody, chirps,
+  pluck timbre and decay, pad level, vibrato, wobble, low-pass): Original the
+  kalimba at 96 BPM (30 s), Quiet Lagoon a slow Lydian lullaby on a muffled
+  marimba at 72 (40 s), Tidepool Club a perky steel-pan tune at 120 (24 s),
+  Blackwater sparse D-minor bells over a fuller pad at 60 (48 s). The tune is
+  chosen from the active theme when the jingle starts from silence. Starts when
   the settings page's ABOUT page opens (`SET_TAP_ABOUT`, value 1) and stops
   when it closes (value 0).
 - **Sim parity:** `sim/` gets the same `audio_port.h` on SDL2 audio
