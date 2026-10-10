@@ -206,6 +206,7 @@ const char *const *progression_fry_tip(int kind);
  * prices (140..400 a pair) are in git before this date. A creature sells back
  * for this at most (progression_fish_value). */
 #define SD_PRICE_SP_CRAB      10
+#define SD_PRICE_SP_SWORDFISH 10   /* 2026-10-10 night */
 #define SD_PRICE_SP_SEAHORSE  10
 #define SD_PRICE_SP_PUFFER    10
 #define SD_PRICE_SP_SQUID     10

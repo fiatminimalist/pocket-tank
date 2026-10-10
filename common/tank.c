@@ -229,6 +229,11 @@ const species_def_t SPECIES[SP_COUNT] = {
         { "ROSE", 0xd99bb5, 0x8677ad, 0xf3d5df }, { "BLUE", 0x82bacd, 0x6286ad, 0xc9e8df } },
       0.95f, 1.15f, 0.10f, 0.40f, 0.40f, 0.75f, 5.0f, 0.7f, 1.6f, LOCO_HOVER,
       0.40f, 0.75f, 1.10f, 0.0f, 38, false },
+    { "SWORDFISH", "swordfish", { "blade", "marlin", "sabre", "dash" },   /* 2026-10-10 night: a cruiser like the hammerhead, faster, never still */
+      { { "STEEL", 0x5f7f99, 0x3d5468, 0xe9eef2 }, { "COBALT", 0x2f5cc8, 0x1d3a86, 0xa8d4ff },
+        { "SUNSET", 0xb8743a, 0x7a4a22, 0xffd79a }, { "GHOST", 0xc9d6de, 0x8ea0ac, 0xffffff } },
+      1.10f, 1.35f, 0.70f, 0.95f, 0.30f, 0.60f, 5.5f, 0.1f, 1.3f, LOCO_CRUISE,
+      1.25f, 1.60f, 0.50f, 18.0f, 52, true },
 };
 
 /* the keeper's palettes (setup.c): the six roster bodies + a blue and a
@@ -2011,7 +2016,9 @@ static const sp_motion_t SP_MOTION[SP_COUNT] = {
     { 4.0f, 0.00f,  0, 6.0f, 0.75f, 0.00f,  7 },   /* crab: face-on, its width the length; claws either side */
     { 1.2f, 0.90f,  0, 3.0f, 1.20f, 0.70f,  7 },   /* lobster */
     { 1.2f, 0.30f,  0, 2.5f, 1.50f, 0.00f,  0 },   /* jellyfish: upright bell and long trailing arms */
+    { 0.7f, 0.00f,  0, 1.0f, 1.25f, 0.85f,  0 },   /* swordfish (2026-10-10 night): the hammerhead's wide turn, the bill most of the front */
 };
+_Static_assert(sizeof SP_MOTION / sizeof SP_MOTION[0] == SP_COUNT, "a motion row per species");
 static const sp_motion_t *sp_mo(const fish_t *f) { return &SP_MOTION[f->species < SP_COUNT ? f->species : SP_FISH]; }
 static float wrap01(float v) { return v - floorf(v); }
 /* a fixed 0..1 from two ints: the species' small randomness (a crab's step,
@@ -2289,6 +2296,7 @@ static void sp_startle_steer(const tank_t *t, const fish_t *f, float *desired, f
     case SP_OCTOPUS: case SP_SQUID: w = 0.95f; v = lerpf(65, 95, f->bold) * s->burst_k; break;
     case SP_EEL:     w = 0.7f; v = lerpf(40, 60, f->bold); break;
     case SP_SHARK:   w = 0.3f; break;               /* hardly bothered: a mild turn away, its own pace */
+    case SP_SWORDFISH: w = 0.5f; v = lerpf(70, 100, f->bold) * s->burst_k; break;   /* a flash of speed away */
     case SP_ANGLER:  w = 0.6f; v = 14; break;
     case SP_CRAB:    away = f->x >= t->startle_x ? 0 : 3.14159f; w = 1;
                      v = f->sp_mode == SPM_SCUTTLE ? 60 * s->burst_k : f->sp_mode == SPM_CLAWS ? 0 : 14; break;
@@ -2318,7 +2326,7 @@ static void sp_court(const tank_t *t, fish_t *f, int idx, target_t *tg) {
     bool b = idx == t->court_b;
     switch (f->species) {
     case SP_SEAHORSE: tg->x = cx + (b ? 9 : -9); tg->y = cy - 26 * (0.5f - 0.5f * cosf(t->clock * 0.5f)); tg->speed = 12; break;
-    case SP_SHARK:    tg->x = cx + cosf(t->clock * 0.3f) * (rx + 60); tg->y = cy - 30 - (b ? 0 : 16); tg->speed = 22; break;
+    case SP_SHARK: case SP_SWORDFISH: tg->x = cx + cosf(t->clock * 0.3f) * (rx + 60); tg->y = cy - 30 - (b ? 0 : 16); tg->speed = 22; break;
     case SP_OCTOPUS: case SP_CRAB: case SP_LOBSTER: case SP_ANGLER:
                       tg->x = cx + (b ? 14 : -14); tg->y = tank_ground_y(t, tg->x) - tank_walk_off(f); tg->speed = 10; break;
     default: { float ph = t->clock * 1.1f + (b ? 3.14159f : 0);
@@ -2405,7 +2413,7 @@ static void sp_target(tank_t *t, int idx, goal_id_t goal, bool glance, target_t 
             tg->x = clampf(t->reef_x + 70 + f->rest_dx, lo, hi); tg->y = TANK_BOT - 16 - tank_walk_off(f); tg->speed = fmaxf(tg->speed, 5);
         }
         break;
-    case SP_SHARK:
+    case SP_SHARK: case SP_SWORDFISH:
         if (goal == GOAL_REST) {                       /* rest is a slow patrol: end to end along a lane, turning wide */
             float lo = tank_glass_x0(f->y) + 70, hi = tank_glass_x1(f->y) - 70;
             tg->x = f->facing > 0 ? (f->x > hi - 50 ? lo : hi) : (f->x < lo + 50 ? hi : lo);
@@ -2588,7 +2596,7 @@ static void sp_swim(tank_t *t, int idx, fish_t *f, const target_t *tg, float des
         else f->speed *= 1 - clampf(dt * 2.6f, 0, 1);
     } else {
         f->speed = lerpf(f->speed, want, clampf(dt * (snap ? 12 : mo->resp), 0, 1));
-        static const float FIN_HZ[SP_COUNT] = { 0, 3.0f, 0.5f, 1.6f, 0.4f, 0, 0, 0.9f, 0, 0, 0 };
+        static const float FIN_HZ[SP_COUNT] = { 0, 3.0f, 0.5f, 1.6f, 0.4f, 0, 0, 0.9f, 0, 0, 0, 0 };
         f->jet = wrap01(f->jet + dt * (f->species == SP_EEL ? 0.4f + f->speed / 30 : FIN_HZ[f->species]));
     }
     float hc = cosf(f->heading), hs = sinf(f->heading);

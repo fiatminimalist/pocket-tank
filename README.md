@@ -860,7 +860,7 @@ seven-minute prompt check before an overnight run is always worth it.
   and touch) puts a tank left on the desk to sleep; the double-tap by
   default
 - ✅ Sand dollars: care earns points, the shop spends them; a sword plant,
-  an algae-grazing snail, a swim-through castle, a sunken wreck (a different boat in each theme), a drifting frogman and a cruising submarine with a periscope; what you buy you place yourself,
+  an algae-grazing snail, a swim-through castle, a sunken wreck (a different boat in each theme), a drifting frogman and a cruising submarine with a periscope; eleven species besides the fish, the swordfish the latest (2026-10-10 night); what you buy you place yourself,
   (four themes: Original, Quiet Lagoon, Tidepool Club and the realistic
   Blackwater)
   where along the floor and whether it stands behind, among or in front

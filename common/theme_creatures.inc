@@ -86,6 +86,18 @@ static void draw_theme_species(sk_t *k,int species) {
         sk_line(k,15,-7*round,15,7*round,club?3.5f:2.4f,club?3.5f:2.4f,k->body);
         sk_eye(k,17,-6*round,eye,true);theme_creature_pattern(k,-4,0,3);break;
     }
+    case SP_SWORDFISH: {
+        float tw=sinf(k->f->jet*TAU)*2.5f;
+        float x[12]={16,12,4,-6,-14,-20,-21.5f,-20,-14,-6,4,12},y[12]={-2,-5*round,-6.5f*round,-6*round,-4,-2,0,2,4,5.5f*round,6*round,4*round};
+        sk_poly(k,x,y,12,k->body,255);
+        sk_tri(k,-19,0,-31,-12+tw,-24,0,k->fin,255);sk_tri(k,-19,0,-31,12+tw*.7f,-24,0,k->fin,255);
+        sk_tri(k,5,-5,-2,club?-19:-17,-11,-4,k->fin,255);sk_tri(k,-14,-3,-18,-7,-18.5f,-2,k->fin,255);
+        sk_dot(k,-2,3,12,club?3:2.5f,belly,255,true);
+        theme_creature_pattern(k,-4,-1,5);
+        sk_tri(k,6,3,-3,club?11:9,2,4.5f,k->fin,255);
+        sk_line(k,15.5f,-1,club?31:33,-.4f,club?1.6f:1.2f,club?.6f:.3f,mix(k->fin,0x000000,.3f));
+        sk_eye(k,10.5f,-2,eye,false);break;
+    }
     case SP_CRAB:
     case SP_LOBSTER: {
         bool lobster=species==SP_LOBSTER;float raise=clamp01(k->f->puff)*8;

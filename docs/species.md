@@ -100,6 +100,7 @@ modal's school two rows.
 | crab | `crab` | 0.80-1.00 | 0.40-0.80 | 0.20-0.50 | 6.5 | 0.50 | 3.5 | `LOCO_SIDEWALK` |
 | lobster | `lobster` | 1.10-1.40 | 0.50-0.85 | 0.05-0.25 | 5.5 | 0.60 | 2.0 | `LOCO_WALK` |
 | jellyfish | `jellyfish` | 0.95-1.15 | 0.10-0.40 | 0.40-0.75 | 5.0 | 0.70 | 1.6 | `LOCO_HOVER` (pulses, drifts) |
+| swordfish | `swordfish` | 1.10-1.35 | 0.70-0.95 | 0.30-0.60 | 5.5 | 0.10 | 1.3 | `LOCO_CRUISE` (the hammerhead's way, faster; 2026-10-10 night) |
 
 Sizes are tank-scaled (a "pup" hammerhead, a dwarf seahorse): 1.0 is the
 classic fish's ~42 px. A newborn's size, bold and social are rolled inside
@@ -125,6 +126,12 @@ other).
 - **Lobster:** 0 common (dark olive, orange antennae), 1 rare blue, 2 spiny (teal, gold spots), 3 calico (red, cream patches)
 - **Jellyfish:** 0 peach, 1 pearl, 2 rose, 3 blue - a bell and arms in the
   body / fin colours; the theme decides the look (docs/THEMES.md "Jellyfish")
+- **Swordfish (2026-10-10 night, 10 sand dollars):** 0 steel, 1 cobalt (bars),
+  2 sunset (bars), 3 ghost - a long slim body, the bill out front, a sickle
+  dorsal, a lunate tail on a keel, a silver belly; drawn four ways (Original
+  flat, Quiet Lagoon shaded, Tidepool Club round and bold, Blackwater real).
+  Its word is not in any shipped vocabulary, so every model hears it as
+  `species fish` (its traits still make it a cruiser).
 
 ## How they move (the reflex layer, tank.c)
 

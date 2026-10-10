@@ -191,6 +191,19 @@ d.line((15, 8, 11, 2), 1); d.line((17, 8, 21, 2), 1)
 d = I.layer(0x101010, shade=False); dots(d, [(14, 9), (18, 9)])
 icons['shop_lobster'] = I
 
+# swordfish (2026-10-10 night): side-on, the long bill out front, the sickle dorsal, the lunate tail
+I = Icon()
+d = I.layer(0x5f7f99)
+d.polygon([(6, 17), (10, 12), (17, 10), (22, 12), (25, 16), (22, 20), (17, 22), (10, 21)], 1)   # the body
+d.polygon([(10, 12), (12, 4), (15, 3), (17, 10)], 1)                                           # the sickle dorsal
+d.polygon([(6, 17), (2, 11), (4, 17), (2, 24)], 1)                                              # the lunate tail
+d.polygon([(16, 19), (13, 26), (19, 21)], 1)                                                    # the pectoral
+d = I.layer(0x3d5468, shade=False); d.line((25, 16, 31, 15), 1, width=2)                        # the bill
+d = I.layer(0xe9eef2, shade=False); d.polygon([(9, 19), (17, 21), (22, 19), (17, 18)], 1)       # the silver belly
+d = I.layer(0xffffff, shade=False); dots(d, [(21, 14)])
+d = I.layer(0x101010, shade=False); dots(d, [(22, 14)])
+icons['shop_swordfish'] = I
+
 big = Image.new('RGBA', (len(icons) * 140, 140), (4, 20, 26, 255))
 for i, (name, ic) in enumerate(icons.items()):
     im = ic.render(); im.save(f"{OUT}/{name}.png")

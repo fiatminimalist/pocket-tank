@@ -150,6 +150,19 @@ static void draw_lagoon_species(sk_t *k,int species) {
         for(int i=0;i<3;i++)sk_line(k,8+i*1.3f,-2,7.5f+i*1.3f,2,.22f,.2f,mix(body,0x123b3d,.5f));
         break;
     }
+    case SP_SWORDFISH: {
+        float tw=k->asleep?0:fast_sin(k->f->jet*TAU)*2.2f;
+        lagoon_fin(k,-19,0,-31,-12+tw,12+tw*.7f);
+        lagoon_fin(k,5,-4,-1,-18,-4);lagoon_fin(k,-14,-2.5f,-18,-6.5f,-2);lagoon_fin(k,-13,2.5f,-17,2,6);
+        float x[12]={16,12,4,-6,-14,-20,-21.5f,-20,-14,-6,4,12},y[12]={-1.6f,-4.2f,-5.6f,-5.3f,-3.6f,-1.8f,0,1.8f,3.4f,4.8f,4.9f,3.4f};
+        lagoon_shape(k,x,y,12,body);lagoon_volume(k,0,0,4.6f,5.2f,body);
+        for(int i=0;i<6;i++)for(int j=0;j<2;j++)sk_mark(k,-12+i*4,j*3-1,.8f,.3f,0xe0dfbf,70);
+        sk_line(k,12,-.3f,-16,.4f,.3f,.25f,mix(body,0x123b3d,.5f));
+        lagoon_fin(k,5,3,-3,4,10);
+        sk_line(k,15.5f,-1,33,-.4f,1.1f,.25f,mix(k->fin,0x123b3d,.45f));
+        sk_line(k,16,-1.6f,24,-1.3f,.3f,.2f,mix(k->acc,0xf0e8c9,.4f));
+        sk_eye(k,10.5f,-1.8f,1.4f,true);break;
+    }
     case SP_CRAB: case SP_LOBSTER: {
         bool lobster=species==SP_LOBSTER;
         /* The crab's broad carapace remains visible when it sidles head-on. */

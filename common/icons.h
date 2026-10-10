@@ -41,14 +41,6 @@ extern const icon_t icon_shop_coral;
 extern const icon_t icon_shop_crab;
 extern const icon_t icon_shop_eel;
 extern const icon_t icon_shop_lobster;
-extern const icon_t icon_shop_jellyfish;
-const icon_t *jellyfish_theme_icon(int theme);
-extern const icon_t icon_shop_wreck;            /* the shipwreck (2026-10-10): common/wreck_assets.c, tools/gen_wreck_assets.py */
-const icon_t *wreck_theme_icon(int theme);
-extern const icon_t icon_shop_frogman;          /* the frogman (2026-10-10): common/frogman_assets.c, tools/gen_frogman_assets.py */
-const icon_t *frogman_theme_icon(int theme);
-extern const icon_t icon_shop_sub;              /* the submarine (2026-10-10 night): common/sub_assets.c, tools/gen_sub_assets.py */
-const icon_t *sub_theme_icon(int theme);
 extern const icon_t icon_shop_octopus;
 extern const icon_t icon_shop_plant;
 extern const icon_t icon_shop_puffer;
@@ -59,10 +51,20 @@ extern const icon_t icon_shop_shark;
 extern const icon_t icon_shop_shrimp;
 extern const icon_t icon_shop_snail;
 extern const icon_t icon_shop_squid;
+extern const icon_t icon_shop_swordfish;
 extern const icon_t icon_shop_urchin;
 extern const icon_t icon_snail_glass;
 extern const icon_t icon_snail_upright;
 extern const icon_t icon_tool_scissors;
 extern const icon_t icon_tool_sponge;
+/* per-theme shop thumbnails from their own generators (not assets/icons): */
+extern const icon_t icon_shop_jellyfish;        /* common/jellyfish_assets.c, tools/gen_jellyfish_assets.py */
+const icon_t *jellyfish_theme_icon(int theme);
+extern const icon_t icon_shop_wreck;            /* the wreck (2026-10-10): common/wreck_assets.c, tools/gen_wreck_assets.py */
+const icon_t *wreck_theme_icon(int theme);
+extern const icon_t icon_shop_frogman;          /* the frogman (2026-10-10): common/frogman_assets.c, tools/gen_frogman_assets.py */
+const icon_t *frogman_theme_icon(int theme);
+extern const icon_t icon_shop_sub;              /* the submarine (2026-10-10 night): common/sub_assets.c, tools/gen_sub_assets.py */
+const icon_t *sub_theme_icon(int theme);
 
 #endif

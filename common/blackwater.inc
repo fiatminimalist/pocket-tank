@@ -471,6 +471,28 @@ static void draw_blackwater_species(sk_t *k,int species) {
         }
         break;
     }
+    case SP_SWORDFISH: {
+        float beat=k->asleep?0:fast_sin(f->jet*TAU);
+        uint32_t belly=mix(k->acc,0xf4f6f8,.5f),bill=mix(k->fin,BW_DARK,.45f);
+        bw_fin(k,-19,-1,-19,1,-31,-12+beat*2.2f,-31,12+beat*1.6f,5);                 /* the lunate tail */
+        sk_tri(k,6,2.5f,.5f,8.5f,3.5f,3,mix(k->fin,BW_DARK,.4f),140);               /* the far pectoral */
+        float x[14]={16,13,7,0,-7,-14,-20,-21.5f,-20,-14,-7,0,7,13};
+        float y[14]={-1.6f,-3.8f,-5.2f,-5.6f,-5,-3.6f,-1.8f,0,1.8f,3.4f,4.6f,4.9f,4.4f,3};
+        bw_shape(k,x,y,14,body);bw_volume(k,0,0,4.4f,5.2f,body);
+        sk_dot(k,-2,3.2f,13,1.6f,belly,150,true);                                    /* the silver belly */
+        bw_fin(k,5,-4.6f,-10,-4.2f,-1,-18.5f,-8,-9,4);                               /* the tall sickle dorsal */
+        bw_fin(k,-13.5f,-3,-18,-2.2f,-15.5f,-7,-19,-4.5f,2);
+        bw_fin(k,-13,3,-17,2.2f,-15,6.2f,-18.5f,4.2f,2);
+        bw_fin(k,6,3,1,4.2f,-3,10,-7,8,4);                                           /* the near pectoral */
+        bw_line_a(k,12,-.5f,-17,.5f,.3f,.3f,mix(body,BW_DARK,.5f),150);              /* the lateral line */
+        if(v==1||v==2)for(int i=0;i<5;i++)bw_line_a(k,9-i*5.5f,-4,8.5f-i*5.5f,2.5f,.5f,.4f,mix(k->acc,k->fin,.5f),90);   /* faint bars */
+        sk_tri(k,-19,-1.3f,-22.5f,-1.3f,-19,1.3f,mix(k->fin,BW_DARK,.4f),255);       /* the keel */
+        bw_line_a(k,15.5f,-1,33.5f,-.3f,1.2f,.2f,bill,255);                           /* the bill */
+        bw_line_a(k,16,-1.7f,25,-1.3f,.35f,.15f,mix(k->acc,0xffffff,.5f),200);
+        bw_line_a(k,15,2.3f,11.5f,2.6f,.3f,.3f,mix(body,BW_DARK,.55f),160);          /* the mouth */
+        bw_eye(k,10.5f,-1.8f,1.6f,0x1a2a44);
+        break;
+    }
     case SP_CRAB: {
         /* face-on: the carapace keeps its width whichever way it sidles */
         sk_t crab=*k;crab.yh=crab.yh<0?-1:1;crab.yt=crab.yh;k=&crab;

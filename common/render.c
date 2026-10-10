@@ -989,6 +989,37 @@ static void draw_shark(sk_t *k) {
     }
 }
 
+/* ---- swordfish (2026-10-10 night): a long slim cruiser, the bill a third of it again out
+   front, a tall sickle first dorsal, a lunate tail on a narrow keel, a silver belly. Never
+   still (LOCO_CRUISE, the hammerhead's way): its tail beats on f->jet as the shark's does. ---- */
+static void draw_swordfish(sk_t *k) {
+    if(theme_active()){draw_theme_species(k,SP_SWORDFISH);return;}
+    const fish_t *f = k->f; int v = f->variant & 3;
+    float tw = 2.4f * fast_sin(f->jet * TAU);
+    uint32_t dark = mix(k->fin, 0x000000, 0.35f);
+    sk_tri(k, 6.0f, 2.5f, 0.5f, 8.5f, 3.5f, 3.0f, dark, 255);                                      /* the far pectoral */
+    sk_tri(k, -19.0f, 0.0f, -31.0f, -12.0f + tw, -24.0f, -0.5f, k->fin, 255);                     /* the lunate tail */
+    sk_tri(k, -19.0f, 0.0f, -31.0f, 12.0f + tw * 0.7f, -24.0f, 0.5f, k->fin, 255);
+    sk_tri(k, 5.0f, -4.5f, -1.0f, -18.0f, -11.0f, -4.0f, k->fin, 255);                            /* the sickle first dorsal */
+    sk_tri(k, -1.0f, -18.0f, -4.5f, -12.0f, -11.0f, -4.0f, k->fin, 255);
+    sk_tri(k, -14.0f, -2.6f, -17.0f, -6.2f, -18.5f, -2.0f, k->fin, 255);                           /* the second dorsal */
+    sk_tri(k, -13.0f, 2.6f, -16.0f, 5.8f, -17.5f, 2.0f, k->fin, 255);                              /* the anal */
+    static const float BLX[12] = { 16, 12, 4, -6, -14, -20, -21.5f, -20, -14, -6, 4, 12 };
+    static const float BLY[12] = { -1.6f, -4.2f, -5.6f, -5.3f, -3.6f, -1.8f, 0, 1.8f, 3.4f, 4.8f, 4.9f, 3.4f };
+    sk_poly(k, BLX, BLY, 12, k->body, 255);
+    { float X, Y; sk_pt(k, 0, 0, &X, &Y); float rx = k->zq * 4.8f * k->s; if (rx >= 1) fill_ellipse(k->c, X, Y, rx, 5.2f * k->s, k->body, 255); }
+    { static const float lx[8] = { 15, 15, 12, 4, -6, -14, -20, -20 }, ly[8] = { 0.2f, 1.2f, 3.4f, 4.9f, 4.8f, 3.4f, 1.8f, 0.6f };   /* the silver belly */
+      sk_poly(k, lx, ly, 8, k->acc, 230); }
+    if (v == 1 || v == 2) for (int i = 0; i < 4; i++) sk_mark(k, 8.0f - i * 6.5f, -1.5f, 0.6f, 2.6f, mix(k->acc, k->fin, 0.5f), 120);   /* the cobalt's and the sunset's bars */
+    sk_line(k, 12.0f, -0.5f, -16.0f, 0.5f, 0.35f, 0.3f, mix(k->body, 0x000000, 0.3f));                /* the lateral line */
+    sk_tri(k, 6.0f, 3.0f, -3.0f, 10.0f, 2.0f, 4.5f, k->fin, 255);                                   /* the near pectoral */
+    sk_tri(k, -19.0f, -1.2f, -22.5f, -1.2f, -19.0f, 1.2f, dark, 255);                              /* the keel */
+    sk_line(k, 15.5f, -1.0f, 33.0f, -0.4f, 1.15f, 0.25f, dark);                                     /* the bill */
+    sk_line(k, 16.0f, -1.6f, 24.0f, -1.3f, 0.35f, 0.2f, mix(k->acc, 0xffffff, 0.3f));              /* its lit edge */
+    sk_dot(k, 13.0f, 2.2f, 2.0f, 0.4f, dark, 180, true);                                            /* the mouth */
+    sk_eye(k, 10.5f, -1.8f, 1.5f, false);
+}
+
 /* ---- squid: a torpedo mantle, the two fins at its tip rippling, eight
    arms and two long tentacles at the head, a big eye; chromatophores
    flicker in f->accent (the firefly's glow, undimmed). It swims either way:
@@ -1249,6 +1280,7 @@ static void draw_creature(ctx_t *c, const fish_t *f, float clock, bool asleep) {
     case SP_CRAB:     sk_setup(&k, c, f, clock, asleep, -12, 12, 0, 0); draw_crab(&k); break;
     case SP_LOBSTER:  sk_setup(&k, c, f, clock, asleep, -26, 22, 0.3f, f->sp_mode == SPM_FLIP ? 1.0f : 0.0f); draw_lobster(&k); break;
     case SP_JELLYFISH: sk_setup(&k,c,f,clock,asleep,-18,18,0,0); draw_jellyfish(&k); break;
+    case SP_SWORDFISH: sk_setup(&k, c, f, clock, asleep, -34, 32, 0.4f, 1); draw_swordfish(&k); break;
     default: break;
     }
 }
@@ -4579,8 +4611,8 @@ void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size
 }
 /* how big a species draws (2026-10-05): its half-length at size 1 (a page
    fits a creature by it) and the selection ring's radius round it */
-static const float SP_HALF_LEN[SP_COUNT] = { 22, 22, 24, 22, 24, 36, 34, 26, 18, 30, 30 };
-static const float SP_RING_R[SP_COUNT]   = { 17, 19, 20, 17, 19, 28, 28, 19, 16, 24, 31 };
+static const float SP_HALF_LEN[SP_COUNT] = { 22, 22, 24, 22, 24, 36, 34, 26, 18, 30, 30, 36 };   /* the swordfish's bill (2026-10-10 night) */
+static const float SP_RING_R[SP_COUNT]   = { 17, 19, 20, 17, 19, 28, 28, 19, 16, 24, 31, 29 };
 float render_species_half_len(int species) { return SP_HALF_LEN[species > 0 && species < SP_COUNT ? species : 0]; }
 /* a fish of the tank as the pages show it (2026-10-05): its species and
    design, in the colours given (its own, or a page's dim silhouette);
@@ -5388,7 +5420,7 @@ static bool g_shp_sell_armed;        /* SELL tapped once: the next tap on it sel
 static const icon_t *shop_icon(int item) {
     static const icon_t *const SP_ICONS[SP_COUNT - 1] = {   /* the species' pairs (2026-10-05), in species order */
         &icon_shop_seahorse, &icon_shop_octopus, &icon_shop_puffer, &icon_shop_angler, &icon_shop_eel,
-        &icon_shop_shark, &icon_shop_squid, &icon_shop_crab, &icon_shop_lobster, &icon_shop_jellyfish };
+        &icon_shop_shark, &icon_shop_squid, &icon_shop_crab, &icon_shop_lobster, &icon_shop_jellyfish, &icon_shop_swordfish };
     if (progression_item_species(item) > 0) return SP_ICONS[progression_item_species(item) - 1];
     return item == 0 ? &icon_shop_plant : item == 1 ? &icon_shop_snail : item == 2 ? &icon_shop_castle : item == 3 ? &icon_shop_coral : item == 4 ? &icon_shop_cluster : item == 5 ? &icon_shop_shrimp : item == SD_ITEM_WRECK_IDX ? &icon_shop_wreck : item == SD_ITEM_FROGMAN_IDX ? &icon_shop_frogman : item == SD_ITEM_SUB_IDX ? &icon_shop_sub : &icon_shop_urchin; }
 /* a species' creature needs one free place (2026-10-07; a pair needed two): with no room its UNLOCK reads NO ROOM, dim */
