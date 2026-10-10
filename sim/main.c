@@ -2396,7 +2396,7 @@ static void write_ppm(const char *path, const uint16_t *fb) {
     }
     fclose(f);
 }
-/* --hero <prefix>: pocketank.com's glamor shot (2026-09-29, Strato: the site's
+/* --hero <prefix>: the public site's glamor shot (2026-09-29, Strato: the site's
  * frames caught fish "mid-flip and they look flat"). The fish are posed
  * side-on (tank_fish_face: no turn in progress) and held there. Three
  * grown fish, the castle, the coral and the reef cluster in full bloom, tidy

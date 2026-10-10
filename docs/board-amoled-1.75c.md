@@ -212,7 +212,7 @@ cell present (100%, 4.14 V on the cable).
   batlog's sleep rows, so the hour costs ~2% more a night.
 - **Awake on the 500 mAh cell: ~6 1/2 h** (batlog stretches on battery:
   14-17.5 %/h, e.g. 99% -> 83% in 55 min; the battery page learned the same,
-  6 h 30 min): ~80 mA, about the 1.8's ~88. pocketank.com /hardware/ says
+  6 h 30 min): ~80 mA, about the 1.8's ~88. The public hardware page said
   so (2026-10-03); asleep stays "about 2 1/2 days" (1.7 %/h).
 - Found on the way, in SHARED code: the audio port came straight back up
   after going down for a sleep when it had been warm at the press (a prewarm

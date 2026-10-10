@@ -1,6 +1,6 @@
 # Aqua Pets 🐟
 
-*Aqua Pets was called pocket-tank until 0.4. The repository, the download links, pocketank.com and the build's internal names (`CONFIG_POCKET_TANK_*`, `pocket_tank.bin`, the save) keep the old name, so tanks already out there keep updating and keep their saves.*
+*Aqua Pets was called pocket-tank until 0.4. The repository, the download links and the build's internal names (`CONFIG_POCKET_TANK_*`, `pocket_tank.bin`, the save) keep the old name, so tanks already out there keep updating and keep their saves.*
 
 **A tiny language model keeps a fish tank alive on an $8 chip.**
 The ESP32-S3 board, with screen and battery used in this project is actually around $35.
@@ -28,12 +28,13 @@ wall clear last explore time day  ->  seek_food urgency 8
 
 This repo is the complete project: the trained model, the distillation
 pipeline that made it, a PC simulator, and the firmware for a real board.
-Got the board? **[Install it from your browser](https://pocketank.com/install/)**,
-no toolchain needed.
+Got the board? **Install it from your browser** with the installer page in
+`installer/` (see `installer/README.md`), no toolchain needed.
 
 The current release is **v0.3.2** (alpha); the settings page shows the one
 on your tank. What changed in each release:
-**[pocketank.com/updates](https://pocketank.com/updates/)**.
+the commit history (`git log`) and the release notes on the repository's
+releases page.
 
 It runs on three Waveshare boards: the 1.8-inch original, the round
 1.75-inch **pendant**, where the tank fills the whole circle like a little
@@ -615,7 +616,8 @@ touch ports are stubs in the QEMU overlay; decisions go to the log.
 
 ## Install from your browser
 
-The easy way onto a board: **https://pocketank.com/install/**.
+The easy way onto a board: the browser installer page (`installer/`, hosted
+over HTTPS - `installer/README.md` says how).
 Plug the Waveshare board into your computer, open the page in Chrome or Edge,
 pick your board (the 1.8, the pendant or the watch), click *Install Pocket
 Tank*, pick the port, and watch the bar fill. Then the page asks for your
@@ -806,8 +808,8 @@ seven-minute prompt check before an overnight run is always worth it.
   an algae-grazing snail, a swim-through castle, a sunken shipwreck (a different boat in each theme) and a drifting frogman; what you buy you place yourself,
   where along the floor and whether it stands behind, among or in front
   of the fish
-- ✅ Browser installer: one click from Chrome or Edge, at
-  pocketank.com/install, with a board to pick; a cable update is the same click
+- ✅ Browser installer: one click from Chrome or Edge, from the hosted
+  installer page, with a board to pick; a cable update is the same click
   and never erases a tank
 - ✅ v0.2.0 (alpha), the first numbered release: fish that turn like fish,
   the fish's name on its card, a shrimp school that eats what falls and

@@ -442,7 +442,7 @@ void update_tick(float dt) {
                 message("WRONG BOARD", "THIS UPDATE IS FOR", false, "ANOTHER BOARD. NOTHING CHANGED", NULL, 0, NULL, 0);
             else if (!newer(m)) { message("UP TO DATE", "YOUR TANK HAS THE LATEST", false, "VERSION", NULL, 0, NULL, 0); s.step = STEP_UP_TO_DATE; }
             else if (m->needs_cable || (m->min_from && m->min_from > (uint32_t)PT_RELEASE_NUM))
-                message("NEEDS THE CABLE", "THIS UPDATE IS INSTALLED", false, "FROM POCKETANK.COM/INSTALL", NULL, 0, NULL, 0);
+                message("NEEDS THE CABLE", "THIS UPDATE REQUIRES", false, "THE CABLE TO INSTALL", NULL, 0, NULL, 0);   /* (2026-10-10: it named the old site before) */
             else go(STEP_OFFER, UPD_PG_OFFER);
         } else if (st == NET_FAILED) fail(net_port_fail_reason());
         break; }

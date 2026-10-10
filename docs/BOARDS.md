@@ -81,7 +81,7 @@ the bowl and the watch ship in 0.3.0; nothing public until the release):
 | over the air | each board fetches `latest-<PT_BOARD>.json`; `common/update.c` refuses a manifest whose `board` is another (WRONG BOARD, never offered); the download reads the marker back from the slot at its first 4 KB and aborts on another board's (`NET_ERR_BOARD`) - all three share the signing key, so the signature alone would let a bowl install the 1.8's image |
 | the release | `.github/workflows/release.yml` builds `firmware/build`, `build-round`, `build-watch`; `make_ota_manifest.py` names both files from the image's marker (`latest-<board>.json`, `pocket_tank-v<rel>-<board>.bin`) |
 | the installer | `installer.yml` builds the three; `make_installer.py --build-dir <1.8> --board-build <round> --board-build <watch>`: the 1.8 keeps `manifest.json` / `manifest-erase.json`, the others `manifest-<board>[-erase].json`; a board's file that differs from the 1.8's is `<name>-<board>.bin`. The page shows a "Pick your board" step when it carries more than one |
-| pocketank.com/install | `tools/build_site.py` offers a board only once its manifest is LIVE on GitHub Pages - the public resync is the release, so a site publish before it shows the 1.8 alone |
+| the public installer page | `tools/build_site.py` offers a board only once its manifest is LIVE on GitHub Pages - the public resync is the release, so a site publish before it shows the 1.8 alone |
 
 Nothing reaches the public before the release: the dev repo is private, the
 workflows publish only from `mediacutlet/pocket-tank`, the site gates on the

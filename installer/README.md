@@ -96,14 +96,8 @@ the site - the never-erase patch is in the vendor's dialog bundle. An old
 `vendor/` next to the new manifest erased every install without asking
 (the 09-11 upload, found 2026-09-18), and the host serves `.js` with a
 year's max-age, so the folder name now carries the patched dialog's hash.
-One command builds, uploads over ssh (host `stratobuilds`), purges
-SiteGround's dynamic cache and checks the live URL:
-
-```
-pocket-tank/tools/publish_site_installer.sh
-```
-
-Run it whenever the page, the vendored ESP Web Tools or the patch changes.
+(The old one-command upload to stratobuilds.com, `tools/publish_site_installer.sh`,
+was retired on 2026-10-04 and removed on 2026-10-10.)
 The page fetches the manifest on load and shows the version and build date of what it will actually flash,
 so pushing to the public repo is the whole release step: no upload, no
 cache purge. (Manual failure mode: the Actions run is red - `gh run list
