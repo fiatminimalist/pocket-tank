@@ -1916,7 +1916,8 @@ static void draw_theme_castle(ctx_t *c,int cx,int front,bool final) {
             /* the bunting: two sagging strings from the keep's crown to the towers', little flags along them */
             bool string=false, flag=false; int fi=0;
             for(int side=-1;side<=1;side+=2){ int x0=0,y0=146,x1=side*66,y1=88; float u=(x-x0)/(float)(x1-x0);
-                if(u<0||u>1)continue; int sy=(int)(y0+(y1-y0)*u-sinf(u*3.14159f)*14+0.5f);
+                if(u<0||u>1)continue;
+                int sy=(int)(y0+(y1-y0)*u-sinf(u*3.14159f)*14+0.5f);
                 if(h==sy||h==sy-1)string=true;
                 int seg=(int)(u*7); float fu=u*7-seg; if(fu>0.25f&&fu<0.75f&&h<sy-1&&h>=sy-9-(int)(((fu-0.5f)*(fu-0.5f))*0)&&(abs((int)((fu-0.5f)*22))<=(sy-1-h)/2+1)){flag=true;fi=seg+(side>0?7:0);} }
             /* a starfish on the mound */
