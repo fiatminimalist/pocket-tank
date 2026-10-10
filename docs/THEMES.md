@@ -6,7 +6,7 @@ Original is the default for new tanks and existing saves. It keeps the original 
 
 Since 2026-10-10 the two new themes run about 20 % darker than their design studies
 (Quiet Lagoon's water, sand and panels scaled by 0.8; Tidepool Club's by 0.82 / 0.78 / 0.72
-on red / green / blue so it keeps its warmth): an AMOLED spends power on every lit pixel,
+on red / green / blue so it keeps its warmth; that evening the club's water went another 16 % and its sand 12 % darker, so the creatures and decorations pop against it): an AMOLED spends power on every lit pixel,
 and a bright water field shown all day risks burn-in. Text, accents and gold are unchanged.
 Also since that day a lagoon creature keeps its body through a turn: `lagoon_volume` draws
 a shaded cross-section that widens as it faces the glass (the species sheet's turns page,

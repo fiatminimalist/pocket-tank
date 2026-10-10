@@ -11,8 +11,8 @@ static const theme_palette_t palettes[THEME_COUNT] = {
      {0x386a63,0x164446,0x0b282f}, {0x3c6b4c,0x193e33,0x6c8a60,0x3c6b4c},
      {0x929380,0x798471,0x5a705f,0x35524b},7},
     {"TIDEPOOL CLUB",0xc8b89c,0xd1c3a9,0x423e33,0x65624f,0x337966,0xfffaf0,0x968a6c,0xa6532d,
-     {0xb7b488,0x93a283,0x71927f}, {0x416d50,0x2e5c41,0xa09f5c,0x71844a},
-     {0xc5ad84,0xb79e75,0xa6936c,0x918461},14},
+     {0x999772,0x7b886e,0x5e7a6a}, {0x416d50,0x2e5c41,0xa09f5c,0x71844a},   /* 2026-10-10 evening: the water 16 % and the sand 12 % darker still (Alvin: "make the rest pop") */
+     {0xad9874,0xa18b66,0x92815f,0x7f7455},14},
     /* Blackwater (2026-10-10, Alvin: "a realistic version of the creatures ... let the water and the
        sand be darker ... the creatures brighter for contrast"): near-black water over dark volcanic
        sand, the sunlight's caustics the only brightness; cyan accents, amber gold */
