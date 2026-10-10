@@ -1,6 +1,6 @@
 # Aqua Pets 🐟
 
-*Aqua Pets was called pocket-tank until 0.4. The repository, the download links and the build's internal names (`CONFIG_POCKET_TANK_*`, `pocket_tank.bin`, the save) keep the old name, so tanks already out there keep updating and keep their saves.*
+*Aqua Pets was called pocket-tank until 0.4; since 2026-10-10 the build's internal names (`CONFIG_AQUA_PETS_*`, `aqua_pets.bin`, the tools' cache paths) carry the new name too. The save format and the NVS keys are unchanged, so tanks already out there keep their saves.*
 
 **A tiny language model keeps a fish tank alive on an $8 chip.**
 The ESP32-S3 board, with screen and battery used in this project is actually around $35.
@@ -553,8 +553,8 @@ window, with the shipped model as the brain. Needs SDL2 and LVGL v9 (cloned
 in-tree):
 
 ```bash
-git clone https://github.com/mediacutlet/pocket-tank.git
-cd pocket-tank
+git clone <this repository> aqua-pets
+cd aqua-pets
 git clone --depth 1 --branch v9.2.2 https://github.com/lvgl/lvgl.git sim/lvgl
 brew install sdl2        # macOS; apt install libsdl2-dev on Linux
 cd sim && make && ./fishsim
@@ -619,8 +619,8 @@ touch ports are stubs in the QEMU overlay; decisions go to the log.
 The easy way onto a board: the browser installer page (`installer/`, hosted
 over HTTPS - `installer/README.md` says how).
 Plug the Waveshare board into your computer, open the page in Chrome or Edge,
-pick your board (the 1.8, the pendant or the watch), click *Install Pocket
-Tank*, pick the port, and watch the bar fill. Then the page asks for your
+pick your board (the 1.8, the pendant or the watch), click *Install Aqua
+Pets*, pick the port, and watch the bar fill. Then the page asks for your
 Wi-Fi: the tank's screen stays dark while it lists the networks it can see,
 you pick yours and type the password, and the tank connects to check it
 before it starts. That is what lets it update itself later; you can skip
@@ -707,14 +707,14 @@ built or tested here, and they may lag behind this repo:
   **ESP32-P4-WIFI6-Touch-LCD-4B** (4-inch 720×720 MIPI-DSI panel, GT911
   touch, ES8311 audio) in [their fork](https://github.com/knoopx/pocket-tank).
   It needs ESP-IDF 5.5.
-  [Pull request #5](https://github.com/mediacutlet/pocket-tank/pull/5) has
+  Upstream pull request #5 has
   the details.
 - [lmoiseichuk](https://github.com/lmoiseichuk) ported it to the 2.8-inch
   **ES3C28P "cheap yellow display"** (ESP32-S3, 320×240 ILI9341 IPS panel,
   FT6336 touch, ES8311 audio), with every page laid out for the smaller
   screen, in
   [their fork](https://github.com/lmoiseichuk/pocket-tank-cyd/tree/feature/cyd_ES3C28P).
-  [Pull request #10](https://github.com/mediacutlet/pocket-tank/pull/10) has
+  Upstream pull request #10 has
   the details.
 
 ## Train your own

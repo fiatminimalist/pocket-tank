@@ -14,8 +14,8 @@
  * No I/O, no floats-to-strings, no OS calls: this file and tank.c compile
  * unchanged for the LVGL PC sim and the ESP32-S3 firmware.
  */
-#ifndef POCKET_TANK_TANK_H
-#define POCKET_TANK_TANK_H
+#ifndef AQUA_PETS_TANK_H
+#define AQUA_PETS_TANK_H
 
 #include <stdbool.h>
 #include <stdint.h>

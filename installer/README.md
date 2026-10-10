@@ -13,7 +13,7 @@ is missing, and ESP Web Tools runs unchanged over the board's USB CDC interface.
 ## Build the upload folder
 
 ```
-idf.py -B ~/.cache/pocket-tank/fw-build build     # in firmware/ (or any -B dir)
+idf.py -B ~/.cache/aqua-pets/fw-build build     # in firmware/ (or any -B dir)
 tools/make_installer.py                            # -> installer/dist/
 python3 -m http.server -d installer/dist 8765      # local check at http://localhost:8765
 ```
@@ -83,12 +83,12 @@ tail reads as its defaults when the newer build returns). What guards it:
 with ESP-IDF v5.4.1 on every push to `main` that touches `firmware/`,
 `common/`, `model/out/`, `installer/` or the assembler, runs
 `tools/make_installer.py`, and deploys the folder to
-**https://mediacutlet.github.io/pocket-tank/**. Pages serves HTTPS with
+**https://aquapets.com/install/**. Pages serves HTTPS with
 `Access-Control-Allow-Origin: *`, so the copy on stratobuilds.com points
 its button at that manifest:
 
 ```
-tools/make_installer.py --manifest-url https://mediacutlet.github.io/pocket-tank/manifest.json --out /tmp/site
+tools/make_installer.py --manifest-url https://aquapets.com/install/manifest.json --out /tmp/site
 ```
 
 and that `index.html` PLUS its `vendor/esp-web-tools-<tag>/` folder live on
@@ -101,7 +101,7 @@ was retired on 2026-10-04 and removed on 2026-10-10.)
 The page fetches the manifest on load and shows the version and build date of what it will actually flash,
 so pushing to the public repo is the whole release step: no upload, no
 cache purge. (Manual failure mode: the Actions run is red - `gh run list
---repo mediacutlet/pocket-tank`.)
+--repo fiatminimalist/aqua-pets`.)
 
 ## Host it
 
@@ -110,21 +110,21 @@ Web Serial needs a secure context, so the page must be on **HTTPS** (or
 fetchable from the page's origin (or send CORS headers).
 
 **stratobuilds.com (WordPress behind Cloudflare):** upload `installer/dist/`
-as a folder next to WordPress, e.g. `public_html/pocket-tank/`, and link
-`https://stratobuilds.com/pocket-tank/`. Being a plain folder it is outside
+as a folder next to WordPress, e.g. `public_html/aqua-pets/`, and link
+`https://stratobuilds.com/aqua-pets/`. Being a plain folder it is outside
 WordPress, so themes, caching and security plugins don't touch it. Things to
 check once:
 
 - Open the page, the button must say *Install Aqua Pets*, not the red
   unsupported text. If it never appears, Cloudflare's Rocket Loader is
-  rewriting the module script: exclude `/pocket-tank/*` from it (a
+  rewriting the module script: exclude `/aqua-pets/*` from it (a
   Configuration Rule), or turn it off.
 - In the browser's network tab `manifest.json` and `firmware/*.bin` must be
   200. A 403 on `.bin` means the host blocks the type: the `.htaccess` in the
   folder adds it for Apache/LiteSpeed; on nginx add
   `types { application/octet-stream bin; }`.
 - Cloudflare caches `.bin` and `.js` by default. After uploading a new build,
-  purge `/pocket-tank/*` (the manifest carries the version, so a stale
+  purge `/aqua-pets/*` (the manifest carries the version, so a stale
   cache shows an old version string on the page).
 
 **GitHub Pages** (the public repo) is the other easy option: push `dist/` to

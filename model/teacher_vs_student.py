@@ -40,7 +40,7 @@ def main():
     # The project dir is a network share; run the student from a local cache so
     # timing reflects inference (the device reads flash, not AFP).
     import shutil
-    cache = os.path.expanduser("~/.cache/pocket-tank")
+    cache = os.path.expanduser("~/.cache/aqua-pets")
     os.makedirs(cache, exist_ok=True)
     model_bin, tok_bin = os.path.join(cache, "model.bin"), os.path.join(cache, "tokenizer.bin")
     for src, dst in [(os.path.join(HERE, "out", "model.bin"), model_bin),

@@ -11,7 +11,7 @@ promise: updating never loses your tank.
 loading is a bug in the code, not in the fixture.
 
 - From the sim (the same bytes the board writes): play a while, quit, then
-  `cp ~/.cache/pocket-tank/tank.sav sim/testdata/saves/$(date +%F)-$(wc -c < ~/.cache/pocket-tank/tank.sav | tr -d ' ').sav`
+  `cp ~/.cache/aqua-pets/tank.sav sim/testdata/saves/$(date +%F)-$(wc -c < ~/.cache/aqua-pets/tank.sav | tr -d ' ').sav`
 - From the board: run `tools/preflight.py` first (reading the flash resets the
   chip), then `python -m esptool --chip esp32s3 read_flash 0x9000 0x6000 nvs.bin`
   and pull out NVS `tank`/`save` with ESP-IDF's parser:

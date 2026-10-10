@@ -44,7 +44,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from pt_boards import BOARDS, board_of_image, name_of, build_of_image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT_BUILD = os.path.expanduser("~/.cache/pocket-tank/fw-build")
+DEFAULT_BUILD = os.path.expanduser("~/.cache/aqua-pets/fw-build")
 
 # ESP Web Tools (10.4.0) has no manifest option for "install without erasing"
 # on a device that does not speak Improv: with new_install_prompt_erase the
@@ -206,7 +206,7 @@ def main():
         fa = json.load(open(fa_path))
         parts = []
         for key, pub in (("bootloader", "bootloader.bin"), ("partition-table", "partition-table.bin"),
-                         ("app", "pocket_tank.bin"), ("otadata", "ota_data_initial.bin")):
+                         ("app", "aqua_pets.bin"), ("otadata", "ota_data_initial.bin")):
             if key not in fa:
                 sys.exit(f"{fa_path}: no '{key}' - the build has no OTA layout (firmware/partitions.csv)")
             ent = fa[key]
@@ -232,7 +232,7 @@ def main():
     builds = {}                                   # board id -> parts, from each image's own marker
     for d in [a.build_dir] + a.board_build:
         parts = build_parts(d)
-        board = board_of_image(next(src for _, src, pub in parts if pub == "pocket_tank.bin"))
+        board = board_of_image(next(src for _, src, pub in parts if pub == "aqua_pets.bin"))
         if board in builds:
             sys.exit(f"{d}: a second build for {board}")
         builds[board] = parts
@@ -240,7 +240,7 @@ def main():
         sys.exit("no 1.8 build: manifest.json (the name every install page points at) is the 1.8's")
     order = [b[0] for b in BOARDS if b[0] in builds]
 
-    app18 = next(src for _, src, pub in builds["amoled18"] if pub == "pocket_tank.bin")
+    app18 = next(src for _, src, pub in builds["amoled18"] if pub == "aqua_pets.bin")
     version = a.version or release_version(build_of_image(app18))   # the page's line: the 1.8's
     date = datetime.date.today().isoformat()
     out = a.out
@@ -278,7 +278,7 @@ def main():
                  "parts": [{"path": f"firmware/{pub}", "offset": off} for off, pub, _ in board_files[b]]}
         manifest = {
             "name": "Aqua Pets",
-            "version": a.version or release_version(build_of_image(next(src for _, _, src in board_files[b] if os.path.basename(src) == "pocket_tank.bin"))),
+            "version": a.version or release_version(build_of_image(next(src for _, _, src in board_files[b] if os.path.basename(src) == "aqua_pets.bin"))),
             "built": date,                       # read by the page (ESP Web Tools ignores extra keys)
             "board": b, "board_name": name_of(b),
             "new_install_prompt_erase": False,

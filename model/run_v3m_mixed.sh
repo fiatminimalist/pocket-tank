@@ -5,7 +5,7 @@
 # Outputs are suffixed _v3m so the pure-v3 artifacts stay intact.
 set -u
 cd "$(dirname "$0")"
-PY=~/.venvs/pocket-tank/bin/python
+PY=~/.venvs/aquapets/bin/python
 LOG=out/v3m_mixed.log
 log() { echo "[$(date '+%F %T')] $*" | tee -a "$LOG"; }
 log "=== v3m mixed start ==="

@@ -17,7 +17,7 @@
 set -u
 cd "$(dirname "$0")"
 LOG=out/v4_overnight.log
-PY=~/.venvs/pocket-tank/bin/python
+PY=~/.venvs/aquapets/bin/python
 HOST=${HOST:-http://192.168.0.139:11434}
 MINUTES=${MINUTES:-480}
 COUNT=${COUNT:-12000}

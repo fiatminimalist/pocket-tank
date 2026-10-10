@@ -15,7 +15,7 @@ packed nibbles (weight 2i -> low nibble, 2i+1 -> high nibble, value q+8 in
 Size for the 14.3M student at GS=64: ~7.6 MB (fits the 5-8 MB flash target).
 Reader: model/runq4.c (Mac) and firmware/components/llm (ESP32).
 
-  ~/.venvs/pocket-tank/bin/python export_q4.py out/model_q4.bin --checkpoint out/ckpt_v2w.pt
+  ~/.venvs/aquapets/bin/python export_q4.py out/model_q4.bin --checkpoint out/ckpt_v2w.pt
 """
 import argparse, os, struct, sys
 import numpy as np

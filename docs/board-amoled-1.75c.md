@@ -41,7 +41,7 @@ The world's shape is compiled in (common/tank.h). `TANK_ROUND` makes the frame
 
 Build and flash: `tools/flash_round.sh` (`--full` for a blank board). It
 builds with `SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.round"` into
-`~/.cache/pocket-tank/fw-build-175c` with its own sdkconfig, and finds the
+`~/.cache/aqua-pets/fw-build-175c` with its own sdkconfig, and finds the
 board by USB serial. The sim: `make ROUND=1` -> `./fishsim-round`
 (`--snapshot` works; since 2026-10-01 every selftest passes here too -
 `make ROUND=1 check`, docs/BOARDS.md).

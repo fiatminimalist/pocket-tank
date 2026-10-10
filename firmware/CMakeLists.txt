@@ -24,4 +24,4 @@ endif()
 # a 092a913 tree). A change of HEAD or of the branch's ref reconfigures.
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
              ${CMAKE_CURRENT_LIST_DIR}/../.git/HEAD ${CMAKE_CURRENT_LIST_DIR}/../.git/index)
-project(pocket_tank)
+project(aqua_pets)

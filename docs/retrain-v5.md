@@ -90,7 +90,7 @@ prompt_check.
 ## 0. Preflight (~20 min of teacher time, the required gate)
 
 ```bash
-cd "/Volumes/Local/Projects/LLM Fish Tank/pocket-tank/model"
+cd "/Volumes/Local/Projects/LLM Fish Tank/aqua-pets/model"
 python3 gen_traces.py --count 10 --dry-run --schema 5 --seed 1          # v5 lines print, no network
 python3 train_tokenizer.py --schema 5                                   # out/tokenizer_v5.bin, vocab 65
 (cd ../sim && make && ./fishsim --selftest-encoder ../model/out/tokenizer_v5.bin) | python3 encoder_agree.py
@@ -146,7 +146,7 @@ night rest 0.90, bored 9 -> explore ~1.0, bored 0 keeps bubbles 0.57).
 ## 1-4. The night (unattended)
 
 ```bash
-cd "/Volumes/Local/Projects/LLM Fish Tank/pocket-tank/model"
+cd "/Volumes/Local/Projects/LLM Fish Tank/aqua-pets/model"
 nohup ./run_v5_overnight.sh > /dev/null 2>&1 &          # HOST=... WORKERS=2 to change
 tail -f out/v5_overnight.log
 ```
@@ -209,7 +209,7 @@ python3 eval.py --schema 5 --teacher --count 400 --min-per-species 30 --seed 5 \
 ## 5. Ship it (sim + firmware) - manual
 
 ```bash
-cd "/Volumes/Local/Projects/LLM Fish Tank/pocket-tank/model"
+cd "/Volumes/Local/Projects/LLM Fish Tank/aqua-pets/model"
 cp out/model_q4.bin out/model_q4_v4m_shipped.bin            # the rollback copy
 cp out/model_q4_v5m.bin out/model_q4.bin
 cp out/tokenizer_v5.bin out/tokenizer.bin
@@ -229,7 +229,7 @@ Then, in the same commit:
 - `.github/workflows/checks.yml`: the q4_host prompt becomes a v5 line (add
   `species fish` after `stage adult`).
 - Firmware: `cd ../firmware && . ~/esp/esp-idf/export.sh && idf.py -B
-  ~/.cache/pocket-tank/fw-build build`, then `tools/flash.sh --model` (the
+  ~/.cache/aqua-pets/fw-build build`, then `tools/flash.sh --model` (the
   model partition at 0x290000 and its trailer) - for every board on the
   bench (flash_round.sh / flash_watch.sh). The firmware's tokenizer and the
   partition's model must go together (see "Mixed files" above: a v5

@@ -444,11 +444,11 @@ static int selftest_species_pop(void) {
 }
 
 static int selftest_pop(void) {
-    setenv("POCKET_TANK_SAVE", "/dev/null/pocket-tank-selftest.sav", 1);
+    setenv("AQUA_PETS_SAVE", "/dev/null/aqua-pets-selftest.sav", 1);
     tank_init(&tank, 98);
     if (progression_save(&tank)) { printf("FAIL: an unwritable save reported success\n"); return 1; }
-    setenv("POCKET_TANK_SAVE", "/tmp/pocket-tank-selftest/nested/tank.sav", 1);   /* also checks parent creation */
-    char cmd[600]; snprintf(cmd, sizeof cmd, "rm -f /tmp/pocket-tank-selftest/nested/tank.sav"); (void)system(cmd);
+    setenv("AQUA_PETS_SAVE", "/tmp/aqua-pets-selftest/nested/tank.sav", 1);   /* also checks parent creation */
+    char cmd[600]; snprintf(cmd, sizeof cmd, "rm -f /tmp/aqua-pets-selftest/nested/tank.sav"); (void)system(cmd);
     tank_init(&tank, 99);
     progression_boot(&tank);                      /* no save -> new random pair */
     print_roster(&tank);
@@ -901,8 +901,8 @@ static int night_shift_check(void) {
 }
 
 static int selftest_sleep(void) {
-    setenv("POCKET_TANK_SAVE", "/tmp/pocket-tank-selftest.sav", 1);
-    char cmd[600]; snprintf(cmd, sizeof cmd, "rm -f /tmp/pocket-tank-selftest.sav"); (void)system(cmd);
+    setenv("AQUA_PETS_SAVE", "/tmp/aqua-pets-selftest.sav", 1);
+    char cmd[600]; snprintf(cmd, sizeof cmd, "rm -f /tmp/aqua-pets-selftest.sav"); (void)system(cmd);
     tank_init(&tank, 4242);
     progression_boot(&tank);
     for (int i = 0; i < 600; i++) { tank_tick(&tank, 1.0f / 60.0f, advisor_rules); progression_tick(&tank, 1.0f / 60.0f); }
@@ -1145,7 +1145,7 @@ static int selftest_sleep(void) {
     {
         tank_set_name(&tank, 0, "Fez");
         progression_save(&tank);
-        const char *sav = getenv("POCKET_TANK_SAVE");
+        const char *sav = getenv("AQUA_PETS_SAVE");
         static const long older[] = { 1480, 1440, 1436, 1408, 1304, 1112, 448 };   /* 1480 = the light-settings build, before the shop */
         for (size_t k = 0; k < sizeof older / sizeof *older; k++) {
             if (truncate(sav, older[k])) { printf("FAIL: could not truncate the save to %ld\n", older[k]); return 1; }
@@ -1283,7 +1283,7 @@ static int saves_check(const char *what, const uint8_t *e, float bubble_default)
 
 /* write len bytes as the save, boot it, check it; then save, reload, check again */
 static int saves_load(const char *what, const uint8_t *bytes, size_t len, const uint8_t *e) {
-    const char *sav = getenv("POCKET_TANK_SAVE");
+    const char *sav = getenv("AQUA_PETS_SAVE");
     FILE *f = fopen(sav, "wb"); if (!f || fwrite(bytes, 1, len, f) != len) { printf("FAIL: could not write %s\n", sav); return 1; }
     fclose(f);
     tank_init(&tank, 8); float bx0 = tank.bubble_x;
@@ -1298,7 +1298,7 @@ static int saves_load(const char *what, const uint8_t *bytes, size_t len, const 
 }
 
 static int selftest_saves(void) {
-    setenv("POCKET_TANK_SAVE", "/tmp/pocket-tank-selftest-saves.sav", 1);   /* never touch the real save */
+    setenv("AQUA_PETS_SAVE", "/tmp/aqua-pets-selftest-saves.sav", 1);   /* never touch the real save */
     if (strcmp(SAVE_NVS_NS, "tank") || strcmp(SAVE_NVS_KEY, "save")) {
         printf("FAIL: the device's save moved to %s/%s - every keeper's tank stays behind in tank/save\n", SAVE_NVS_NS, SAVE_NVS_KEY); return 1; }
     const char *dir = "testdata/saves";
@@ -1366,7 +1366,7 @@ static int selftest_saves(void) {
             /* and today's build, the whole file: ten back, the save rewritten as six + the tail */
             memset(e, 0, sizeof e); memcpy(e, file, len);
             if (saves_load("the species' ten, whole", file, len, e)) return 1;
-            FILE *g = fopen(getenv("POCKET_TANK_SAVE"), "rb"); size_t gl = g ? fread(cut, 1, sizeof cut, g) : 0; if (g) fclose(g);
+            FILE *g = fopen(getenv("AQUA_PETS_SAVE"), "rb"); size_t gl = g ? fread(cut, 1, sizeof cut, g) : 0; if (g) fclose(g);
             if (gl != SAVE_NOW || cut[23] != 6 || cut[1688] != tank.n_fish || tank.n_fish != file[1688]) { printf("FAIL: the ten re-saved as %zu bytes, core %d, tail %d (tank %d)\n", gl, cut[23], cut[1688], tank.n_fish); return 1; }
             for (int i = 0; i < tank.n_fish; i++)
                 if (tank.fish[i].species != file[sv_at(i).fs + 2] || tank.fish[i].variant != file[sv_at(i).fs + 3]) { printf("FAIL: creature %d came back %d/%d\n", i, tank.fish[i].species, tank.fish[i].variant); return 1; }
@@ -1383,22 +1383,22 @@ static int selftest_saves(void) {
         memset(e, 0, sizeof e); memcpy(e, cur, SAVE_NOW);
         memcpy(cut, cur, SAVE_NOW); memset(cut + SAVE_NOW, 0xa5, 200);
         if (saves_load("a newer build's save, 200 bytes longer (a rollback)", cut, SAVE_NOW + 200, e)) return 1;
-        FILE *f = fopen(getenv("POCKET_TANK_SAVE"), "rb"); fseek(f, 0, SEEK_END); long l = ftell(f); fclose(f);
+        FILE *f = fopen(getenv("AQUA_PETS_SAVE"), "rb"); fseek(f, 0, SEEK_END); long l = ftell(f); fclose(f);
         if (l != SAVE_NOW) { printf("FAIL: after a rollback the save is %ld bytes, want %d\n", l, SAVE_NOW); return 1; }
         loads++;
         printf("selftest-saves: a rollback: a newer build's %d-byte save loads its first %d and saves back at %d\n", SAVE_NOW + 200, SAVE_NOW, SAVE_NOW);
     }
     /* not ours: shorter than the smallest PTK2, or another magic -> a fresh tank (setup owed) */
     {
-        FILE *f = fopen(getenv("POCKET_TANK_SAVE"), "wb"); fwrite(cur, 1, 447, f); fclose(f);
+        FILE *f = fopen(getenv("AQUA_PETS_SAVE"), "wb"); fwrite(cur, 1, 447, f); fclose(f);
         tank_init(&tank, 8); progression_wake(&tank, 0);
         if (!progression_setup_pending() || tank.n_fish != 2) { printf("FAIL: a 447-byte save loaded\n"); return 1; }
         memcpy(cut, cur, SAVE_NOW); cut[0] ^= 1;
-        f = fopen(getenv("POCKET_TANK_SAVE"), "wb"); fwrite(cut, 1, SAVE_NOW, f); fclose(f);
+        f = fopen(getenv("AQUA_PETS_SAVE"), "wb"); fwrite(cut, 1, SAVE_NOW, f); fclose(f);
         tank_init(&tank, 8); progression_wake(&tank, 0);
         if (!progression_setup_pending() || tank.n_fish != 2) { printf("FAIL: a save with another magic loaded\n"); return 1; }
     }
-    remove(getenv("POCKET_TANK_SAVE"));
+    remove(getenv("AQUA_PETS_SAVE"));
     for (int k = 0; k < nf; k++) free(names[k]);
     printf("selftest-saves ok (%d fixtures, %d loads; a 447-byte save and a foreign magic start fresh; NVS %s/%s)\n", nf, loads, SAVE_NVS_NS, SAVE_NVS_KEY);
     return 0;
@@ -1418,9 +1418,9 @@ static int selftest_saves(void) { printf("selftest-saves: not in the MSVC build 
  * password (the store is dropped), no signal, up to date, needs the cable,
  * the battery gate, CANCEL mid-download, NOT NOW. */
 static int selftest_update(void) {
-    setenv("POCKET_TANK_SAVE", "/tmp/pocket-tank-selftest-update.sav", 1);
-    setenv("POCKET_TANK_WIFI", "/tmp/pocket-tank-selftest-wifi.txt", 1);
-    unsetenv("POCKET_TANK_FAKE_UPDATE"); net_port_creds_forget();
+    setenv("AQUA_PETS_SAVE", "/tmp/aqua-pets-selftest-update.sav", 1);
+    setenv("AQUA_PETS_WIFI", "/tmp/aqua-pets-selftest-wifi.txt", 1);
+    unsetenv("AQUA_PETS_FAKE_UPDATE"); net_port_creds_forget();
     static uint16_t fb[TANK_W * TANK_H];
     tank_init(&tank, 5); progression_reset(&tank, 5);
     char ssid[NET_SSID_MAX + 1], pass[NET_PASS_MAX + 1];
@@ -1538,30 +1538,30 @@ static int selftest_update(void) {
     TAP(bm, yb);                                                      /* CANCEL the scan = back */
     EXPECT(update_outcome() == UPD_BACK, "CANCEL on the scan");
     net_port_creds_set("Fishbowl", "abcdefgh");
-    setenv("POCKET_TANK_FAKE_UPDATE", "none", 1); update_begin(50, false); ADV(2); ADV(2);
+    setenv("AQUA_PETS_FAKE_UPDATE", "none", 1); update_begin(50, false); ADV(2); ADV(2);
     EXPECT(update_page() == UPD_PG_MESSAGE, "up to date: no message");
     ADV(UPD_UP_TO_DATE_S + 1); EXPECT(update_outcome() == UPD_BACK, "up to date: did not go back by itself");
-    setenv("POCKET_TANK_FAKE_UPDATE", "cable", 1); update_begin(50, false); ADV(2); ADV(2);
+    setenv("AQUA_PETS_FAKE_UPDATE", "cable", 1); update_begin(50, false); ADV(2); ADV(2);
     EXPECT(update_page() == UPD_PG_MESSAGE && HIT(bl, ya) == 0 && HIT(bm, ya) == 0, "needs the cable: a TRY AGAIN showed");
-    setenv("POCKET_TANK_FAKE_UPDATE", "downloadfail", 1); update_begin(50, false); ADV(2); ADV(2); TAP(bl, yb); ADV(3);
+    setenv("AQUA_PETS_FAKE_UPDATE", "downloadfail", 1); update_begin(50, false); ADV(2); ADV(2); TAP(bl, yb); ADV(3);
     EXPECT(update_page() == UPD_PG_MESSAGE, "download stopped: no message");
     EXPECT(HIT(bm, ya) != 0, "a lone TRY AGAIN is not centred over BACK TO TANK");   /* (2026-10-03) */
     TAP(bm, ya);                                                      /* TRY AGAIN */
     EXPECT(update_page() == UPD_PG_BUSY, "TRY AGAIN: no download");
-    setenv("POCKET_TANK_FAKE_UPDATE", "fail", 1); update_begin(50, false); ADV(2); ADV(2);
+    setenv("AQUA_PETS_FAKE_UPDATE", "fail", 1); update_begin(50, false); ADV(2); ADV(2);
     EXPECT(update_page() == UPD_PG_MESSAGE, "server down: no message");
     /* three boards, one release (2026-10-02): a manifest for another board is never offered, and an
        image whose board marker is another board's stops at its first sector - no TRY AGAIN either way */
-    setenv("POCKET_TANK_FAKE_UPDATE", "otherboard", 1); update_begin(50, false); ADV(2); ADV(2);
+    setenv("AQUA_PETS_FAKE_UPDATE", "otherboard", 1); update_begin(50, false); ADV(2); ADV(2);
     EXPECT(update_page() == UPD_PG_MESSAGE && !strcmp(update_message_title(), "WRONG BOARD") && HIT(bl, ya) == 0 && HIT(bm, ya) == 0,
            "another board's manifest: page %d, %s", update_page(), update_message_title());
-    setenv("POCKET_TANK_FAKE_UPDATE", "boardimage", 1); update_begin(50, false); ADV(2); ADV(2);
+    setenv("AQUA_PETS_FAKE_UPDATE", "boardimage", 1); update_begin(50, false); ADV(2); ADV(2);
     EXPECT(update_page() == UPD_PG_OFFER, "a right-board manifest was not offered (page %d)", update_page());
     TAP(bl, yb); ADV(1); ADV(1);
     EXPECT(update_page() == UPD_PG_MESSAGE && !strcmp(update_message_title(), "WRONG BOARD") && HIT(bl, ya) == 0 && HIT(bm, ya) == 0,
            "another board's image: page %d, %s", update_page(), update_message_title());
     printf("selftest-update: board %s: another board's manifest -> WRONG BOARD, never offered; another board's image -> WRONG BOARD at its first sector\n", PT_BOARD);
-    unsetenv("POCKET_TANK_FAKE_UPDATE");
+    unsetenv("AQUA_PETS_FAKE_UPDATE");
     /* the battery gate */
     update_begin(12, false); EXPECT(update_page() == UPD_PG_POWER, "12%% on battery: no PLUG IN page");
     TAP(bm, yb); EXPECT(update_outcome() == UPD_BACK, "PLUG IN's BACK");   /* (a button on its own: centered, 2026-10-01) */
@@ -1582,8 +1582,8 @@ static int selftest_update(void) {
     return 0;
 }
 static int selftest_tend(void) {
-    setenv("POCKET_TANK_SAVE", "/tmp/pocket-tank-selftest.sav", 1);
-    char cmd[600]; snprintf(cmd, sizeof cmd, "rm -f /tmp/pocket-tank-selftest.sav"); (void)system(cmd);
+    setenv("AQUA_PETS_SAVE", "/tmp/aqua-pets-selftest.sav", 1);
+    char cmd[600]; snprintf(cmd, sizeof cmd, "rm -f /tmp/aqua-pets-selftest.sav"); (void)system(cmd);
     tank_init(&tank, 777);
     progression_boot(&tank);
     int film0 = 0;
@@ -2587,12 +2587,12 @@ static int snapshot(const char *prefix, int seconds) {
     snprintf(path, sizeof path, "%s_settings_auto.ppm", prefix); write_ppm(path, fb);
     tank_light_choice_set(&tank, 0); tank.autofeed_off = false; tank_orient_lock(&tank, false);
     {   /* the UPDATES page and update mode's pages (2026-09-30), over the pretend radio */
-        setenv("POCKET_TANK_WIFI", "/tmp/pocket-tank-snapshot-wifi.txt", 1); net_port_creds_forget();
+        setenv("AQUA_PETS_WIFI", "/tmp/aqua-pets-snapshot-wifi.txt", 1); net_port_creds_forget();
         render_updates_page(fb, TANK_W);
         snprintf(path, sizeof path, "%s_updates_nonet.ppm", prefix); write_ppm(path, fb);
         net_port_creds_set("Strato's Wi-Fi", "hunter2!"); render_updates_page(fb, TANK_W);
         snprintf(path, sizeof path, "%s_updates.ppm", prefix); write_ppm(path, fb);
-        net_port_creds_forget(); unsetenv("POCKET_TANK_FAKE_UPDATE");
+        net_port_creds_forget(); unsetenv("AQUA_PETS_FAKE_UPDATE");
         update_begin(50, false); render_update(fb, TANK_W, 0.3f);
         snprintf(path, sizeof path, "%s_update_scanning.ppm", prefix); write_ppm(path, fb);
         net_sim_advance(2); update_tick(2); render_update(fb, TANK_W, 0.3f);
@@ -2616,19 +2616,19 @@ static int snapshot(const char *prefix, int seconds) {
         net_sim_advance(4); update_tick(4); render_update(fb, TANK_W, 0.3f);
         snprintf(path, sizeof path, "%s_update_installed.ppm", prefix); write_ppm(path, fb);
         net_sim_advance(2); update_tick(2);
-        setenv("POCKET_TANK_FAKE_UPDATE", "none", 1); update_begin(50, false);
+        setenv("AQUA_PETS_FAKE_UPDATE", "none", 1); update_begin(50, false);
         for (int i = 0; i < 4; i++) { net_sim_advance(1); update_tick(1); }
         render_update(fb, TANK_W, 0.3f);
         snprintf(path, sizeof path, "%s_update_uptodate.ppm", prefix); write_ppm(path, fb);
         net_port_creds_set("Fishbowl", "abcdefgh");                /* a message with ONE action: TRY AGAIN centred over BACK TO TANK (2026-10-03) */
-        setenv("POCKET_TANK_FAKE_UPDATE", "downloadfail", 1); update_begin(50, false);
+        setenv("AQUA_PETS_FAKE_UPDATE", "downloadfail", 1); update_begin(50, false);
         for (int i = 0; i < 4; i++) { net_sim_advance(1); update_tick(1); }
         update_touch(PAGE_X + UPD_BTN_L_X + UPD_BTN_W / 2, PAGE_Y + UPD_BTN_Y + UPD_BTN_H / 2, true);
         update_touch(PAGE_X + UPD_BTN_L_X + UPD_BTN_W / 2, PAGE_Y + UPD_BTN_Y + UPD_BTN_H / 2, false);   /* UPDATE */
         for (int i = 0; i < 4; i++) { net_sim_advance(1); update_tick(1); }
         render_update(fb, TANK_W, 0.3f);
         snprintf(path, sizeof path, "%s_update_one_action.ppm", prefix); write_ppm(path, fb);
-        setenv("POCKET_TANK_FAKE_UPDATE", "otherboard", 1); update_begin(50, false);
+        setenv("AQUA_PETS_FAKE_UPDATE", "otherboard", 1); update_begin(50, false);
         for (int i = 0; i < 4; i++) { net_sim_advance(1); update_tick(1); }
         render_update(fb, TANK_W, 0.3f);
         snprintf(path, sizeof path, "%s_update_wrong_board.ppm", prefix); write_ppm(path, fb);
@@ -2638,7 +2638,7 @@ static int snapshot(const char *prefix, int seconds) {
         snprintf(path, sizeof path, "%s_update_badpassword.ppm", prefix); write_ppm(path, fb);
         update_begin(12, false); render_update(fb, TANK_W, 0.3f);
         snprintf(path, sizeof path, "%s_update_plugin.ppm", prefix); write_ppm(path, fb);
-        net_port_off(); net_port_creds_forget(); unsetenv("POCKET_TANK_FAKE_UPDATE"); unsetenv("POCKET_TANK_WIFI");
+        net_port_off(); net_port_creds_forget(); unsetenv("AQUA_PETS_FAKE_UPDATE"); unsetenv("AQUA_PETS_WIFI");
         render_notice(&tank, fb, TANK_W, NOTICE_UPDATED, -1, 0, 0.8f);
         snprintf(path, sizeof path, "%s_updated_notice.ppm", prefix); write_ppm(path, fb);
     }
@@ -3090,8 +3090,8 @@ static int selftest_battery(void) {
  * band counts it), the snail grazes without touching the keeper's counts;
  * the page's taps; the save carries all of it; a pre-shop save back-pays. */
 static int selftest_shop(void) {
-    setenv("POCKET_TANK_SAVE", "/tmp/pocket-tank-selftest.sav", 1);
-    char cmd[600]; snprintf(cmd, sizeof cmd, "rm -f /tmp/pocket-tank-selftest.sav"); (void)system(cmd);
+    setenv("AQUA_PETS_SAVE", "/tmp/aqua-pets-selftest.sav", 1);
+    char cmd[600]; snprintf(cmd, sizeof cmd, "rm -f /tmp/aqua-pets-selftest.sav"); (void)system(cmd);
     tank_init(&tank, 4242);
     progression_boot(&tank);
     progression_setup_done(&tank);
@@ -3980,7 +3980,7 @@ static int selftest_shop(void) {
     }
     {
         static uint16_t fb[TANK_W * TANK_H];
-        const char *sav = getenv("POCKET_TANK_SAVE");
+        const char *sav = getenv("AQUA_PETS_SAVE");
         char keep[700]; snprintf(keep, sizeof keep, "cp %s %s.keep", sav, sav);
         progression_save(&tank); (void)system(keep);           /* the tank so far, for the blocks after this one */
         tank_init(&tank, 9191); progression_fresh(&tank); progression_setup_done(&tank); tank.trickle_off = true;
@@ -4109,7 +4109,7 @@ static int selftest_shop(void) {
         printf("selftest-shop: the save round-trip kept the balance, the unlocks, the counters, the plant's height and the snail's spot + tally\n");
         /* a save from before the shop (1480 bytes): no dollars, then the back
            pay - the stages and the trust it already has, once */
-        const char *sav = getenv("POCKET_TANK_SAVE");
+        const char *sav = getenv("AQUA_PETS_SAVE");
         if (truncate(sav, 1480)) { printf("FAIL: could not truncate the save to 1480\n"); return 1; }
         tank_init(&tank, 4242); progression_boot(&tank); tank.trickle_off = true;
         if (tank.sd_balance != 0 || tank.sd_unlocks != 0 || tank_veg_beds(&tank) != VEG_BEDS) { printf("FAIL: a pre-shop save came back with dollars / unlocks\n"); return 1; }
@@ -4201,7 +4201,7 @@ static int selftest_hunger(void) {
        fall for it) and go about hungry; a starving fish in a lit tank
        loses trust, slowly, to a floor - none in the dark - and the
        keeper's pellets stop the loss. Back ON, the trickle is back. */
-    setenv("POCKET_TANK_SAVE", "/tmp/pocket-tank-selftest-hunger.sav", 1); remove(getenv("POCKET_TANK_SAVE"));   /* never the real save */
+    setenv("AQUA_PETS_SAVE", "/tmp/aqua-pets-selftest-hunger.sav", 1); remove(getenv("AQUA_PETS_SAVE"));   /* never the real save */
     tank_init(&tank, 99); progression_boot(&tank);                                 /* progression runs the begging and the trust: a fresh pair */
     tank.autofeed_off = true;
     for (int k = 0; k < tank.n_fish; k++) tank.fish[k].trust = 6.0f;
@@ -4249,7 +4249,7 @@ static int selftest_hunger(void) {
         live_prev = live;
     }
     if (!fell) { printf("FAIL: AUTO FEED back on, and nothing fell for a hungry school\n"); return 1; }
-    remove(getenv("POCKET_TANK_SAVE"));
+    remove(getenv("AQUA_PETS_SAVE"));
     printf("hunger: AUTO FEED off: nothing falls, they beg then give up, trust wears to its floor (lit only), the keeper's pellets stop it; back on, %d fell. selftest-hunger ok\n", fell);
     return 0;
 }
@@ -4515,8 +4515,8 @@ static int selftest_card(const char *prefix) {
     const float DT = 1.0f / 60.0f;
     static uint16_t fb[TANK_W * TANK_H];
     char path[300];
-    setenv("POCKET_TANK_SAVE", "/tmp/pocket-tank-selftest-card.sav", 1);
-    (void)system("rm -f /tmp/pocket-tank-selftest-card.sav");
+    setenv("AQUA_PETS_SAVE", "/tmp/aqua-pets-selftest-card.sav", 1);
+    (void)system("rm -f /tmp/aqua-pets-selftest-card.sav");
     tank_init(&tank, 77);
     progression_boot(&tank);                                  /* no save: the founding pair */
     progression_setup_done(&tank);
@@ -5086,7 +5086,7 @@ int main(int argc, char **argv) {
         if (strcmp(argv[a], "--fast") == 0 && a + 1 < argc) progression_time_scale = (float)atof(argv[++a]);
     }
     if (fresh) {
-        char cmd[600]; snprintf(cmd, sizeof cmd, "rm -f '%s/.cache/pocket-tank/tank.sav'", getenv("HOME") ? getenv("HOME") : ".");
+        char cmd[600]; snprintf(cmd, sizeof cmd, "rm -f '%s/.cache/aqua-pets/tank.sav'", getenv("HOME") ? getenv("HOME") : ".");
         (void)system(cmd);
     }
     progression_boot(&tank);               /* restore, or a new random pair */
@@ -5196,7 +5196,7 @@ int main(int argc, char **argv) {
             else if (r == UPD_TAP_CHECK) {                     /* the device saves and restarts here */
                 progression_save(&tank); updates_view = false; update_mode = true; update_clock = 0;
                 update_begin(sim_bat_gauge(), sim_bat_state != BAT_ON_BATTERY);
-                printf("update mode: the tank would save and restart now (pretend radio; POCKET_TANK_FAKE_UPDATE steers the check)\n");
+                printf("update mode: the tank would save and restart now (pretend radio; AQUA_PETS_FAKE_UPDATE steers the check)\n");
             }
         }
         bool modal = confirm_view || setup_up || settings_view || shop_view || battery_view || updates_view;
@@ -5337,7 +5337,7 @@ int main(int argc, char **argv) {
         { static bool edown; if (k[SDL_SCANCODE_E] && !edown && !update_mode) {   /* E: update mode, as CHECK FOR UPDATES enters it */
             progression_save(&tank); milestones_view = settings_view = updates_view = shop_view = false; selected_fish = -1;
             update_mode = true; update_clock = 0; update_begin(sim_bat_gauge(), sim_bat_state != BAT_ON_BATTERY);
-            printf("update mode (E): the pages over a pretend radio; POCKET_TANK_FAKE_UPDATE=none|cable|fail|downloadfail|otherboard|boardimage|<x.y.z> steers the check\n"); }
+            printf("update mode (E): the pages over a pretend radio; AQUA_PETS_FAKE_UPDATE=none|cable|fail|downloadfail|otherboard|boardimage|<x.y.z> steers the check\n"); }
           edown = k[SDL_SCANCODE_E]; }
         if (k[SDL_SCANCODE_S] && !sdown) {                    /* the first-run flow, on cue */
             if (setup_active()) { setup_cancel(&tank); printf("setup: closed (still owed if it was pending)\n"); }

@@ -220,7 +220,7 @@ static int flourish_checks(void) {
 }
 int selftest_themes(const char *prefix) {
     char save[128]; snprintf(save,sizeof save,"/tmp/aqua-theme-test-%ld.sav",(long)getpid());
-    CHECK(!setenv("POCKET_TANK_SAVE",save,1),"scratch save path");
+    CHECK(!setenv("AQUA_PETS_SAVE",save,1),"scratch save path");
     tank_t t,loaded; tank_init(&t,2024); progression_boot(&t);
     CHECK(t.theme==THEME_ORIGINAL,"fresh tank defaults to Original");
     tank_set_name(&t,0,"miso"); t.fish[0].trust=6.25f; t.sd_balance=173;
