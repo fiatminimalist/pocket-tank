@@ -12,7 +12,12 @@
    speaks to the board's USB CDC interface through WebUSB and presents it as navigator.serial, so ESP Web Tools below runs
    unchanged. Only installed where Web Serial is missing (?polyfill=1 forces it, for testing on a desktop). */
 import {serial as polyfill} from "./vendor/web-serial-polyfill/serial.js";
-if(("usb" in navigator)&&(!("serial" in navigator)||new URLSearchParams(location.search).has("polyfill"))){Object.defineProperty(navigator,"serial",{value:polyfill,configurable:true});document.documentElement.dataset.serialPolyfill="1";}
+if(("usb" in navigator)&&(!("serial" in navigator)||new URLSearchParams(location.search).has("polyfill"))){
+  /* the chooser lists EVERY USB device (2026-10-10: a phone reported "no compatible devices found" with the
+     polyfill's default class-2 filter); the port still finds the board's CDC interface by class when it opens */
+  const serial={requestPort:(opts)=>polyfill.requestPort({...(opts||{}),filters:[]}),getPorts:()=>polyfill.getPorts(),
+                addEventListener:(...a)=>polyfill.addEventListener?.(...a),removeEventListener:(...a)=>polyfill.removeEventListener?.(...a)};
+  Object.defineProperty(navigator,"serial",{value:serial,configurable:true});document.documentElement.dataset.serialPolyfill="1";}
 </script>
 <script type="module" src="{{VENDOR}}/install-button.js"></script>
 </head>
@@ -69,6 +74,6 @@ window.addEventListener('DOMContentLoaded',()=>{   /* (after the module scripts:
   if(!('usb' in navigator)){o.textContent='This browser has no WebUSB. Use Chrome on Android, or Chrome / Edge on a computer.';return}
   if(!isSecureContext){o.textContent='Not a secure context: open the HTTPS address (port 8766).';return}
   try{const d=await navigator.usb.requestDevice({filters:[]});o.textContent='Chrome can see: '+(d.productName||'a USB device')+' ('+d.vendorId.toString(16).padStart(4,'0')+':'+d.productId.toString(16).padStart(4,'0')+'). Install update should work now.'}
-  catch(e){o.textContent=e.name==='NotFoundError'?'The chooser closed with nothing picked. If no chooser appeared at all: the page is not trusted (see the certificate step above), or the board is not seen by the phone (try another cable or OTG adapter; the board must show the "USB device connected" notification).':'Chrome refused: '+e.name+' - '+e.message}});}}
+  catch(e){o.textContent=e.name==='NotFoundError'?'Nothing picked. If the chooser said "No compatible devices found", the PHONE does not see the board at all (this test lists every USB device): the cable must carry data and the adapter must be OTG (host); plug the board in and look for Android\'s "USB device connected" notification first; try the other USB-C port on the board if it has two; a powered OTG hub helps a phone that will not power the board. If no chooser appeared at all: the page is not trusted (the certificate / flag step above).':'Chrome refused: '+e.name+' - '+e.message}});}}
 for(const [i,b] of BOARDS.entries()){const e=document.createElement('button');e.type='button';e.dataset.id=b.id;e.setAttribute('role','radio');e.setAttribute('aria-checked','false');e.tabIndex=i? -1:0;e.textContent=LABEL[b.id]||b.name;const n=document.createElement('small');n.textContent=NOTE[b.id]||b.name;e.append(n);e.onclick=()=>choose(b.id);e.onkeydown=ev=>{if(!['ArrowRight','ArrowDown','ArrowLeft','ArrowUp','Home','End'].includes(ev.key))return;ev.preventDefault();const buttons=[...list.children],next=ev.key==='Home'?0:ev.key==='End'?buttons.length-1:(i+(ev.key==='ArrowRight'||ev.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length;buttons[next].focus();choose(BOARDS[next].id)};list.append(e)}
 </script></body></html>
