@@ -1783,19 +1783,16 @@ static void castle_front_row(const cst_t *k) {
  * scene bake), or the front row alone (front = 1: over the fish) */
 /* A quiet rounded ruin / a sculpted sandcastle. Same footprint and swim-through arch. */
 /* Limestone ruin: relief, joints and moss are baked through the same depth mask. */
-/* the Quiet Lagoon's castle (redesigned twice on 2026-10-10; "a little more magnificent"): a
-   sunken TEMPLE - a three-step platform, four tall fluted columns with bases and capitals
-   (the far-left one broken off), an entablature with a triglyph frieze across them, a
-   pediment above with a sun disc in its tympanum and its right corner crumbled, the arch
-   with its keystone over the same opening every castle has (the fish swim through it), a
-   block wall behind the colonnade losing blocks toward its top, a fallen drum on the left
-   step, moss on every ledge. Pale sandstone gone green with the water. The same geometry
-   rule as the other castles: every solid pixel is painted in both passes, the opening's
-   dark only behind the fish (!front). */
+/* the Quiet Lagoon's castle (2026-10-10, the third design: "a chateau, a French castle"): a
+   symmetrical limestone facade - a plinth, two round pepper-pot corner towers with conical
+   slate roofs and finials, a main block with two rows of tall windows and a balustrade, a
+   taller central pavilion with quoins, a steep hipped slate roof and a spire, dormers in the
+   mansard, chimneys, the grand arched entrance (the same opening every castle has, the fish
+   swim through it) with a tall window and an oculus above it. Pale stone greened a little by
+   the water, lit from the left. The same geometry rule as the other castles: every solid
+   pixel is painted in both passes, the opening's dark only behind the fish (!front). */
 static void draw_lagoon_castle(ctx_t *c,int cx,int front,bool final) {
     cst_t k={c,cx,front,final};
-    uint16_t tones[16];
-    for(int i=0;i<16;i++)tones[i]=rgb565(mix(0xcfcbaa,0x3b5c54,i/15.f),c->dim);
     for(int y=CASTLE_FY-160;y<=CASTLE_FY+3;y++) {
         if(y<c->oy||y>=c->oy+c->h)continue;
         int h=CASTLE_FY-y;
@@ -1804,122 +1801,123 @@ static void draw_lagoon_castle(ctx_t *c,int cx,int front,bool final) {
         for(int x=left;x<=right;x++) {
             unsigned noise=((unsigned)(x+100)*1237u+(unsigned)(h+40)*719u)^((unsigned)(x+130)*(unsigned)(h+17));
             int ax=abs(x);
-            /* the platform: three steps */
-            int step = h>=-3&&h<4&&ax<90 ? 1 : h>=4&&h<9&&ax<84 ? 2 : h>=9&&h<13&&ax<78 ? 3 : 0;
-            /* four columns at +-46 and +-72; the far-left one broken off jagged */
-            int ci = ax>=36&&ax<56 ? 46 : ax>=62&&ax<82 ? 72 : 0; int d=ax-ci;
-            int top = (x<0&&ci==72) ? 58+(int)(((unsigned)(x*7)%5)) : 106;
-            bool shaft=ci&&abs(d)<7&&h>=19&&h<top;
-            bool base=ci&&abs(d)<10&&h>=13&&h<19;
-            bool capital=ci&&top>100&&abs(d)<10&&h>=98&&h<106;
-            bool volute=ci&&top>100&&(abs(d)==9||abs(d)==10)&&h>=96&&h<104;
-            /* the entablature: an architrave and a triglyph frieze, 82 wide */
-            bool arch_beam=ax<84&&h>=106&&h<112;
-            bool frieze=ax<84&&h>=112&&h<122;
-            bool triglyph=frieze&&((ax+4)%20)<8&&(((ax+4)%20)%3)!=2;
-            bool cornice=ax<88&&h>=122&&h<126;
-            /* the pediment: a triangle to the apex, its right corner crumbled away */
-            int ph=126+(88-ax)*34/88;
-            bool pediment=ax<88&&h>=126&&h<ph;
-            if(pediment&&x>44&&h>ph-6-(x-44)/3+(int)(((unsigned)(x/4)*7u)%3u)*2)pediment=false;   /* a jagged bite out of the right corner */
-            bool raking=pediment&&h>=ph-4;
-            /* the sun disc in the tympanum */
-            int r2=x*x+(h-140)*(h-140);
-            bool disc=pediment&&r2<36, rays=pediment&&!disc&&r2<100&&(((int)(atan2f((float)(h-140),(float)x)*8/3.14159f)+16)&1);
-            bool fallen=abs(x+28)<9&&h>=13&&h<13+8-(x+28>0?(x+28)/4:0);
-            /* the arch: a ring round the opening, its keystone */
+            bool plinth=h>=-3&&h<6&&ax<90;
+            /* the corner towers: cylinders, conical roofs, finials */
+            int tx=ax-74; bool tower=abs(tx)<15&&h>=6&&h<92;
+            int troof_w=15-(h-92)*15/38; bool troof=h>=92&&h<130&&abs(tx)<troof_w;
+            bool tfinial=h>=130&&h<137&&abs(tx)<=(h<134?1:0);
+            bool tslit=tower&&abs(tx)<=1&&((h>=30&&h<44)||(h>=60&&h<74));
+            /* the main block, its mansard, balustrade, dormers and chimneys */
+            bool block=ax<62&&h>=6&&h<84;
+            bool balus=ax<62&&ax>=30&&h>=84&&h<89&&(h>=88||h<85||((ax/4)&1));
+            int mroof_w=62-(h-89)*18/16; bool mansard=h>=89&&h<105&&ax<mroof_w&&ax>=30;
+            bool ridge=h>=105&&h<108&&ax<44&&ax>=30;
+            bool dormer=((ax>=38&&ax<48))&&h>=89&&h<100, dormer_roof=((ax>=36&&ax<50))&&h>=100&&h<104&&(ax-36)<=(104-h)*7/2&&(49-ax)<=(104-h)*7/2;
+            bool dormer_win=ax>=40&&ax<46&&h>=91&&h<98;
+            bool chimney=ax>=52&&ax<58&&h>=100&&h<116, chimney_cap=ax>=51&&ax<59&&h>=116&&h<118;
+            /* the central pavilion: quoins, a hipped roof, a spire */
+            bool pav=ax<31&&h>=6&&h<104;
+            bool quoin=pav&&ax>=27&&((h/6)&1)==((ax>=29)?0:1);
+            int proof_w=31-(h-104)*28/36; bool proof=h>=104&&h<140&&ax<proof_w;
+            bool spire=h>=140&&h<152&&ax<=(h<148?1:0), spire_ball=h>=147&&h<150&&ax<=1;
+            /* the windows: two rows on the block, a tall one and an oculus on the pavilion */
+            bool win=false, sill=false;
+            { int wx=ax; bool col=(wx>=36&&wx<44)||(wx>=48&&wx<56); if(block&&col&&((h>=20&&h<38)||(h>=52&&h<70)))win=true; if(block&&col&&(h==19||h==51))sill=true; }
+            if(pav&&ax<6&&h>=58&&h<80)win=true; if(pav&&ax<=6&&h==57)sill=true;
+            { int oy=h-92; if(pav&&ax*ax+oy*oy<5*5)win=true; }
+            bool win_bar=win&&((h>=20&&h<38&&(h==29||ax==40||ax==52))||(h>=52&&h<70&&(h==61||ax==40||ax==52))||(h>=58&&h<80&&ax<6&&(h==69||ax==0)));
+            /* the entrance: the opening, its stone ring and keystone */
             bool opening=ax<26&&h>=0&&(h<24||x*x+(h-24)*(h-24)<26*26);
-            bool ring=ax<36&&h>=13&&(h<24||x*x+(h-24)*(h-24)<36*36)&&!opening;
-            bool keystone=ax<5&&h>=50&&h<64&&ring;
-            /* the wall behind the colonnade, blocks missing toward its top */
-            bool wall=ax<84&&h>=13&&h<100&&!opening;
-            if(wall&&h>70&&(((unsigned)((x+84)/11)*31u+(unsigned)(h/7)*17u)%4u)==0)wall=false;
+            bool ring=!opening&&ax<30&&h>=0&&(h<24||x*x+(h-24)*(h-24)<30*30);
+            bool keystone=ring&&ax<3&&h>=47;
             if(opening){if(!front)castle_put(&k,cx+x,y,rgb565(mix(water_rgb(y),0x173e3e,.5f),c->dim));continue;}
-            if(!(step||shaft||base||capital||volute||arch_beam||frieze||cornice||pediment||fallen||ring||wall))continue;
-            int tone;
-            if(step) tone=6+step+(int)(noise%3);
-            else if(shaft){ tone=3+(int)(noise%3); if(((ax-ci+7)%5)==0)tone+=4; if(d>3)tone+=2; }
-            else if(base||capital||volute) tone=(volute?2:4)+(int)(noise%2);
-            else if(cornice) tone=2+(int)(noise%2);
-            else if(arch_beam) tone=5+(int)(noise%2);
-            else if(frieze) tone=triglyph?9+(int)(noise%2):4+(int)(noise%2);
-            else if(pediment) tone=disc?1:rays?3:raking?2:6+(int)(noise%3);
-            else if(fallen) tone=7+(int)(noise%3);
-            else if(ring) tone=keystone?1:4+(int)(noise%3);
-            else tone=10+(int)(noise%3);                                 /* the wall, in the colonnade's shadow */
-            if(!shaft&&!ring&&!pediment&&(h%7==0||((x+100+(h/7%2)*6)%13==0)))tone+=3;   /* the blocks' seams */
-            /* the broken column's top and the ledges: moss */
-            bool ledge = (step&&(h==3||h==8||h==12)) || (shaft&&x<0&&ci==72&&h>=top-3) || (cornice&&h==125) || (arch_beam&&h==106);
-            if(ledge&&noise%7<4){castle_put(&k,cx+x,y,rgb565(mix(0x4f7757,0x8aa06b,(noise%4)/4.f),c->dim));continue;}
-            if(tone<0)tone=0;
-            if(tone>15)tone=15;
-            castle_put(&k,cx+x,y,tones[tone]);
+            if(!(plinth||tower||troof||tfinial||block||balus||mansard||ridge||dormer||dormer_roof||chimney||chimney_cap||pav||proof||spire))continue;
+            uint32_t rgb;
+            float lit=x<0?1:0.55f;                                              /* the sun from the left */
+            uint32_t stone=mix(0xd9d3b6,0x9fa78c,lit<1?0.45f:0.f), slate=mix(0x5c6a74,0x3b474f,lit<1?0.5f:0.f);
+            if(win) rgb=win_bar?0xc9c4a4:mix(0x1f3a40,0x6f9aa0,((noise%5)/6.f)+0.1f);
+            else if(sill) rgb=0xb9b398;
+            else if(tfinial||spire_ball) rgb=0xd6b286;
+            else if(spire) rgb=0x4b575f;
+            else if(troof||proof||dormer_roof) { rgb=slate; if(((x+h)%6==0)||((x-h)%6==0)) rgb=mix(rgb,0x2c353b,0.6f); if(troof&&abs(tx)>=troof_w-1) rgb=0x2c353b; if(proof&&ax>=proof_w-1) rgb=0x2c353b; }
+            else if(mansard||ridge) { rgb=slate; if((h%4)==0) rgb=mix(rgb,0x2c353b,0.5f); if(ridge) rgb=0x3b474f; }
+            else if(chimney||chimney_cap) rgb=chimney_cap?0x8c8470:mix(0xb9a98a,0x8c7a5c,(noise%3)/3.f);
+            else if(balus) rgb=0xc9c4a4;
+            else if(keystone) rgb=0xb9b398;
+            else if(ring) rgb=((h/5)&1)?0xc4bea0:0xb0aa8c;
+            else if(quoin) rgb=0xc9c4a4;
+            else if(dormer) rgb=dormer_win?0x2a4448:0xcfc9ab;
+            else if(plinth) rgb=mix(0x8f9a84,0x6f7a66,(noise%3)/3.f);
+            else {                                                              /* the walls: stone courses, a little moss low down */
+                rgb=stone;
+                if((h%8)==0||(((x+100+(h/8%2)*7)%14)==0)) rgb=mix(rgb,0x8c907a,0.5f);
+                if(noise%17==0) rgb=mix(rgb,0xf0ead0,0.4f);
+                if(h<16&&noise%5<2) rgb=mix(rgb,0x4f7757,0.5f);
+                if(tower&&abs(tx)>=13) rgb=mix(rgb,0x7a826c,0.5f);                /* the towers' rounded shade */
+                if(tslit) rgb=0x1f3a40;
+            }
+            castle_put(&k,cx+x,y,rgb565(rgb,c->dim));
         }
     }
 }
-/* the Tidepool Club's castle (redesigned a third time on 2026-10-10: the pineapple house "looks
-   ugly"): a SANDCASTLE - a wide bucket-moulded keep with a smaller bucket tier on top, two
-   bucket towers either side, every top crenellated, a flag on a stick over the keep, scallop
-   shells pressed into the walls, a starfish on the mound, bucket ridges round every tier and
-   the sand's own speckle. The door is the same opening every castle has (the fish swim
-   through it) and the windows are HOLES too - round ones in the keep and the towers, the
-   water behind them, the fish passing behind. Warm sand, lit from the left. */
-static inline bool sc_window(int x, int h) {
-    int a = x + 22, ah = h - 58, b = x - 22, bh = h - 58, l = x + 66, lh = h - 34, r = x - 66, rh = h - 34;
-    return a * a + ah * ah < 36 || b * b + bh * bh < 36 || l * l + lh * lh < 16 || r * r + rh * rh < 16;
+/* the Tidepool Club's castle (2026-10-10, the fourth design: "colourful buckets"): a castle of
+   upturned plastic beach buckets - a big red one for the keep with a yellow one stacked on
+   it, a blue bucket and a green one either side with a small orange and a small purple one on
+   top of those, every bucket with its lip band, a stripe, a glossy highlight and a wire handle
+   arched over it, a pinwheel flag on the top. The door is the same opening every castle has
+   (the fish swim through it) and the round windows are holes too, the water behind them. */
+typedef struct { int8_t cx; uint8_t hw_bot, hw_top, h0, h1; uint32_t body, stripe; } bucket_t;
+static const bucket_t BUCKETS[6] = {
+    { 0,   44, 36, 4,  70, 0xe0473a, 0xffd84a },        /* the keep */
+    { 0,   24, 19, 70, 104, 0xffd84a, 0xe0473a },       /* on it */
+    { -70, 20, 16, 2,  50, 0x2d8be0, 0xfff6d9 },        /* left */
+    { 70,  20, 16, 2,  50, 0x3bb05a, 0xffd84a },        /* right */
+    { -70, 11, 9,  50, 70, 0xff8c2e, 0xfff6d9 },        /* small, left */
+    { 70,  11, 9,  50, 70, 0x9b5fd6, 0xfff6d9 },        /* small, right */
+};
+static inline bool bk_window(int x, int h) {
+    int a = x + 30, ah = h - 56, b = x - 30, bh = h - 56, l = x + 70, lh = h - 30, r = x - 70, rh = h - 30;
+    return a * a + ah * ah < 49 || b * b + bh * bh < 49 || l * l + lh * lh < 25 || r * r + rh * rh < 25;
 }
 static void draw_theme_castle(ctx_t *c,int cx,int front,bool final) {
     if(theme_active()==THEME_QUIET_LAGOON){draw_lagoon_castle(c,cx,front,final);return;}
     cst_t k={c,cx,front,final};
-    for(int y=CASTLE_FY-152;y<=CASTLE_FY+5;y++) {
+    for(int y=CASTLE_FY-150;y<=CASTLE_FY+5;y++) {
         if(y<c->oy || y>=c->oy+c->h)continue;
         int h=CASTLE_FY-y;
-        for(int x=-90;x<=90;x++) {
+        for(int x=-92;x<=92;x++) {
             unsigned noise=((unsigned)(x+100)*1237u+(unsigned)(h+40)*719u)^((unsigned)(x+130)*(unsigned)(h+17));
             int ax=abs(x);
-            bool mound=h>=-3&&h<9&&x*x+(h-2)*(h-2)*25<8100;
-            /* the keep: a bucket, 80 wide at the sand, narrowing up; merlons on top; a smaller bucket tier above */
-            int kw=40-h*7/100; bool keep=h>=4&&h<78&&ax<kw;
-            bool keep_merlon=h>=78&&h<90&&ax<35&&(((ax+6)/12)&1)==0;
-            int tw=23-(h-90)/8; bool tier=h>=90&&h<116&&ax<tw;
-            bool tier_merlon=h>=116&&h<126&&ax<20&&(((ax+4)/8)&1)==0;
-            /* the towers: buckets either side, their merlons */
-            int tx=ax-66; int ww=18-h*6/100; bool tower=h>=2&&h<56&&abs(tx)<ww;
-            bool tower_merlon=h>=56&&h<66&&abs(tx)<15&&(((abs(tx)+5)/10)&1)==0;
-            /* the flag on its stick */
-            bool stick=ax<=0&&h>=126&&h<148, flag=x>0&&x<=14&&h>=140&&h<150&&(x<=(150-h)*2+2);
-            /* the door and the windows: holes, the water behind them */
+            bool mound=h>=-3&&h<9&&x*x+(h-2)*(h-2)*25<8464;
+            /* which bucket (the last one drawn wins: the small ones sit on the big ones) */
+            const bucket_t *bk=NULL; int bx=0, hw=0; bool lip=false, edge=false, handle=false;
+            for(int i=0;i<6;i++){ const bucket_t *b=&BUCKETS[i]; int dx=x-b->cx;
+                if(h>=b->h0&&h<b->h1){ int w=b->hw_bot-(b->hw_bot-b->hw_top)*(h-b->h0)/(b->h1-b->h0); if(abs(dx)<w){bk=b;bx=dx;hw=w;lip=h>=b->h1-5;edge=abs(dx)>=w-2;} }
+                /* the wire handle: an arc over the bucket's top, two wire's widths */
+                if(i==1||i==4||i==5){ int r=b->hw_top+1, hy=h-b->h1; int d2=dx*dx+hy*hy; if(hy>=0&&d2>=(r-1)*(r-1)&&d2<(r+1)*(r+1)&&!bk)handle=true; } }
+            bool pin_stick=ax<=0&&h>=104&&h<128, pin=h>=122&&h<138&&ax<9&&(ax+abs(h-130))<9;
             bool opening=ax<26&&h>=0&&(h<24 || x*x+(h-24)*(h-24)<26*26);
-            bool hole=opening||((keep||tower)&&sc_window(x,h));
-            bool frame=!opening&&ax<30&&h>=0&&(h<24 || x*x+(h-24)*(h-24)<30*30);
-            bool win_rim=!hole&&(keep||tower)&&(sc_window(x-1,h)||sc_window(x+1,h)||sc_window(x,h-1)||sc_window(x,h+1)||sc_window(x-2,h)||sc_window(x+2,h));
-            /* scallop shells pressed into the walls, a starfish on the mound */
-            bool shell=false, shell_ridge=false;
-            { static const int8_t SH[4][2]={{-12,44},{14,38},{-66,14},{66,46}};
-              for(int i=0;i<4&&!shell;i++){ int sx=x-SH[i][0], sh=h-SH[i][1]; if(sh>=0&&sx*sx+sh*sh*2<36){shell=true;shell_ridge=((sx+sh)&3)==0;} } }
-            bool star=false;
-            { float sx=x+50, sh=h-6; float r=sqrtf(sx*sx+sh*sh); if(r<1||r<3.2f+3.8f*fabsf(cosf(atan2f(sh,sx)*2.5f)))star=h>=0&&r<7.5f; }
+            bool hole=opening||(bk&&bk_window(x,h));
+            bool frame=!opening&&ax<30&&h>=0&&(h<24 || x*x+(h-24)*(h-24)<30*30)&&bk;
+            bool win_rim=bk&&!hole&&(bk_window(x-1,h)||bk_window(x+1,h)||bk_window(x,h-1)||bk_window(x,h+1)||bk_window(x-2,h)||bk_window(x+2,h));
             if(hole){ if(!front)castle_put(&k,cx+x,y,rgb565(mix(water_rgb(y),0x4a3a26,.55f),c->dim)); continue; }
-            if(!(mound||keep||keep_merlon||tier||tier_merlon||tower||tower_merlon||stick||flag||star))continue;
+            if(!(mound||bk||handle||pin_stick||pin))continue;
             uint32_t rgb;
-            if(flag) rgb=((h-140)/3)&1?0xd8402c:0xe8623f;
-            else if(stick) rgb=0x6a4428;
-            else if(star) rgb=(noise%5==0)?0xf0a050:0xe8702e;
-            else if(shell) rgb=shell_ridge?0xfff6d9:0xf0b9a8;
-            else {
-                /* the sand: lit from the left, darker in the bucket ridges and round the door, speckled */
-                bool wall=keep||tier||tower||keep_merlon||tier_merlon||tower_merlon;
-                float lit = wall ? (keep||keep_merlon||tier||tier_merlon ? (-x)/40.f : (-(ax-66))/18.f*(x<0?1:-1)) : 0;
-                rgb=mix(0xd9bd8e,0xf0dcb0,0.5f+0.4f*(lit<-1?-1:lit>1?1:lit));
-                if(!wall) rgb=mix(0xdcc39b,0xc0a67c,(noise%4)/4.f);
-                if(wall&&(h%10)==0) rgb=mix(rgb,0xa8855a,0.5f);                      /* the bucket's ridges */
-                if(frame) rgb=mix(rgb,0xa8855a,0.55f);
-                if(win_rim) rgb=mix(rgb,0xa8855a,0.6f);
-                if(keep_merlon||tier_merlon||tower_merlon){ if(h==78||h==116||h==56) rgb=mix(rgb,0xa8855a,0.4f); }
-                if((keep&&ax>=kw-1)||(tower&&abs(tx)>=ww-1)||(tier&&ax>=tw-1)) rgb=mix(rgb,0xa8855a,0.5f);   /* the bucket's edge */
-                if(noise%9==0) rgb=mix(rgb,0xfff2cf,0.5f);                           /* the sand's sparkle */
-                else if(noise%13==0) rgb=mix(rgb,0x9a7a52,0.35f);
+            if(pin) { int q=(x>0?1:0)+(h>130?2:0); rgb=q==0?0xe0473a:q==1?0xffd84a:q==2?0x2d8be0:0x3bb05a; if(ax<=1&&abs(h-130)<=1) rgb=0xfff6d9; }
+            else if(pin_stick) rgb=0x8a5a3a;
+            else if(handle) rgb=0x565a5d;
+            else if(bk) {
+                rgb=bk->body;
+                if(lip) rgb=mix(rgb,0xffffff,0.22f);                                    /* the lip band (the bucket's base, on top) */
+                if(h>=bk->h0+6&&h<bk->h0+10) rgb=bk->stripe;                             /* a stripe near the rim */
+                if(edge) rgb=mix(rgb,0x000000,0.35f);                                    /* the rounded sides */
+                else if(bx<-hw/3&&bx>-hw/3-4) rgb=mix(rgb,0xffffff,0.35f);               /* the gloss, left of centre */
+                else if(bx>hw/3) rgb=mix(rgb,0x000000,0.12f);
+                if(frame) rgb=mix(rgb,0x000000,0.4f);
+                if(win_rim) rgb=0xfff6d9;
+                if(noise%23==0) rgb=mix(rgb,0xffffff,0.2f);
             }
+            else rgb=mix(0xdcc39b,0xc0a67c,(noise%4)/4.f);                               /* the mound */
             castle_put(&k,cx+x,y,rgb565(rgb,c->dim));
         }
     }
