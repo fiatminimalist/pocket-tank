@@ -1861,64 +1861,88 @@ static void draw_lagoon_castle(ctx_t *c,int cx,int front,bool final) {
         }
     }
 }
-/* the Tidepool Club's castle (2026-10-10, the fourth design: "colourful buckets"): a castle of
-   upturned plastic beach buckets - a big red one for the keep with a yellow one stacked on
-   it, a blue bucket and a green one either side with a small orange and a small purple one on
-   top of those, every bucket with its lip band, a stripe, a glossy highlight and a wire handle
-   arched over it, a pinwheel flag on the top. The door is the same opening every castle has
-   (the fish swim through it) and the round windows are holes too, the water behind them. */
-typedef struct { int8_t cx; uint8_t hw_bot, hw_top, h0, h1; uint32_t body, stripe; } bucket_t;
-static const bucket_t BUCKETS[6] = {
-    { 0,   44, 36, 4,  70, 0xe0473a, 0xffd84a },        /* the keep */
-    { 0,   24, 19, 70, 104, 0xffd84a, 0xe0473a },       /* on it */
-    { -70, 20, 16, 2,  50, 0x2d8be0, 0xfff6d9 },        /* left */
-    { 70,  20, 16, 2,  50, 0x3bb05a, 0xffd84a },        /* right */
-    { -70, 11, 9,  50, 70, 0xff8c2e, 0xfff6d9 },        /* small, left */
-    { 70,  11, 9,  50, 70, 0x9b5fd6, 0xfff6d9 },        /* small, right */
-};
-static inline bool bk_window(int x, int h) {
-    int a = x + 30, ah = h - 56, b = x - 30, bh = h - 56, l = x + 70, lh = h - 30, r = x - 70, rh = h - 30;
-    return a * a + ah * ah < 49 || b * b + bh * bh < 49 || l * l + lh * lh < 25 || r * r + rh * rh < 25;
+/* the Tidepool Club's castle (2026-10-10, the fifth design: "a pineapple castle, different from
+   before, fun"): a CASTLE OF PINEAPPLES - a big pineapple for the keep with two smaller ones
+   as towers, each in a diamond skin with a swept crown of leaves; pineapple-slice rings for
+   windows (yellow rings, the water through their holes - the fish pass behind); the same
+   arched opening every castle has for the gate, with a wooden drawbridge lying on the sand
+   before it on two chains; bunting strung from crown to crown with little coloured flags; a
+   starfish on the mound. */
+static inline bool pa_window(int x, int h) {
+    int a = x + 18, ah = h - 74, b = x - 18, bh = h - 74, l = x + 66, lh = h - 40, r = x - 66, rh = h - 40;
+    return a * a + ah * ah < 36 || b * b + bh * bh < 36 || l * l + lh * lh < 16 || r * r + rh * rh < 16;
+}
+static inline bool pa_ring(int x, int h) {
+    int a = x + 18, ah = h - 74, b = x - 18, bh = h - 74, l = x + 66, lh = h - 40, r = x - 66, rh = h - 40;
+    int ra = a * a + ah * ah, rb = b * b + bh * bh, rl = l * l + lh * lh, rr = r * r + rh * rh;
+    return (ra >= 36 && ra < 100) || (rb >= 36 && rb < 100) || (rl >= 16 && rl < 64) || (rr >= 16 && rr < 64);
+}
+/* a pineapple: the fruit's ellipse (cx, the centre's h, rx, ry) and a crown of n leaves from its top */
+static inline bool pa_fruit(int x, int h, int px, int ph, int rx, int ry) { float ex = (x - px) / (float)rx, ey = (h - ph) / (float)ry; return ex * ex + ey * ey < 1; }
+static inline bool pa_edge(int x, int h, int px, int ph, int rx, int ry) { float ex = (x - px) / (float)rx, ey = (h - ph) / (float)ry; return ex * ex + ey * ey > 0.84f; }
+static bool pa_leaf(int x, int h, int px, int top, int n, int tall, int *which) {
+    for (int i = 0; i < n; i++) { int o = i - n / 2, lx = px + o * (tall / 5); int ao = o < 0 ? -o : o;
+        int lh = top + tall - ao * (tall / (n / 2 + 1)); int w = 5 - (h - top) * 5 / (lh - top + 1);
+        int sway = o * ((h - top) / 6);
+        if (h >= top && h < lh && abs(x - lx - sway) <= w) { *which = i; return true; } }
+    return false;
 }
 static void draw_theme_castle(ctx_t *c,int cx,int front,bool final) {
     if(theme_active()==THEME_QUIET_LAGOON){draw_lagoon_castle(c,cx,front,final);return;}
     cst_t k={c,cx,front,final};
-    for(int y=CASTLE_FY-150;y<=CASTLE_FY+5;y++) {
+    for(int y=CASTLE_FY-162;y<=CASTLE_FY+5;y++) {
         if(y<c->oy || y>=c->oy+c->h)continue;
         int h=CASTLE_FY-y;
         for(int x=-92;x<=92;x++) {
             unsigned noise=((unsigned)(x+100)*1237u+(unsigned)(h+40)*719u)^((unsigned)(x+130)*(unsigned)(h+17));
             int ax=abs(x);
             bool mound=h>=-3&&h<9&&x*x+(h-2)*(h-2)*25<8464;
-            /* which bucket (the last one drawn wins: the small ones sit on the big ones) */
-            const bucket_t *bk=NULL; int bx=0, hw=0; bool lip=false, edge=false, handle=false;
-            for(int i=0;i<6;i++){ const bucket_t *b=&BUCKETS[i]; int dx=x-b->cx;
-                if(h>=b->h0&&h<b->h1){ int w=b->hw_bot-(b->hw_bot-b->hw_top)*(h-b->h0)/(b->h1-b->h0); if(abs(dx)<w){bk=b;bx=dx;hw=w;lip=h>=b->h1-5;edge=abs(dx)>=w-2;} }
-                /* the wire handle: an arc over the bucket's top, two wire's widths */
-                if(i==1||i==4||i==5){ int r=b->hw_top+1, hy=h-b->h1; int d2=dx*dx+hy*hy; if(hy>=0&&d2>=(r-1)*(r-1)&&d2<(r+1)*(r+1)&&!bk)handle=true; } }
-            bool pin_stick=ax<=0&&h>=104&&h<128, pin=h>=122&&h<138&&ax<9&&(ax+abs(h-130))<9;
+            /* the three fruits and their crowns */
+            bool keep=h>=4&&pa_fruit(x,h,0,60,36,56), keep_edge=keep&&pa_edge(x,h,0,60,36,56);
+            bool tl=h>=2&&pa_fruit(x,h,-66,34,18,32), tl_edge=tl&&pa_edge(x,h,-66,34,18,32);
+            bool tr=h>=2&&pa_fruit(x,h,66,34,18,32), tr_edge=tr&&pa_edge(x,h,66,34,18,32);
+            int li=0; bool leaf=pa_leaf(x,h,0,112,9,48,&li)||pa_leaf(x,h,-66,62,7,30,&li)||pa_leaf(x,h,66,62,7,30,&li);
+            bool fruit=keep||tl||tr, fedge=keep_edge||tl_edge||tr_edge;
+            /* the gate, the windows (holes), their rings */
             bool opening=ax<26&&h>=0&&(h<24 || x*x+(h-24)*(h-24)<26*26);
-            bool hole=opening||(bk&&bk_window(x,h));
-            bool frame=!opening&&ax<30&&h>=0&&(h<24 || x*x+(h-24)*(h-24)<30*30)&&bk;
-            bool win_rim=bk&&!hole&&(bk_window(x-1,h)||bk_window(x+1,h)||bk_window(x,h-1)||bk_window(x,h+1)||bk_window(x-2,h)||bk_window(x+2,h));
+            bool gate_frame=!opening&&ax<30&&h>=0&&(h<24 || x*x+(h-24)*(h-24)<30*30)&&keep;
+            bool hole=opening||(fruit&&pa_window(x,h));
+            bool ring=fruit&&!hole&&pa_ring(x,h);
+            /* the drawbridge on the sand before the gate, its two chains up to the keep */
+            bool bridge=x>=-62&&x<-24&&h>=0&&h<4, bridge_slat=bridge&&((x+62)%6)==0;
+            bool chain=false;
+            for(int cxi=0;cxi<2;cxi++){ int x0=cxi?-30:-58, y0=4, x1=cxi?-30:-34, y1=cxi?52:46; float u=(h-y0)/(float)(y1-y0);
+                if(h>=y0&&h<=y1&&x==(int)(x0+(x1-x0)*u+0.5f)&&(h%3)!=2)chain=true; }
+            /* the bunting: two sagging strings from the keep's crown to the towers', little flags along them */
+            bool string=false, flag=false; int fi=0;
+            for(int side=-1;side<=1;side+=2){ int x0=0,y0=146,x1=side*66,y1=88; float u=(x-x0)/(float)(x1-x0);
+                if(u<0||u>1)continue; int sy=(int)(y0+(y1-y0)*u-sinf(u*3.14159f)*14+0.5f);
+                if(h==sy||h==sy-1)string=true;
+                int seg=(int)(u*7); float fu=u*7-seg; if(fu>0.25f&&fu<0.75f&&h<sy-1&&h>=sy-9-(int)(((fu-0.5f)*(fu-0.5f))*0)&&(abs((int)((fu-0.5f)*22))<=(sy-1-h)/2+1)){flag=true;fi=seg+(side>0?7:0);} }
+            /* a starfish on the mound */
+            bool star=false;
+            { float sx=x-48, sh=h-6; float r=sqrtf(sx*sx+sh*sh); if(r<1||r<3.2f+3.8f*fabsf(cosf(atan2f(sh,sx)*2.5f)))star=h>=0&&r<7.5f; }
             if(hole){ if(!front)castle_put(&k,cx+x,y,rgb565(mix(water_rgb(y),0x4a3a26,.55f),c->dim)); continue; }
-            if(!(mound||bk||handle||pin_stick||pin))continue;
+            if(!(mound||fruit||leaf||bridge||chain||string||flag||star))continue;
             uint32_t rgb;
-            if(pin) { int q=(x>0?1:0)+(h>130?2:0); rgb=q==0?0xe0473a:q==1?0xffd84a:q==2?0x2d8be0:0x3bb05a; if(ax<=1&&abs(h-130)<=1) rgb=0xfff6d9; }
-            else if(pin_stick) rgb=0x8a5a3a;
-            else if(handle) rgb=0x565a5d;
-            else if(bk) {
-                rgb=bk->body;
-                if(lip) rgb=mix(rgb,0xffffff,0.22f);                                    /* the lip band (the bucket's base, on top) */
-                if(h>=bk->h0+6&&h<bk->h0+10) rgb=bk->stripe;                             /* a stripe near the rim */
-                if(edge) rgb=mix(rgb,0x000000,0.35f);                                    /* the rounded sides */
-                else if(bx<-hw/3&&bx>-hw/3-4) rgb=mix(rgb,0xffffff,0.35f);               /* the gloss, left of centre */
-                else if(bx>hw/3) rgb=mix(rgb,0x000000,0.12f);
-                if(frame) rgb=mix(rgb,0x000000,0.4f);
-                if(win_rim) rgb=0xfff6d9;
-                if(noise%23==0) rgb=mix(rgb,0xffffff,0.2f);
+            if(flag) { static const uint32_t FC[4]={0xe0473a,0x33c7e0,0xfff6d9,0x3bb05a}; rgb=FC[fi&3]; }
+            else if(string) rgb=0x6a4428;
+            else if(leaf) rgb=(li+(h/7))%2 ? 0x55a862 : 0x3b8048;
+            else if(star) rgb=(noise%5==0)?0xf0a050:0xe8702e;
+            else if(chain) rgb=0x565a5d;
+            else if(bridge) rgb=bridge_slat?0x6a4428:((h==3)?0xa8865a:0x8a5a3a);
+            else if(fruit) {
+                if(ring) { int band=((x+h)&3); rgb=band==0?0xf0c040:band==1?0xffe27a:0xf6cf55; }   /* a pineapple slice: a yellow ring */
+                else if(gate_frame) rgb=((h/4)%2)?0x8a5a3a:0x9c6a44;
+                else {
+                    int u=(x+h)/9, v=(x-h)/9; bool seam=((x+h)%9==0)||((x-h)%9==0);
+                    rgb = seam ? 0xc0702e : ((u+v)&1) ? 0xf2b45a : 0xe69a44;
+                    if(!seam&&((x+h)%9==4)&&((x-h)%9==4)) rgb=0x8a4a20;                 /* the eye in every cell */
+                    if(((u*7+v*13)&3)==0&&!seam) rgb=mix(rgb,0xfff0b0,.3f);
+                    if(fedge) rgb=mix(rgb,0x8a4a20,.45f);
+                }
             }
-            else rgb=mix(0xdcc39b,0xc0a67c,(noise%4)/4.f);                               /* the mound */
+            else rgb=mix(0xdcc39b,0xc0a67c,(noise%4)/4.f);
             castle_put(&k,cx+x,y,rgb565(rgb,c->dim));
         }
     }
