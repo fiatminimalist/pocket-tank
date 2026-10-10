@@ -1018,6 +1018,20 @@ static int selftest_sleep(void) {
             for (int i = 0; i < 30 * 60; i++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
             if (tank.night) { printf("FAIL: lights went out in MANUAL\n"); return 1; }
             render_settings(&tank, sfb, TANK_W, 60, 2);
+            /* BRIGHTNESS (2026-10-10 evening): ten steps between two arrows, like LIGHTS OUT; the page was
+               drawn at 60, so the right arrow says 70, the left 50; the ends hold */
+            { const int bri_y = SET_ROW1_Y + 10;
+              r = SET_TAP_AT(SETP_NEXT_X, bri_y);
+              if (r != SET_TAP_BRIGHT || v != 70) { printf("FAIL: BRIGHTNESS up -> %d/%d\n", r, v); return 1; }
+              r = SET_TAP_AT(SETP_PREV_X, bri_y); r = SET_TAP_AT(SETP_PREV_X, bri_y);
+              if (r != SET_TAP_BRIGHT || v != 50) { printf("FAIL: BRIGHTNESS down twice -> %d/%d\n", r, v); return 1; }
+              for (int k = 0; k < 9; k++) r = SET_TAP_AT(SETP_NEXT_X, bri_y);
+              if (r != SET_TAP_NONE || v != 0) { printf("FAIL: BRIGHTNESS did not hold at 100 (%d/%d)\n", r, v); return 1; }
+              render_settings(&tank, sfb, TANK_W, 15, 2);                 /* an old save's 15: the nearest step, 20 */
+              r = SET_TAP_AT(SETP_NEXT_X, bri_y);
+              if (r != SET_TAP_BRIGHT || v != 30) { printf("FAIL: BRIGHTNESS from a saved 15 -> %d/%d\n", r, v); return 1; }
+              render_settings(&tank, sfb, TANK_W, 60, 2);
+              printf("selftest-sleep: BRIGHTNESS: 10..100 by tens between two arrows, the ends hold, an odd saved value rounds\n"); }
             /* in MANUAL a double-tap on the glass flips the light, and the flip rides in the save */
             notice_sync(&tank);
             tank_touch_tap(&tank, 200, 200); tank_touch_tap(&tank, 200, 200);

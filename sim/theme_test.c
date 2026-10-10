@@ -242,7 +242,11 @@ int selftest_themes(const char *prefix) {
         tap(&t,x+w/2,y+h-22,&v);
         render_settings(&t,fb,TANK_W,60,1); if (id) CHECK(safe_page(),"settings safe"); shot(prefix,"settings",id);
         if (id) {
-            CHECK(tap(&t,x+28,y+64+row_step+20,&v)==SET_TAP_BRIGHT && v==100,"brightness cycle");
+            CHECK(tap(&t,x+w-28,y+64+row_step+27,&v)==SET_TAP_BRIGHT && v==70,"brightness up a step");
+            CHECK(tap(&t,x+w-78,y+64+row_step+27,&v)==SET_TAP_BRIGHT && v==60,"brightness down a step");
+            CHECK(tap(&t,x+28,y+64+row_step+20,&v)==SET_TAP_NONE,"the brightness row's label is not a button");
+            for(int k=0;k<4;k++)tap(&t,x+w-28,y+64+row_step+27,&v);
+            CHECK(v==100 && tap(&t,x+w-28,y+64+row_step+27,&v)==SET_TAP_NONE,"brightness holds at 100");
             CHECK(tap(&t,x+28,y+64+2*row_step+20,&v)==SET_TAP_VOLUME && v==2,"volume cycle");
             tap(&t,x+36,y+h-22,&v); render_settings(&t,fb,TANK_W,100,2);
             CHECK(safe_page(),"second settings page safe"); shot(prefix,"settings_more",id);

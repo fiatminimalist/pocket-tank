@@ -5413,12 +5413,12 @@ void render_sd_toast(const tank_t *t, uint16_t *fb, int stride) {
  * one row (a value between two arrows, where MANUAL / AUTO and a big seconds
  * selector stood), and AUTO FEED and ROTATION have the room it gave back. */
 /* (the page's numbers, SET_*: render.h) */
-static const char *const SET_BRIGHT[4] = { "15%", "30%", "60%", "100%" };   /* 15 % since 2026-10-10: a dim night-stand level, kind to the AMOLED */
-static const int         SET_BRIGHT_PCT[4] = { 15, 30, 60, 100 };
-#define SET_BRIGHT_N 4
-#define SET_BRI_W  56                    /* the brightness row's four segments are narrower than the rows of three */
-#define SET_BRI_DX (SET_SEG_DX - 22)
-static int bright_index(int pct) { return pct <= 15 ? 0 : pct <= 30 ? 1 : pct <= 60 ? 2 : 3; }
+/* BRIGHTNESS (2026-10-10, evening): ten steps, 10 % to 100 %, a value between two arrows like
+   LIGHTS OUT (four segments 15/30/60/100 before). An odd saved value rounds to the nearest step. */
+static const char *const SET_BRIGHT[10] = { "10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%" };
+static const int         SET_BRIGHT_PCT[10] = { 10, 20, 30, 40, 50, 60, 70, 80, 90, 100 };
+#define SET_BRIGHT_N 10
+static int bright_index(int pct) { int i = (pct + 5) / 10 - 1; return i < 0 ? 0 : i >= SET_BRIGHT_N ? SET_BRIGHT_N - 1 : i; }
 static const char *const SET_VOLUME[3] = { "OFF", "QUIET", "NORMAL" };
 static const char *const SET_LIGHT[LIGHT_IDLE_N + 1] = { "DOUBLE-TAP",   /* MANUAL, the default: the row says how the light is worked */
     "5 SEC", "15 SEC", "30 SEC", "1 MIN", "3 MIN", "5 MIN", "10 MIN", "30 MIN" };
@@ -5467,25 +5467,25 @@ static void set_lock_icon(ctx_t *c, int cx, int cy, bool locked, uint32_t rgb) {
     rect_fill(c, cx - 4, top, 2, cy - 1 - top, rgb);
     rect_fill(c, cx + 2, top, 2, locked ? cy - 1 - top : 4, rgb);
 }
+/* a row of one value between two arrow buttons (LIGHTS OUT, and BRIGHTNESS since 2026-10-10) */
+static void set_arrow_row(ctx_t *c, int row_y, const char *label, const char *text, bool can_prev, bool can_next) {
+    int y = SET_SEG_Y(row_y), bx = SET_SEG_X + SET_ARW_W + 4, bw = SET_SPAN_W - 2 * (SET_ARW_W + 4);
+    draw_text(c, SET_LABEL_X, row_y, 2, MSP_TEAL, label);
+    set_arrow(c, SET_SEG_X, y, false, can_prev);
+    button(c, bx, y, bw, SET_SEG_H, MSP_TEAL, MSP_TEAL, "", 2);
+    draw_text(c, bx + (bw - text_w(text, 2)) / 2, y + (SET_SEG_H - 14) / 2, 2, MSP_INK, text);
+    set_arrow(c, SET_SEG_X + SET_SPAN_W - SET_ARW_W, y, true, can_next);
+}
 static void render_original_settings(const tank_t *t, uint16_t *fb, int stride, int bright_pct, int volume) {
     render_use_theme(t->theme);
     ctx_t c = ctx_page(fb, stride);
     rect_fill(&c, -PAGE_X, -PAGE_Y, TANK_W, TANK_H, MSP_INK);
     button(&c, (PAGE_W - 244) / 2, SET_TITLE_Y - 8, 244, 40, MSP_INK, MSP_DIM, "SETTINGS / THEMES", 2);
     int bi = bright_index(bright_pct);
-    set_row_w(&c, SET_ROW1_Y, "BRIGHTNESS", SET_BRIGHT, SET_BRIGHT_N, bi, SET_BRI_W, SET_BRI_DX);
+    set_arrow_row(&c, SET_ROW1_Y, "BRIGHTNESS", SET_BRIGHT[bi], bi > 0, bi < SET_BRIGHT_N - 1);   /* < the percent > */
     set_row(&c, SET_ROW2_Y, "VOLUME", SET_VOLUME, 3, volume < 0 ? 0 : volume > 2 ? 2 : volume);
     draw_text(&c, SET_LABEL_X, SET_NOTE_Y, 2, MSP_DIM, "FISH ARE QUIET AT NIGHT");
-    /* LIGHTS OUT: < the choice > */
-    {
-        int ch = tank_light_choice(t), y = SET_SEG_Y(SET_ROW3_Y);
-        int bx = SET_SEG_X + SET_ARW_W + 4, bw = SET_SPAN_W - 2 * (SET_ARW_W + 4);
-        draw_text(&c, SET_LABEL_X, SET_ROW3_Y, 2, MSP_TEAL, "LIGHTS OUT");
-        set_arrow(&c, SET_SEG_X, y, false, ch > 0);
-        button(&c, bx, y, bw, SET_SEG_H, MSP_TEAL, MSP_TEAL, "", 2);
-        draw_text(&c, bx + (bw - text_w(SET_LIGHT[ch], 2)) / 2, y + (SET_SEG_H - 14) / 2, 2, MSP_INK, SET_LIGHT[ch]);
-        set_arrow(&c, SET_SEG_X + SET_SPAN_W - SET_ARW_W, y, true, ch < LIGHT_IDLE_N);
-    }
+    { int ch = tank_light_choice(t); set_arrow_row(&c, SET_ROW3_Y, "LIGHTS OUT", SET_LIGHT[ch], ch > 0, ch < LIGHT_IDLE_N); }   /* < the choice > */
     set_row(&c, SET_ROW4_Y, "AUTO FEED", SET_FEED, 2, t->autofeed_off ? 1 : 0);
 #if TANK_WORN
     /* SCREEN (2026-10-02): the way up of a watch worn either way round - TURNED
@@ -5568,7 +5568,7 @@ static int set_segment(float x, int n) { return set_segment_w(x, n, SET_SEG_DX);
  * VOLUME 0..2, FEED 1 = ON, SCREEN 1 = TURNED; ROTATE carries none (a
  * toggle); the LIGHTS OUT row's own hits are LIGHT_PREV / LIGHT_NEXT (its
  * left and right halves). */
-enum { SET_HIT_LIGHT_PREV = 100, SET_HIT_LIGHT_NEXT, SET_HIT_THEMES, SET_HIT_THEME_PICK, SET_HIT_THEME_BACK, SET_HIT_PAGE, SET_HIT_CYCLE_BRIGHT, SET_HIT_CYCLE_VOLUME, SET_HIT_TOGGLE_FEED, SET_HIT_TOGGLE_SCREEN,
+enum { SET_HIT_LIGHT_PREV = 100, SET_HIT_LIGHT_NEXT, SET_HIT_THEMES, SET_HIT_THEME_PICK, SET_HIT_THEME_BACK, SET_HIT_PAGE, SET_HIT_BRIGHT_PREV, SET_HIT_BRIGHT_NEXT, SET_HIT_CYCLE_VOLUME, SET_HIT_TOGGLE_FEED, SET_HIT_TOGGLE_SCREEN,
        SET_HIT_ABOUT, SET_HIT_ABOUT_BACK };   /* (2026-10-10) the ABOUT button / row, and the about page's BACK */
 static bool g_settings_themes, g_settings_about;
 static int g_settings_page, g_settings_bright = 60, g_settings_volume = 2;
@@ -5580,8 +5580,8 @@ static int original_settings_tap(float x, float y, int *value) {
     if (x < SET_UPD_X + SET_UPD_W + 8 && y >= SET_FOOT_Y - 4) return SET_TAP_UPDATES;
     /* the row bands: from a little above each segment down to the next row
        (fingers report low); the last one stops at the foot's */
-    int seg = set_segment(x, 3), two = set_segment(x, 2), four = set_segment_w(x, SET_BRIGHT_N, SET_BRI_DX);
-    if (y >= SET_SEG_Y(SET_ROW1_Y) - 12 && y < SET_SEG_Y(SET_ROW2_Y) - 12) { if (four < 0) return SET_TAP_NONE; *value = SET_BRIGHT_PCT[four]; return SET_TAP_BRIGHT; }
+    int seg = set_segment(x, 3), two = set_segment(x, 2);
+    if (y >= SET_SEG_Y(SET_ROW1_Y) - 12 && y < SET_SEG_Y(SET_ROW2_Y) - 12) { if (seg < 0) return SET_TAP_NONE; *value = 0; return x < SET_SPAN_MID ? SET_HIT_BRIGHT_PREV : SET_HIT_BRIGHT_NEXT; }
     if (y >= SET_SEG_Y(SET_ROW2_Y) - 12 && y < SET_SEG_Y(SET_ROW3_Y) - 12) { if (seg < 0) return SET_TAP_NONE; *value = seg; return SET_TAP_VOLUME; }
     if (y >= SET_SEG_Y(SET_ROW3_Y) - 12 && y < SET_SEG_Y(SET_ROW4_Y) - 12) { if (seg < 0) return SET_TAP_NONE; *value = 0; return x < SET_SPAN_MID ? SET_HIT_LIGHT_PREV : SET_HIT_LIGHT_NEXT; }
     if (y >= SET_SEG_Y(SET_ROW4_Y) - 12 && y < SET_SEG_Y(SET_ROW5_Y) - 12) { if (two < 0) return SET_TAP_NONE; *value = two == 0; return SET_TAP_FEED; }
@@ -5671,7 +5671,7 @@ void render_settings(const tank_t *t, uint16_t *fb, int stride, int bright_pct, 
         button(&c,x,by,w,rh,p->panel,p->border,"",2);
         draw_text(&c,x+12,by+9,2,p->muted,label);
         draw_text(&c,x+12,by+31,2,p->text,value);
-        if (g_settings_page==1 && row==0) {
+        if ((g_settings_page==1 && row==0) || (g_settings_page==0 && row==1)) {   /* LIGHTS OUT and BRIGHTNESS: a step either way */
             button(&c,x+w-100,by+5,44,44,p->accent,p->accent,"-",2);
             button(&c,x+w-50,by+5,44,44,p->accent,p->accent,"+",2);
         } else draw_text(&c,x+w-28,by+(rh-14)/2,2,p->accent,"+");
@@ -5696,7 +5696,13 @@ int render_settings_tap(float tx, float ty, int *value) {
     for (int row=0;row<3;row++) {
         int by=modern_row_y(y,h,row),rh=h>350?72:54;
         if (!hit_rect(tx,ty,x,by,w,rh)) continue;
-        if (!g_settings_page) return row==0?SET_HIT_THEMES:row==1?SET_HIT_CYCLE_BRIGHT:SET_HIT_CYCLE_VOLUME;
+        if (!g_settings_page) {
+            if (row==0) return SET_HIT_THEMES;
+            if (row==2) return SET_HIT_CYCLE_VOLUME;
+            if (hit_rect(tx,ty,x+w-100,by+5,44,44)) return SET_HIT_BRIGHT_PREV;
+            if (hit_rect(tx,ty,x+w-50,by+5,44,44)) return SET_HIT_BRIGHT_NEXT;
+            return SET_TAP_NONE;
+        }
         if (g_settings_page==2) return SET_HIT_ABOUT;
         if (row==1) return SET_HIT_TOGGLE_FEED;
         if (row==2) return TANK_WORN?SET_HIT_TOGGLE_SCREEN:SET_TAP_ROTATE;
@@ -5732,9 +5738,9 @@ int render_settings_touch(tank_t *t, float x, float y, bool down, int *value) {
             else if (h == SET_HIT_PAGE) { g_settings_page = (g_settings_page + 1) % 3; }
             else if (h == SET_HIT_ABOUT) { g_settings_about = true; r = SET_TAP_ABOUT; *value = 1; }
             else if (h == SET_HIT_ABOUT_BACK) { g_settings_about = false; r = SET_TAP_ABOUT; *value = 0; }
-            else if (h == SET_HIT_CYCLE_BRIGHT) {
-                int bi = bright_index(g_settings_bright);
-                *value = g_settings_bright = SET_BRIGHT_PCT[(bi + 1) % SET_BRIGHT_N]; r = SET_TAP_BRIGHT;
+            else if (h == SET_HIT_BRIGHT_PREV || h == SET_HIT_BRIGHT_NEXT) {   /* one step either way; the ends hold */
+                int bi = bright_index(g_settings_bright) + (h == SET_HIT_BRIGHT_NEXT ? 1 : -1);
+                if (bi >= 0 && bi < SET_BRIGHT_N) { *value = g_settings_bright = SET_BRIGHT_PCT[bi]; r = SET_TAP_BRIGHT; tank_emit(TEV_WHEEL_TICK, -1); }
             }
             else if (h == SET_HIT_CYCLE_VOLUME) {
                 *value = g_settings_volume = (g_settings_volume + 1) % 3; r = SET_TAP_VOLUME;
