@@ -11,11 +11,11 @@
 <script type="module">/* Chrome on Android has WebUSB but no Web Serial (2026-10-10): the polyfill (vendor/web-serial-polyfill, Apache-2.0)
    speaks to the board's USB CDC interface through WebUSB and presents it as navigator.serial, so ESP Web Tools below runs
    unchanged. Only installed where Web Serial is missing (?polyfill=1 forces it, for testing on a desktop). */
-import {serial as polyfill} from "./vendor/web-serial-polyfill/serial.js";
+import {serial as polyfill, SerialPort as PolyfillPort} from "./vendor/web-serial-polyfill/serial.js";
 if(("usb" in navigator)&&(!("serial" in navigator)||new URLSearchParams(location.search).has("polyfill"))){
   /* the chooser lists EVERY USB device (2026-10-10: a phone reported "no compatible devices found" with the
      polyfill's default class-2 filter); the port still finds the board's CDC interface by class when it opens */
-  const serial={requestPort:(opts)=>polyfill.requestPort({...(opts||{}),filters:[]}),getPorts:()=>polyfill.getPorts(),
+  const serial={requestPort:async()=>{const d=await navigator.usb.requestDevice({filters:[]});return new PolyfillPort(d,{});},getPorts:()=>polyfill.getPorts(),
                 addEventListener:(...a)=>polyfill.addEventListener?.(...a),removeEventListener:(...a)=>polyfill.removeEventListener?.(...a)};
   Object.defineProperty(navigator,"serial",{value:serial,configurable:true});document.documentElement.dataset.serialPolyfill="1";}
 </script>
