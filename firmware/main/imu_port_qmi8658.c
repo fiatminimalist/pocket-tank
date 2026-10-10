@@ -43,10 +43,11 @@ static int s_up_sign = -1;   /* the round 1.75C, 2026-10-01 (Strato holding it u
 /* a hard shake (2026-10-10): the change across one 250 ms poll, every axis, values clamped at
    the +-2 g rails (a shake pegs an axis for a poll; the permanently railed axes of 08-31 give
    no change at all): over SHAKE_THRESH counts (~1.8 g of change) is one JOLT; SHAKE_COUNT jolts on
-   consecutive polls - 1.25 s of hard shaking, a knock or a drop never - is a shake (Alvin,
-   2026-10-10 evening: "less sensitive, only if it is shaken 5 times in a row"); one per cooldown */
+   consecutive polls - 0.75 s of hard shaking, a knock or a drop never - is a shake (Alvin,
+   2026-10-10 evening: "less sensitive, only if it is shaken 5 times in a row", then later that
+   night "reduce from 5 to 3"); one per cooldown */
 #define SHAKE_THRESH       30000
-#define SHAKE_COUNT        5
+#define SHAKE_COUNT        3
 #define SHAKE_COOLDOWN_US  2500000
 #define IMU_MOTION_HOLD_US 1000000
 

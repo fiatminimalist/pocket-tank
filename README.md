@@ -507,8 +507,9 @@ the squid and the octopus ink, the crab raises its claws), the shrimp
 scattering, the frogman thrown too. Over about three seconds the throw damps
 out and they settle back to their own ways, a little stressed, a little less
 trusting. The accelerometer counts jolts of about 1.8 g of change per poll and wants
-five of them in a row, about a second and a quarter of hard shaking, so a
-knock or a drop never counts; once every 2.5 s at most. The sim's 1 key does
+three of them in a row (five at first; cut to three later that night), about
+three quarters of a second of hard shaking, so a knock or a drop never counts;
+once every 2.5 s at most. The sim's 1 key does
 the same.
 
 **The night and the battery (2026-10-10).** Lights out used to keep the full
