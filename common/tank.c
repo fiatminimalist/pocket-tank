@@ -288,6 +288,7 @@ void tank_make_fish(tank_t *t, int slot, int preset, float sociable, float bold,
     fish_t *f = &t->fish[slot];
     const preset_t *p = &ROSTER[preset];
     f->preset = preset; tank_set_name(t, slot, p->name);
+    f->toss = 0; f->toss_vx = f->toss_vy = f->toss_spin = 0;
     f->model_name = TRAINED_NAMES[slot % N_TRAINED_NAMES];   /* names carry no signal */
     f->x = tank_randf(t, TANK_FX0 + 90, TANK_FX1 - 90); f->y = tank_randf(t, 80, TANK_BOT - 90);
     f->heading = tank_randf(t, 0, TAU); tank_fish_face(f);
@@ -538,6 +539,7 @@ void tank_init(tank_t *t, uint32_t seed) {
     t->cluster_x = 0; t->cluster_z = DECOR_Z_FRONT; t->cluster_scheme = 0; t->cluster_growth = 0; t->cluster_acc = 0;
     t->wreck_x = 0; t->wreck_z = DECOR_Z_FRONT;
     t->frog_x = TANK_W / 2; t->frog_y = t->frog_lane = TANK_H * 0.36f; t->frog_yaw = 1; t->frog_dir = 1; t->frog_lane_t = 20;
+    t->frog_toss = 0; t->frog_vx = t->frog_vy = 0;
     t->tank_ms_bits = 0; t->tank_ms_seen = 0; t->ask_rr = 0; t->advisor_asks = 0;
     tank_scatter_food(t, 2);
 }
@@ -1469,6 +1471,18 @@ bool tank_frogman_hit(const tank_t *t, float x, float y) {
 static void frogman_tick(tank_t *t, float dt) {
     if (!(t->sd_unlocks & SD_ITEM_FROGMAN)) return;
     float lo = FROG_MARGIN, hi = TANK_W - FROG_MARGIN;
+    if (t->frog_toss > 0) {                                  /* tossed by a shake: the throw, damping out, off the glass */
+        t->frog_toss -= dt; float damp = expf(-dt * 1.5f);
+        t->frog_vx *= damp; t->frog_vy = t->frog_vy * damp + 8 * dt;
+        t->frog_x += t->frog_vx * dt; t->frog_y += t->frog_vy * dt;
+        if (t->frog_x < lo) { t->frog_x = lo; t->frog_vx = fabsf(t->frog_vx) * 0.6f; }
+        if (t->frog_x > hi) { t->frog_x = hi; t->frog_vx = -fabsf(t->frog_vx) * 0.6f; }
+        if (t->frog_y < FROG_LANE_LO - 30) { t->frog_y = FROG_LANE_LO - 30; t->frog_vy = fabsf(t->frog_vy) * 0.6f; }
+        if (t->frog_y > TANK_BOT - 40) { t->frog_y = TANK_BOT - 40; t->frog_vy = -fabsf(t->frog_vy) * 0.5f; }
+        t->frog_yaw = clampf(t->frog_yaw + (t->frog_vx >= 0 ? 4 : -4) * dt, -1, 1); t->frog_dir = t->frog_vx >= 0 ? 1 : -1;
+        if (t->frog_toss <= 0) { t->frog_toss = 0; t->frog_lane = clampf(t->frog_y, FROG_LANE_LO, FROG_LANE_HI); }
+        return;
+    }
     if (t->frog_dir >= 0 && t->frog_x >= hi) t->frog_dir = -1;
     if (t->frog_dir < 0 && t->frog_x <= lo) t->frog_dir = 1;
     float want = (float)t->frog_dir, d = want - t->frog_yaw, step = 2.5f * dt;
@@ -2731,8 +2745,49 @@ static void eat_nearby_food(tank_t *t, fish_t *f) {
     }
 }
 
+/* tossed (2026-10-10): the throw carries the creature, damping out; it tumbles (the spin on its
+ * heading - the renderer pitches the body by it) and bounces off the glass, the floor and the
+ * surface; its yaw follows the throw's direction. When the time is up it is level again, its
+ * species mode cleared so the species' own logic takes over from wherever it landed. */
+static void toss_tick(tank_t *t, fish_t *f, float dt) {
+    f->toss -= dt;
+    float damp = expf(-dt * 1.5f);
+    f->toss_vx *= damp; f->toss_vy = f->toss_vy * damp + 10 * dt;             /* a slow sink as it tumbles */
+    f->toss_spin *= damp;
+    f->x += f->toss_vx * dt; f->y += f->toss_vy * dt;
+    float lo = TANK_FX0 + 14, hi = TANK_FX1 - 14, top = tank_glass_top(f->x) + 16, bot = TANK_BOT - 18;
+    if (f->x < lo) { f->x = lo; f->toss_vx = fabsf(f->toss_vx) * 0.6f; }
+    if (f->x > hi) { f->x = hi; f->toss_vx = -fabsf(f->toss_vx) * 0.6f; }
+    if (f->y < top) { f->y = top; f->toss_vy = fabsf(f->toss_vy) * 0.6f; }
+    if (f->y > bot) { f->y = bot; f->toss_vy = -fabsf(f->toss_vy) * 0.5f; }
+    f->heading += f->toss_spin * dt;
+    f->speed = sqrtf(f->toss_vx * f->toss_vx + f->toss_vy * f->toss_vy);
+    f->yaw = f->toss_vx >= 0 ? 1 : -1; f->yaw_tail = f->yaw; f->facing = (int8_t)f->yaw;
+    if (f->toss <= 0) {                                                        /* level again: the species' logic resumes */
+        f->toss = 0; f->heading = f->yaw > 0 ? 0 : 3.14159f; f->target_speed = 0; f->sp_mode = SPM_NONE;
+    }
+}
+void tank_shake(tank_t *t, float strength) {
+    tank_handled(t);
+    strength = clampf(strength, 0.3f, 1.5f);
+    for (int i = 0; i < t->n_fish; i++) {
+        fish_t *f = &t->fish[i];
+        float a = tank_randf(t, 0, 6.2831853f), v = tank_randf(t, 170, 300) * strength;
+        f->toss = clampf(TOSS_S * (0.7f + 0.3f * strength) + tank_randf(t, -0.4f, 0.4f), 1.5f, 4.5f);
+        f->toss_vx = cosf(a) * v; f->toss_vy = sinf(a) * v; f->toss_spin = tank_randf(t, -6, 6);
+        f->stress = fminf(10, f->stress + 2.5f * strength); f->trust = fmaxf(0, f->trust - 0.3f);
+        if (f->species != SP_FISH) sp_startle_hit(t, i, f->x + 20, f->y);    /* the puff, the ink, the claws, the flip */
+    }
+    shrimp_scatter(t, TANK_W * 0.5f, TANK_H * 0.5f, 10000);
+    if (t->sd_unlocks & SD_ITEM_FROGMAN) {
+        float a = tank_randf(t, 0, 6.2831853f), v = tank_randf(t, 120, 220) * strength;
+        t->frog_toss = TOSS_S; t->frog_vx = cosf(a) * v; t->frog_vy = sinf(a) * v;
+    }
+    tank_emit(TEV_SPOOK, -1);
+}
 static void update_fish(tank_t *t, int idx, float dt) {
     fish_t *f = &t->fish[idx];
+    if (f->toss > 0) { toss_tick(t, f, dt); return; }
     /* drives (prototype rates, speed rescaled by the same 0.55) */
     f->hunger    = clampf(f->hunger + dt * (HUNGER_PER_S + f->bold * HUNGER_BOLD_PER_S +
                           (f->goal.id == GOAL_DART_PLAY ? HUNGER_DART_PER_S : 0)), 0, 10);

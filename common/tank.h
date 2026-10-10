@@ -390,6 +390,9 @@ typedef struct {
     float flourish_wait, surface_s; /* transient: idle event countdown; positive rise/float, negative return */
     uint16_t flourish_cycle;       /* staggered events; never persisted */
     float  sp_x;            /* the anglerfish's home spot along the floor (-1 = not yet) */
+    /* tossed by a shake (2026-10-10, tank_shake): seconds left tumbling, the throw's velocity
+       (px/s, damped), the spin (rad/s). Steering is off while it lasts. Not saved. */
+    float toss, toss_vx, toss_vy, toss_spin;
 } fish_t;
 /* fish_t.sp_mode (not saved) */
 enum { SPM_NONE, SPM_JET, SPM_CLING, SPM_RISE, SPM_GULP, SPM_SINK, SPM_CLAWS, SPM_SCUTTLE, SPM_FLIP, SPM_LUNGE };
@@ -601,6 +604,7 @@ typedef struct tank {
     int8_t   frog_dir;             /* the way he is going */
     float    frog_lane;            /* the y he eases toward */
     float    frog_lane_t;          /* seconds until he picks another lane */
+    float    frog_toss, frog_vx, frog_vy;   /* tossed by a shake (tank_shake): seconds left, the throw */
     /* the shrimp school (SD_ITEM_SHRIMP, see SHRIMP_*): how many (saved), the
      * pellets eaten toward the next one (0..SHRIMP_PER_JOIN, saved), the seconds
      * before another may join (saved), each shrimp's motion (not saved: a load
@@ -891,6 +895,14 @@ float tank_fish_hit_r(const fish_t *f);
 bool  tank_poke(tank_t *t, int idx);        /* a double tap on creature idx: its trick (puff, ink); false = it has none */
 void  tank_wreck_place(tank_t *t);           /* the shipwreck bought: its default spot (item 7) */
 void  tank_frogman_place(tank_t *t);         /* the frogman bought (or loaded): mid-tank, heading right (item 8) */
+/* a hard shake of the device (2026-10-10; the IMU's shake detector, the sim's Q key): every
+ * creature is thrown - a random velocity and spin, tumbling off the glass, the species'
+ * startle reactions on the way (the puffer puffs, the squid and octopus ink, the crab's
+ * claws), the shrimp scatter, the frogman tumbles - and settles back over TOSS_S seconds
+ * (the throw damps out, steering returns). strength ~1 for a hard shake. Stress rises, a
+ * little trust goes. */
+void  tank_shake(tank_t *t, float strength);
+#define TOSS_S 3.2f
 bool  tank_frogman_hit(const tank_t *t, float x, float y);   /* within a fingertip of him */
 #define FROG_SPEED     9.0f                  /* px/s across the tank */
 #define FROG_MARGIN    (DECOR_MARGIN + 24)   /* he turns this far from the glass */

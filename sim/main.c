@@ -3991,6 +3991,23 @@ static int selftest_shop(void) {
           progression_save(&tank); tank_t back; tank_init(&back, 8); progression_boot(&back);
           if (!(back.sd_unlocks & SD_ITEM_FROGMAN) || back.frog_x != TANK_W / 2) { printf("FAIL: the frogman did not come back from the save mid-tank\n"); return 1; }
           printf("shop: the frogman - item %d at %d, a resident (no MOVE, no SELL), drifted %d turns across x %.0f..%.0f, y %.0f..%.0f, back from the save\n", SD_ITEM_FROGMAN_IDX, SD_PRICE_FROGMAN, turns, lo, hi, ylo, yhi); }
+        /* a hard shake (2026-10-10): every creature and the frogman thrown, moving fast at once, then
+           settled within TOSS_S + 2 s - inside the glass, steering back, nothing NaN */
+        { float s0 = 0; for (int i = 0; i < tank.n_fish; i++) s0 += tank.fish[i].stress;
+          tank_shake(&tank, 1.0f);
+          for (int i = 0; i < tank.n_fish; i++) if (tank.fish[i].toss <= 0 || fabsf(tank.fish[i].toss_vx) + fabsf(tank.fish[i].toss_vy) < 100) { printf("FAIL: fish %d was not tossed\n", i); return 1; }
+          if (tank.frog_toss <= 0) { printf("FAIL: the frogman was not tossed\n"); return 1; }
+          float s1 = 0; for (int i = 0; i < tank.n_fish; i++) s1 += tank.fish[i].stress;
+          if (s1 <= s0) { printf("FAIL: a shake did not stress the creatures\n"); return 1; }
+          float moved = 0; { float x0[N_FISH_MAX]; for (int i = 0; i < tank.n_fish; i++) x0[i] = tank.fish[i].x;
+            for (int k = 0; k < 30; k++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
+            for (int i = 0; i < tank.n_fish; i++) moved += fabsf(tank.fish[i].x - x0[i]); }
+          if (moved < tank.n_fish * 8) { printf("FAIL: the tossed creatures barely moved in half a second (%.0f px in all)\n", moved); return 1; }
+          for (int k = 0; k < (int)((TOSS_S + 2) * 60); k++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
+          for (int i = 0; i < tank.n_fish; i++) { fish_t *f = &tank.fish[i];
+              if (f->toss != 0 || f->x != f->x || f->y != f->y || f->x < TANK_FX0 || f->x > TANK_FX1 || f->y < 0 || f->y > TANK_BOT) { printf("FAIL: fish %d after the shake: toss %.2f at %.0f,%.0f\n", i, f->toss, f->x, f->y); return 1; } }
+          if (tank.frog_toss != 0 || tank.frog_x < 0 || tank.frog_x > TANK_W) { printf("FAIL: the frogman after the shake\n"); return 1; }
+          printf("shake: %d creatures and the frogman tossed, stress up, settled inside the glass within %.0f s\n", tank.n_fish, TOSS_S + 2); }
     }
     {
         static uint16_t fb[TANK_W * TANK_H];
@@ -5479,6 +5496,7 @@ int main(int argc, char **argv) {
         gdown = k[SDL_SCANCODE_G];
         if (k[SDL_SCANCODE_Q] || k[SDL_SCANCODE_ESCAPE]) { progression_save(&tank); break; }
         if (k[SDL_SCANCODE_F] && !fdown) tank_feed(&tank, (float)mx, 3);
+        { static bool qdown; if (k[SDL_SCANCODE_Q] && !qdown) { tank_shake(&tank, 1.0f); printf("shaken: every creature tossed, settling over ~%.0f s\n", TOSS_S); } qdown = k[SDL_SCANCODE_Q]; }   /* Q: a hard shake (2026-10-10) */
         if (k[SDL_SCANCODE_N] && !ndown) tank_toggle_light(&tank);
         if (k[SDL_SCANCODE_A]) tank_light_auto(&tank);
         if (k[SDL_SCANCODE_L] && !ldown && llm_available) {
