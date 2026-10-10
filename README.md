@@ -300,9 +300,10 @@ sunken boat lying on the sand, drawn from geometry like the castle, and a
 different boat in each theme (later that day): Original a planked hull tilted
 up toward the bow, a broken mast with a yard and a rag of sail, a cabin with a
 porthole, an anchor on the sand before the bow with its chain up to the prow;
-Quiet Lagoon an old rowing boat capsized on the sand, moss along its strakes
-and over the keel, a broken oar leaning on one end and a holed stone anchor
-on a rope by the other; Tidepool Club a cheerful little tug sitting upright -
+Quiet Lagoon an old sailing ship listing on the sand, its stern sunk low with
+the planks gone so the ribs show, the bow risen with a bowsprit, a tilted mast
+broken off short with a yard and a rag of sail, a deckhouse, an anchor off the
+bow; Tidepool Club a cheerful little tug sitting upright -
 cream topsides, a red boot stripe, a teal bottom, a wheelhouse with lit windows,
 an orange funnel, a pennant on the mast, a life ring on the side and an anchor
 hung off the bow. Every hull has two big holes (the tug's are brass-rimmed

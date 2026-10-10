@@ -1783,54 +1783,73 @@ static void castle_front_row(const cst_t *k) {
  * scene bake), or the front row alone (front = 1: over the fish) */
 /* A quiet rounded ruin / a sculpted sandcastle. Same footprint and swim-through arch. */
 /* Limestone ruin: relief, joints and moss are baked through the same depth mask. */
-/* the Quiet Lagoon's castle (redesigned 2026-10-10): a sunken ruin - a stepped stone platform,
-   two fluted columns (the left one broken off), a crumbling arch with its keystone over the
-   same opening every castle has (the fish swim through it), a lintel fallen across the right
-   column, a low wall behind with blocks missing, moss on every ledge. Pale sandstone gone
-   green with the water. The same geometry rule as the other castles: every solid pixel is
-   painted in both passes, the opening's dark only behind the fish (!front). */
+/* the Quiet Lagoon's castle (redesigned twice on 2026-10-10; "a little more magnificent"): a
+   sunken TEMPLE - a three-step platform, four tall fluted columns with bases and capitals
+   (the far-left one broken off), an entablature with a triglyph frieze across them, a
+   pediment above with a sun disc in its tympanum and its right corner crumbled, the arch
+   with its keystone over the same opening every castle has (the fish swim through it), a
+   block wall behind the colonnade losing blocks toward its top, a fallen drum on the left
+   step, moss on every ledge. Pale sandstone gone green with the water. The same geometry
+   rule as the other castles: every solid pixel is painted in both passes, the opening's
+   dark only behind the fish (!front). */
 static void draw_lagoon_castle(ctx_t *c,int cx,int front,bool final) {
     cst_t k={c,cx,front,final};
     uint16_t tones[16];
-    for(int i=0;i<16;i++)tones[i]=rgb565(mix(0xc4c2a4,0x3b5c54,i/15.f),c->dim);
-    for(int y=CASTLE_FY-128;y<=CASTLE_FY+3;y++) {
+    for(int i=0;i<16;i++)tones[i]=rgb565(mix(0xcfcbaa,0x3b5c54,i/15.f),c->dim);
+    for(int y=CASTLE_FY-160;y<=CASTLE_FY+3;y++) {
         if(y<c->oy||y>=c->oy+c->h)continue;
         int h=CASTLE_FY-y;
-        int left=c->ox-cx;if(left< -88)left=-88;
-        int right=c->ox+c->w-1-cx;if(right>88)right=88;
+        int left=c->ox-cx;if(left< -90)left=-90;
+        int right=c->ox+c->w-1-cx;if(right>90)right=90;
         for(int x=left;x<=right;x++) {
             unsigned noise=((unsigned)(x+100)*1237u+(unsigned)(h+40)*719u)^((unsigned)(x+130)*(unsigned)(h+17));
-            int ax=abs(x), d=ax-61;
+            int ax=abs(x);
             /* the platform: three steps */
-            int step = h>=-3&&h<4&&ax<88 ? 1 : h>=4&&h<9&&ax<80 ? 2 : h>=9&&h<13&&ax<72 ? 3 : 0;
-            /* the columns: the right one whole with its capital, the left one broken off jagged */
-            int top = x<0 ? 74+(int)(((unsigned)(x*7)%5)) - 2 : 100;
-            bool shaft=abs(d)<8&&h>=13&&h<top;
-            bool base=abs(d)<11&&h>=13&&h<19;
-            bool capital=x>0&&abs(d)<12&&h>=90&&h<100;
-            bool lintel=x>0&&abs(x-57)<17&&h>=100&&h<108;
-            bool fallen=abs(x+30)<9&&h>=13&&h<13+8-(x+30>0?(x+30)/4:0);   /* a block lying tilted on the left step */
-            /* the arch: a ring round the opening, the right side crumbled */
+            int step = h>=-3&&h<4&&ax<90 ? 1 : h>=4&&h<9&&ax<84 ? 2 : h>=9&&h<13&&ax<78 ? 3 : 0;
+            /* four columns at +-46 and +-72; the far-left one broken off jagged */
+            int ci = ax>=36&&ax<56 ? 46 : ax>=62&&ax<82 ? 72 : 0; int d=ax-ci;
+            int top = (x<0&&ci==72) ? 58+(int)(((unsigned)(x*7)%5)) : 106;
+            bool shaft=ci&&abs(d)<7&&h>=19&&h<top;
+            bool base=ci&&abs(d)<10&&h>=13&&h<19;
+            bool capital=ci&&top>100&&abs(d)<10&&h>=98&&h<106;
+            bool volute=ci&&top>100&&(abs(d)==9||abs(d)==10)&&h>=96&&h<104;
+            /* the entablature: an architrave and a triglyph frieze, 82 wide */
+            bool arch_beam=ax<84&&h>=106&&h<112;
+            bool frieze=ax<84&&h>=112&&h<122;
+            bool triglyph=frieze&&((ax+4)%20)<8&&(((ax+4)%20)%3)!=2;
+            bool cornice=ax<88&&h>=122&&h<126;
+            /* the pediment: a triangle to the apex, its right corner crumbled away */
+            int ph=126+(88-ax)*34/88;
+            bool pediment=ax<88&&h>=126&&h<ph;
+            if(pediment&&x>44&&h>ph-6-(x-44)/3+(int)(((unsigned)(x/4)*7u)%3u)*2)pediment=false;   /* a jagged bite out of the right corner */
+            bool raking=pediment&&h>=ph-4;
+            /* the sun disc in the tympanum */
+            int r2=x*x+(h-140)*(h-140);
+            bool disc=pediment&&r2<36, rays=pediment&&!disc&&r2<100&&(((int)(atan2f((float)(h-140),(float)x)*8/3.14159f)+16)&1);
+            bool fallen=abs(x+28)<9&&h>=13&&h<13+8-(x+28>0?(x+28)/4:0);
+            /* the arch: a ring round the opening, its keystone */
             bool opening=ax<26&&h>=0&&(h<24||x*x+(h-24)*(h-24)<26*26);
             bool ring=ax<36&&h>=13&&(h<24||x*x+(h-24)*(h-24)<36*36)&&!opening;
-            if(ring&&x>18&&h>40&&((unsigned)(x*3+h*5)%7)<3)ring=false;
-            bool keystone=ax<5&&h>=48&&h<62&&ring;
-            /* the wall behind, blocks missing toward its top */
-            bool wall=ax<44&&h>=13&&h<46&&!opening;
-            if(wall&&h>28&&(((unsigned)((x+44)/11)*31u+(unsigned)(h/7)*17u)%5u)==0)wall=false;
+            bool keystone=ax<5&&h>=50&&h<64&&ring;
+            /* the wall behind the colonnade, blocks missing toward its top */
+            bool wall=ax<84&&h>=13&&h<100&&!opening;
+            if(wall&&h>70&&(((unsigned)((x+84)/11)*31u+(unsigned)(h/7)*17u)%4u)==0)wall=false;
             if(opening){if(!front)castle_put(&k,cx+x,y,rgb565(mix(water_rgb(y),0x173e3e,.5f),c->dim));continue;}
-            if(!(step||shaft||base||capital||lintel||fallen||ring||wall))continue;
+            if(!(step||shaft||base||capital||volute||arch_beam||frieze||cornice||pediment||fallen||ring||wall))continue;
             int tone;
             if(step) tone=6+step+(int)(noise%3);
-            else if(shaft){ tone=4+(int)(noise%3); if(((x+61)%5)==0)tone+=4; if(d>4)tone+=2; }
-            else if(base||capital) tone=5+(int)(noise%2);
-            else if(lintel) tone=6+(int)(noise%3)+((h-100)<2?-2:0);
+            else if(shaft){ tone=3+(int)(noise%3); if(((ax-ci+7)%5)==0)tone+=4; if(d>3)tone+=2; }
+            else if(base||capital||volute) tone=(volute?2:4)+(int)(noise%2);
+            else if(cornice) tone=2+(int)(noise%2);
+            else if(arch_beam) tone=5+(int)(noise%2);
+            else if(frieze) tone=triglyph?9+(int)(noise%2):4+(int)(noise%2);
+            else if(pediment) tone=disc?1:rays?3:raking?2:6+(int)(noise%3);
             else if(fallen) tone=7+(int)(noise%3);
-            else if(ring) tone=keystone?2:4+(int)(noise%3);
-            else tone=9+(int)(noise%3);                                  /* the wall, in the arch's shadow */
-            if(!shaft&&!ring&&(h%7==0||((x+100+(h/7%2)*6)%13==0)))tone+=3;   /* the blocks' seams */
+            else if(ring) tone=keystone?1:4+(int)(noise%3);
+            else tone=10+(int)(noise%3);                                 /* the wall, in the colonnade's shadow */
+            if(!shaft&&!ring&&!pediment&&(h%7==0||((x+100+(h/7%2)*6)%13==0)))tone+=3;   /* the blocks' seams */
             /* the broken column's top and the ledges: moss */
-            bool ledge = (step&&(h==3||h==8||h==12)) || (shaft&&x<0&&h>=top-3) || (lintel&&h>=106);
+            bool ledge = (step&&(h==3||h==8||h==12)) || (shaft&&x<0&&ci==72&&h>=top-3) || (cornice&&h==125) || (arch_beam&&h==106);
             if(ledge&&noise%7<4){castle_put(&k,cx+x,y,rgb565(mix(0x4f7757,0x8aa06b,(noise%4)/4.f),c->dim));continue;}
             if(tone<0)tone=0;
             if(tone>15)tone=15;
@@ -1838,44 +1857,60 @@ static void draw_lagoon_castle(ctx_t *c,int cx,int front,bool final) {
         }
     }
 }
-/* the Tidepool Club's castle (redesigned 2026-10-10): a pineapple house - the fruit's body in a
-   diamond skin, a crown of leaves, a round-topped door (the same opening every castle has) and
-   two porthole windows, on a low sand mound. */
+/* the Tidepool Club's castle (redesigned twice on 2026-10-10; "like the famous pineapple house,
+   not the same"): a tall pineapple standing on a sand mound, peach-gold skin in a diamond
+   net, a swept crown of nine leaves, the round-topped door (the same opening every castle
+   has) under a striped awning, a porthole window with a cross mullion up on the left and a
+   second one low on the right, a stove-pipe chimney out of the skin on the right, a mailbox
+   on a post by the path. */
 static void draw_theme_castle(ctx_t *c,int cx,int front,bool final) {
     if(theme_active()==THEME_QUIET_LAGOON){draw_lagoon_castle(c,cx,front,final);return;}
     cst_t k={c,cx,front,final};
-    for(int y=CASTLE_FY-150;y<=CASTLE_FY+5;y++) {
+    for(int y=CASTLE_FY-162;y<=CASTLE_FY+5;y++) {
         if(y<c->oy || y>=c->oy+c->h)continue;
         int h=CASTLE_FY-y;
         for(int x=-90;x<=90;x++) {
             unsigned noise=((unsigned)(x+100)*1237u+(unsigned)(h+40)*719u)^((unsigned)(x+130)*(unsigned)(h+17));
             int ax=abs(x);
             bool mound=h>=-3&&h<9&&x*x+(h-2)*(h-2)*25<8100;
-            /* the fruit: an ellipse 62 wide, 58 tall, standing on the mound */
-            float ex=x/62.f, ey=(h-58)/58.f; float e2=ex*ex+ey*ey;
+            /* the fruit: an ellipse 68 wide, 122 tall, standing on the mound */
+            float ex=x/34.f, ey=(h-66)/61.f; float e2=ex*ex+ey*ey;
             bool body=h>=4&&e2<1.0f;
             bool skin_edge=body&&e2>0.86f;
-            /* the crown: seven leaves, the middle ones tallest */
+            /* the crown: nine leaves, the middle ones tallest, the outer ones swept outward */
             bool leaf=false; int leaf_i=0;
-            for(int i=0;i<7&&!leaf;i++){ int lx=(i-3)*13; int lh=120+(i==3?30:abs(i-3)==1?22:abs(i-3)==2?12:4); int w=7-(h-100)*7/(lh-100+1);
-                if(h>=100&&h<lh&&abs(x-lx-(i-3)*((h-100)/12))<=w){leaf=true;leaf_i=i;} }
+            for(int i=0;i<9&&!leaf;i++){ int o=i-4, lx=o*9; int lh=124+(o==0?36:abs(o)==1?28:abs(o)==2?20:abs(o)==3?12:6); int w=6-(h-118)*6/(lh-118+1);
+                if(h>=118&&h<lh&&abs(x-lx-o*((h-118)/7))<=w){leaf=true;leaf_i=i;} }
             bool opening=ax<26&&h>=0&&(h<24 || x*x+(h-24)*(h-24)<26*26);
             bool frame=!opening&&ax<30&&h>=0&&(h<24 || x*x+(h-24)*(h-24)<30*30);
-            bool win=false, winframe=false;
-            for(int sx=-1;sx<=1;sx+=2){ int wx=x-sx*40, wy=h-66; int r2=wx*wx+wy*wy; if(r2<8*8)win=true; else if(r2<11*11)winframe=true; }
+            bool awning=ax<36&&h>=54&&h<61, awning_edge=awning&&h<56&&((x+36)/5%2==0);
+            bool awning_rod=(ax==35||ax==36)&&h>=46&&h<54;
+            bool win=false, winframe=false, mullion=false;
+            { int wx=x+22, wy=h-86; int r2=wx*wx+wy*wy; if(r2<9*9){win=true; mullion=(abs(wx)<=0||abs(wy)<=0);} else if(r2<12*12)winframe=true; }
+            { int wx=x-27, wy=h-40; int r2=wx*wx+wy*wy; if(r2<7*7)win=true; else if(r2<10*10)winframe=true; }
+            bool pipe=(x>=24&&x<=41&&h>=90&&h<96)||(x>=36&&x<=41&&h>=90&&h<116), pipecap=x>=33&&x<=44&&h>=116&&h<120;   /* an elbow out of the shoulder, then up */
+            bool post=x>=-66&&x<=-64&&h>=6&&h<24, box=x>=-72&&x<=-58&&h>=24&&h<33, flag=x>=-58&&x<=-56&&h>=27&&h<37;
             if(opening){ if(!front)castle_put(&k,cx+x,y,rgb565(mix(water_rgb(y),0x3a2a1e,.55f),c->dim)); continue; }
-            if(!(mound||body||leaf))continue;
+            if(!(mound||body||leaf||pipe||pipecap||post||box||flag||awning||awning_rod))continue;
             uint32_t rgb;
-            if(leaf) rgb=(leaf_i+(h/9))%2 ? 0x4f9a5e : 0x3b7a48;
-            else if(body&&win) rgb=mix(0x8fc9d6,0xcfe9ee,((h-66+8)/16.f));
+            if(leaf) rgb=(leaf_i+(h/9))%2 ? 0x55a862 : 0x3b8048;
+            else if(pipe) rgb=(x<38&&h>=96)||(h<92)?0x3a3d40:0x565a5d;
+            else if(pipecap) rgb=0x2b2b2b;
+            else if(post) rgb=0x8a5a3a;
+            else if(box) rgb=(h==24||h==32||x==-72||x==-58)?0x6a3d26:0x2e8f85;
+            else if(flag) rgb=0xd8402c;
+            else if(awning) rgb=awning_edge?0xfff6d9:((x+36)/8%2)?0xd8402c:0xfff6d9;
+            else if(awning_rod) rgb=0x8a5a3a;
+            else if(body&&win) rgb=mullion?0x8a5a3a:mix(0x8fc9d6,0xcfe9ee,((h-86+9)/18.f));
             else if(body&&winframe) rgb=0x8a5a3a;
-            else if(body&&frame) rgb=0x8a5a3a;
+            else if(body&&frame) rgb=((h/4)%2)?0x8a5a3a:0x9c6a44;
             else if(body){
                 /* the diamond skin: two diagonal families of seams, the cells lit toward the top-left */
-                int u=(x+h*1)/10, v=(x-h*1)/10; bool seam=((x+h)%10==0)||((x-h)%10==0);
-                rgb = seam ? 0xb77a2c : ((u+v)&1) ? 0xe9b84f : 0xdba23f;
-                if(((u*7+v*13)&3)==0&&!seam) rgb=mix(rgb,0xfff0b0,.25f);          /* a glint on some cells */
-                if(skin_edge) rgb=mix(rgb,0x8a5020,.45f);
+                int u=(x+h)/10, v=(x-h)/10; bool seam=((x+h)%10==0)||((x-h)%10==0);
+                rgb = seam ? 0xc0702e : ((u+v)&1) ? 0xf2b45a : 0xe69a44;
+                if(((u*7+v*13)&3)==0&&!seam) rgb=mix(rgb,0xfff0b0,.3f);           /* a glint on some cells */
+                if(((u*5+v*11)&7)==0&&!seam) rgb=mix(rgb,0xd0603a,.25f);          /* a blush on others */
+                if(skin_edge) rgb=mix(rgb,0x8a4a20,.45f);
             }
             else rgb=mix(0xdcc39b,0xc0a67c,(noise%4)/4.f);                       /* the mound */
             castle_put(&k,cx+x,y,rgb565(rgb,c->dim));
@@ -2927,55 +2962,84 @@ static void draw_wreck_original(ctx_t *c, int cx, bool final, int layer) {
     }
     draw_floor_mound(c, cx, WRECK_HALF_W - 8, 5, final);
 }
-/* Quiet Lagoon's wreck (2026-10-10): an old rowing boat CAPSIZED on the sand - its hull an
- * upturned arch, strakes following the keel ridge, moss along the sand and over the top,
- * two gaps where planks fell out (the holes), a broken oar leaning on its left end, a
- * stone anchor (a holed stone on a rope) by its right. Same layers as the Original. */
-static inline float wkl_top(int x) { float u = x / 50.0f; return 34 * (1 - u * u); }
+/* Quiet Lagoon's wreck (redesigned 2026-10-10, the capsized dinghy "didn't look like a
+ * shipwreck"): an old sailing ship LISTING on the sand - the stern sunk low, the bow risen,
+ * the planks gone from the stern quarter so its RIBS show (the water behind them: the fish
+ * pass behind those gaps too), two big holes in the side, a tilted mast broken off short
+ * with its yard and a rag of sail, a stay down to the bowsprit, a little deckhouse aft of the
+ * mast with a porthole, an anchor on the sand off the bow with its chain up to the stem.
+ * Weathered grey-green wood, moss along the keel. Same layers as the Original. */
+static inline float wkl_deck(int x) { return 20 + x * 0.20f; }
+static inline float wkl_keel(int x) { float u = (x + 4) / 56.0f; u *= u; return u * u * 10; }
 static inline bool wkl_hole(int x, int h) {
-    int ax = x + 20, ah = h - 12, bx = x - 18, bh = h - 11;
-    return ax * ax * 49 + ah * ah * 100 < 49 * 100 || bx * bx * 36 + bh * bh * 64 < 36 * 64;
+    int ax = x + 24, ah = h - 8, bx = x - 14, bh = h - 12;
+    return ax * ax * 25 + ah * ah * 121 < 121 * 25 || bx * bx * 36 + bh * bh * 81 < 81 * 36;
+}
+static inline bool wkl_ribgap(int x, int h) {                                      /* the stern quarter: planks gone between the ribs */
+    return x > -50 && x < -34 && h >= wkl_keel(x) + 4 && h < wkl_deck(x) - 2 && ((x + 50) % 5) >= 2;
 }
 static void draw_wreck_lagoon(ctx_t *c, int cx, bool final, int layer) {
-    for (int h = -2; h <= 48; h++) {
+    for (int h = -2; h <= WK_H; h++) {
         int y = WK_FY - h;
         if (y < c->oy || y >= c->oy + c->h) continue;
         for (int x = -WK_W / 2; x < WK_W / 2; x++) {
             int X = cx + x;
             if (X < c->ox || X >= c->ox + c->w) continue;
             unsigned noise = ((unsigned)(x + 100) * 1237u + (unsigned)(h + 40) * 719u) ^ ((unsigned)(x + 130) * (unsigned)(h + 17));
-            float top = wkl_top(x);
-            bool body = x > -50 && x < 50 && h >= 0 && h < top;
-            if (layer == 0) { if (body && h < top - 2) wk_put(c, X, y, mix(water_rgb(y), 0x0b1517, 0.78f), final); continue; }
-            bool hole = body && wkl_hole(x, h);
-            if (hole) { if (layer < 0) wk_put(c, X, y, mix(water_rgb(y), 0x0b1517, 0.78f), final); continue; }
+            float deck = wkl_deck(x), keel = wkl_keel(x);
+            bool body = x > -56 && x < 54 && h >= keel && h < deck;
+            bool stern = x >= -60 && x <= -54 && h >= wkl_keel(-56) - 1 && h < wkl_deck(-56) + 5;
+            float dbow = wkl_deck(54);
+            bool stem = x >= 50 && x <= 54 + (h > dbow ? (int)((h - dbow) / 3) : 0) && h >= wkl_keel(50) - 1 && h < dbow + 14;
+            bool sprit = x >= 54 && x < 64 && h >= dbow + 11 + (x - 54) * 0.6f && h < dbow + 13 + (x - 54) * 0.6f;
+            bool hull = body || stern || stem;
+            if (layer == 0) { if (body && h < deck - 1) wk_put(c, X, y, mix(water_rgb(y), 0x0b1517, 0.78f), final); continue; }
+            bool gap = body && (wkl_hole(x, h) || wkl_ribgap(x, h));
+            if (gap) { if (layer < 0) wk_put(c, X, y, mix(water_rgb(y), 0x0b1517, 0.78f), final); continue; }
             uint32_t rgb = 0; bool on = false;
-            if (body) {
+            if (hull) {
                 on = true;
-                float down = top - h;                                             /* strakes counted from the keel ridge down */
-                bool seam = ((int)down % 6) == 0, joint = ((x + 64 + ((int)(down / 6) & 1) * 9) % 18) == 0;
-                rgb = (noise % 7 < 2) ? 0x768570 : 0x66755f;
-                if (down < 3) rgb = 0x3a4a3d;                                      /* the keel ridge */
+                float down = deck - h;
+                int plank = (int)(down / 5);
+                bool seam = ((int)down % 5) == 0, joint = ((x + 64 + (plank & 1) * 9) % 18) == 0;
+                rgb = (plank & 1) ? 0x6f7d6a : 0x5f6d5c; if (noise % 7 == 0) rgb = 0x7a8874;
+                if (down < 2.5f) rgb = 0x3a4a3d;                                   /* the gunwale */
                 else if (seam || joint) rgb = 0x3c4a3f;
-                if (x < -8 && down > 3 && down < 14) rgb = mix(rgb, 0x9aa892, 0.25f);   /* lit from the left */
-                if ((h < 7 || down < 9) && noise % 9 < 3) rgb = 0x4f7a4a;         /* moss along the sand and over the top */
-                if (noise % 31 == 0) rgb = 0x6a9a62;
-                if (wkl_hole(x - 1, h) || wkl_hole(x + 1, h) || wkl_hole(x, h - 1) || wkl_hole(x, h + 1)) rgb = 0x2f3a31;   /* broken plank ends */
-                if (h == 0) rgb = 0x3c4a3f;
+                if (h < keel + 8) rgb = mix(rgb, 0x4f7a4a, 0.5f);                    /* moss along the keel */
+                if (noise % 23 == 0) rgb = mix(rgb, 0x6a9a62, 0.5f);                 /* algae streaks */
+                if (stern || stem) rgb = mix(rgb, 0x2f3a31, 0.35f);
+                if (body && x > -50 && x < -34 && !wkl_ribgap(x, h) && h >= keel + 4 && h < deck - 2) rgb = (noise % 5 == 0) ? 0x55634f : 0x4a5648;   /* the ribs */
+                if (body && (wkl_hole(x - 1, h) || wkl_hole(x + 1, h) || wkl_hole(x, h - 1) || wkl_hole(x, h + 1))) rgb = 0x2f3a31;
             }
-            /* the oar, leaning on the hull's left end: a shaft from the sand up and in, a blade at its top */
-            { float ox = -66 + h * (22 / 42.0f); int dxo = x - (int)(ox + 0.5f);
-              bool shaft = h >= 0 && h < 36 && dxo >= -1 && dxo <= 0;
-              bool blade = h >= 34 && h < 47 && dxo >= -4 + (h > 44 ? 2 : 0) && dxo <= 3 - (h > 44 ? 2 : 0) && (noise % 17 != 0);
-              if (shaft || blade) { on = true; rgb = blade && ((h - 34) % 4 == 0) ? 0x5e5a46 : (noise % 5 == 0) ? 0x7a7458 : 0x8c8468; } }
-            /* the stone anchor by the right end, its rope back to the hull */
-            { int axl = x - 60, ah = h - 6;
-              bool stone = axl * axl * 49 + ah * ah * 49 <= 49 * 49 && h >= 0, eye = axl * axl + (h - 7) * (h - 7) <= 6;
-              if (stone && !eye) { on = true; rgb = (noise % 6 == 0) ? 0x8d8f84 : axl < -1 ? 0x7d7f74 : 0x66685f; if (h < 2) rgb = 0x4e5048; }
-              else if (eye && h >= 0) { on = true; rgb = mix(water_rgb(y), 0x0b1517, 0.6f); }
-              float u = (x - 42) / 15.0f;                                          /* the rope: from the hull's end to the stone, sagging */
-              int ry = (int)(5 + 4 * u + sinf(u * 3.14159f) * 3 + 0.5f);
-              if (x >= 42 && x <= 57 && h == ry && (x % 3) != 2 && !stone) { on = true; rgb = 0x8a7a5a; } }
+            if (sprit) { on = true; rgb = 0x5c5a48; }
+            /* the rail posts along the deck */
+            bool post = x > -50 && x < 48 && ((x + 50) % 14 == 0 || (x + 50) % 14 == 1) && h >= deck && h < deck + 5;
+            if (post) { on = true; rgb = 0x3a4a3d; }
+            /* the deckhouse aft of the mast, a porthole in it */
+            bool house = x >= 18 && x <= 38 && h >= deck && h < deck + 9;
+            if (house) { on = true; int px = x - 28, ph = (int)(h - deck) - 4;
+                rgb = px * px + ph * ph < 5 ? 0xc4e6d1 : px * px + ph * ph < 9 ? 0x3c4a3f : ((int)(h - deck) % 4 == 0 ? 0x3c4a3f : 0x66755f); }
+            /* the mast, leaning aft, broken off short; its yard; the rag of sail hanging from it */
+            float d0 = wkl_deck(0), mx = -2 - (h - d0) * 0.22f; int dm = x - (int)(mx + 0.5f);
+            float top = d0 + 48 + ((x + 3) * 5 % 4);
+            bool mast = dm >= -1 && dm <= 1 && h >= d0 && h < top;
+            bool yard = h >= d0 + 30 && h < d0 + 32 && dm >= -17 && dm <= 11;
+            bool sail = dm >= -16 && dm <= -2 && h < d0 + 30 && h >= d0 + 30 - (dm + 16) * 1.3f - ((noise % 5) > 3 ? 3 : 0) && ((noise % 19) != 0) && h > d0 + 8;
+            if (mast || yard) { on = true; rgb = mast && ((h - (int)d0) % 9 == 0) ? 0x3f3d30 : 0x5c5a48; }
+            else if (sail) { on = true; rgb = (noise % 11 < 2) ? 0xa3a28c : 0xb9b7a0; }
+            /* the stay: a rope from the mast's top down to the bowsprit's end */
+            { float x0 = -2 - 46 * 0.22f, y0 = d0 + 47, x1 = 62, y1 = dbow + 17; float u = (x - x0) / (x1 - x0);
+              if (u >= 0 && u <= 1 && h == (int)(y0 + (y1 - y0) * u + 0.5f) && (x % 2) == 0) { on = true; rgb = 0x8a7a5a; } }
+            /* the anchor on the sand off the bow, its chain up to the stem */
+            int axl = x - 59;
+            bool shank = axl >= -1 && axl <= 1 && h >= 2 && h < 24;
+            bool stock = h >= 19 && h < 22 && axl >= -5 && axl <= 5;
+            bool arms = h >= 1 && h < 6 && axl >= -5 && axl <= 5 && !(h >= 4 && axl >= -2 && axl <= 2);
+            bool fluke = (axl <= -4 || axl >= 4) && axl >= -5 && axl <= 5 && h >= 5 && h < 10;
+            bool ring = h >= 24 && h < 29 && axl >= -2 && axl <= 2 && !(h >= 25 && h < 28 && axl >= -1 && axl <= 1);
+            if (shank || stock || arms || fluke || ring) { on = true; rgb = (noise % 5 == 0) ? 0x6f6a5a : (axl < 0 ? 0x565a5d : 0x3a3d40); }
+            { float u = (h - 29) / (dbow + 12 - 29); int lx = (int)(59 - 5 * u + 0.5f);
+              if (h >= 29 && h <= dbow + 12 && x == lx && (h % 3) != 2) { on = true; rgb = 0x5a5d5f; } }
             if (!on) continue;
             if (noise % 29 == 0) rgb = mix(rgb, 0xffffff, 0.10f);
             wk_put(c, X, y, rgb, final);
