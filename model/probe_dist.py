@@ -8,7 +8,7 @@ _ap.add_argument("--schema", type=int, choices=(2, 3, 4, 5), default=2)
 _ap.add_argument("--ckpt", default=None, help="checkpoint (default: ckpt_v2w.pt / ckpt_v3.pt)")
 _ap.add_argument("--data", default=None, help="clean jsonl to sample real states from")
 _args = _ap.parse_args()
-os.environ["POCKET_SCHEMA"] = str(_args.schema)
+os.environ["AQUA_PETS_SCHEMA"] = str(_args.schema)
 sys.path.insert(0, MODEL_DIR); sys.path.insert(0, os.path.join(MODEL_DIR, "llama2.c"))
 import torch
 from export import load_checkpoint

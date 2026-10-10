@@ -154,7 +154,7 @@ zone 2 hunger 7 energy 5 stress 2 curiosity 8 bold 4 social 6 stage adult trust 
 
 Goal output unchanged. v2 data converts mechanically to the v3 line (drop `fish
 <name>` and the friend name, insert `trust 5`): the shipped v3m model trains on
-v2-converted + v3 (`POCKET_SCHEMA=3 train.py`). **v3 is now the encoding the sim
+v2-converted + v3 (`AQUA_PETS_SCHEMA=3 train.py`). **v3 is now the encoding the sim
 and firmware emit** (`common/llm/advisor_core.c`, selected by the ` trust` token in
 the loaded tokenizer); v2 remains readable by the v2 artifacts kept in model/out
 (`*_v2.bin`).

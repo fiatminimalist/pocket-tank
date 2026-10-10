@@ -68,7 +68,7 @@ python3 train_tokenizer.py --schema 3 --verify "out/v3_clean.jsonl"     # closed
 ## 3. Train (~30 min on the Mac, MPS) + export 4-bit + probe
 
 ```bash
-POCKET_SCHEMA=3 ~/.venvs/aquapets/bin/python train.py --data "out/v3_clean.jsonl" \
+AQUA_PETS_SCHEMA=3 ~/.venvs/aquapets/bin/python train.py --data "out/v3_clean.jsonl" \
   --dim 384 --n-layers 8 --n-heads 8 --max-seq-len 64 --batch 64 --iters 4000 --lr 6e-4 --out out/ckpt_v3.pt
 ~/.venvs/aquapets/bin/python export_q4.py out/model_q4_v3.bin --checkpoint out/ckpt_v3.pt
 ~/.venvs/aquapets/bin/python probe_dist.py --schema 3            # distribution probe (see below)

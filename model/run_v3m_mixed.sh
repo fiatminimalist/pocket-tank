@@ -23,7 +23,7 @@ print(f"converted {n} v2 pairs -> out/v2_as_v3.jsonl")
 EOF
 python3 fold_traces.py --schema 3 out/v2_as_v3.jsonl out/v3_clean.jsonl --out out/v3m_clean.jsonl 2>&1 | tee -a "$LOG"
 log "--- train (14M, mixed) ---"
-POCKET_SCHEMA=3 $PY train.py --data "out/v3m_clean.jsonl" --dim 384 --n-layers 8 --n-heads 8 \
+AQUA_PETS_SCHEMA=3 $PY train.py --data "out/v3m_clean.jsonl" --dim 384 --n-layers 8 --n-heads 8 \
     --max-seq-len 64 --batch 64 --iters 5000 --lr 6e-4 --out out/ckpt_v3m.pt 2>&1 | tail -6 | tee -a "$LOG"
 log "--- export + probe ---"
 $PY export_q4.py out/model_q4_v3m.bin --checkpoint out/ckpt_v3m.pt 2>&1 | tee -a "$LOG"

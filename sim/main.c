@@ -30,8 +30,8 @@
  *   ./fishsim --battery N  the pretend battery starts at N% (default 72)
  *   ./fishsim --greedy     greedy decoding instead of sampling
  *   ./fishsim --selftest   headless reflex-layer check, no window
- *   ./fishsim --selftest-llm [min]   headless LLM path (real-time if min > 0); POCKET_MODEL /
- *                                    POCKET_TOKENIZER override model/out's pair (a v5 candidate)
+ *   ./fishsim --selftest-llm [min]   headless LLM path (real-time if min > 0); AQUA_PETS_MODEL /
+ *                                    AQUA_PETS_TOKENIZER override model/out's pair (a v5 candidate)
  *   ./fishsim --selftest-encoder [tok]  headless state-line check for every species against a
  *                                    tokenizer (default the shipped firmware/main/tokenizer.bin)
  *   ./fishsim --selftest-pop         headless population/arrival/save check
@@ -2253,8 +2253,8 @@ static void frame_cb(lv_timer_t *timer) {
  * survival-reflex overrides); minutes == 0 is the fast smoke test. */
 static int selftest_llm(int minutes) {
     /* a candidate model (docs/retrain-v5.md) without touching model/out */
-    const char *mp = getenv("POCKET_MODEL") ? getenv("POCKET_MODEL") : "../model/out/model_q4.bin";
-    const char *tp = getenv("POCKET_TOKENIZER") ? getenv("POCKET_TOKENIZER") : "../model/out/tokenizer.bin";
+    const char *mp = getenv("AQUA_PETS_MODEL") ? getenv("AQUA_PETS_MODEL") : "../model/out/model_q4.bin";
+    const char *tp = getenv("AQUA_PETS_TOKENIZER") ? getenv("AQUA_PETS_TOKENIZER") : "../model/out/tokenizer.bin";
     if (!advisor_llm_init(mp, tp)) {
         printf("FAIL: model/tokenizer not loadable (%s, %s)\n", mp, tp);
         return 1;
@@ -2269,10 +2269,10 @@ static int selftest_llm(int minutes) {
         tank_add_species_pair(&tank, SP_CRAB);
         tank_add_species_pair(&tank, SP_JELLYFISH);   /* heard as `jellyfish` by a 66-word vocab, as `fish` by v5m's 65 */
     }
-    if (getenv("POCKET_CURIOUS")) {               /* reproduce a state: POCKET_CURIOUS=9 = the
+    if (getenv("AQUA_PETS_CURIOUS")) {               /* reproduce a state: AQUA_PETS_CURIOUS=9 = the
                                                      device after days of the old economy */
-        for (int i = 0; i < tank.n_fish; i++) { tank.fish[i].curiosity = (float)atof(getenv("POCKET_CURIOUS")); tank.fish[i].hunger = 3; }
-        printf("start state: curiosity %s, hunger 3\n", getenv("POCKET_CURIOUS"));
+        for (int i = 0; i < tank.n_fish; i++) { tank.fish[i].curiosity = (float)atof(getenv("AQUA_PETS_CURIOUS")); tank.fish[i].hunger = 3; }
+        printf("start state: curiosity %s, hunger 3\n", getenv("AQUA_PETS_CURIOUS"));
     }
     print_roster(&tank);
     printf("warm-up (pages in the mmap'd weights):\n");

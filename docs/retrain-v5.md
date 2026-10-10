@@ -52,7 +52,7 @@ zone 5 hunger 2 energy 7 stress 0 curiosity 3 bold 6 social 1 stage adult specie
   pre-v5 build's).
 - **Mixed files fail safe one way:** a v5 tokenizer with the v4 model reads
   only the model's 54 ids - exactly the v4 vocab - and runs as v4 (checked:
-  `POCKET_TOKENIZER=tokenizer_v5.bin ./fishsim --selftest-llm` -> "schema
+  `AQUA_PETS_TOKENIZER=tokenizer_v5.bin ./fishsim --selftest-llm` -> "schema
   v4"). The other way - a v4 tokenizer with a v5 model - is refused ("bad
   model/tokenizer", advisor off). So the firmware's tokenizer may go out
   before the model, never after it.
@@ -75,7 +75,7 @@ prompt_check.
 | piece | what |
 |---|---|
 | `common/llm/advisor_core.c` | v5 detection + encoding; `advisor_core_init_encoder` (tokenizer only, for tests); `advisor_core_unknown_words` |
-| `sim/main.c` | `--selftest-encoder [tok]` (every species, every word known, `species` only for v5; in `make check`); `--selftest-llm` takes `POCKET_MODEL` / `POCKET_TOKENIZER` and, with a v5 model, adds anglerfish, squid and crab pairs |
+| `sim/main.c` | `--selftest-encoder [tok]` (every species, every word known, `species` only for v5; in `make check`); `--selftest-llm` takes `AQUA_PETS_MODEL` / `AQUA_PETS_TOKENIZER` and, with a v5 model, adds anglerfish, squid and crab pairs |
 | `model/train_tokenizer.py` | `--schema 5`, `SPECIES_WORDS` |
 | `model/gen_traces.py` | `--schema 5`: tanks of 2-10 creatures, species in pairs (the shop sells pairs), the classic fish ~1/3 (`--fish-share`), the new nine from a shuffled bag; traits rolled inside each species' range (tank.c, widened 0.1 as inheritance can); curiosity drawn to the species' value; species situations (anglerfish / crab / lobster / octopus on the floor with food drifting down, seahorse in the grass, the eel rising for air, the hammerhead never stopping, squid with a squid close by, the night hunters' nights). `SYSTEM_PROMPT_V5` = the v4 prompt verbatim + a species paragraph. `--teacher rules` (a rule policy, smoke tests only). `num_ctx` 2048 for v5 (the v5 prompt is ~1,400 tokens; a smaller window makes Ollama cut the prompt's middle) and a one-time warning if a reply says the prompt filled the window |
 | `model/convert_to_v5.py` | every older pair as `species fish` (v2/v3 go through `convert_to_v4.to_v4` first) |
@@ -201,7 +201,7 @@ python3 eval.py --schema 5 --teacher --count 400 --min-per-species 30 --seed 5 \
   night + bored 9 rests, starving + bored 9 seeks food >= 0.85, personality
   cliffs no worse than v3m/v4m (social 0->9 P(follow) 0.01->0.52, bold 0->9
   P(dart) 0.02->0.40)
-- `POCKET_MODEL=../model/out/model_q4_v5m.bin POCKET_TOKENIZER=../model/out/tokenizer_v5.bin
+- `AQUA_PETS_MODEL=../model/out/model_q4_v5m.bin AQUA_PETS_TOKENIZER=../model/out/tokenizer_v5.bin
   ./fishsim --selftest-llm` prints "schema v5", passes, and its census is no
   worse than v4m's (landmark time, zones per fish-minute, longest one-goal
   stretch, mean bored - the numbers in retrain-v4.md / docs/stats.md)
@@ -287,7 +287,7 @@ a shipped model) and torch on CPU:
   answers (probe: P(rest at night) 0.13 for the hammerhead, 0.47 eel, ~0.98
   for the rest).
 - C: q4_host loads the v5 toy and the 14M v5 export (batched == sequential);
-  `fishsim --selftest-llm` with `POCKET_MODEL` / `POCKET_TOKENIZER` prints
+  `fishsim --selftest-llm` with `AQUA_PETS_MODEL` / `AQUA_PETS_TOKENIZER` prints
   "schema v5" and passes; `--selftest-encoder` + encoder_agree.py: 60 C lines
   (10 species) and 3,000 Python lines agree.
 

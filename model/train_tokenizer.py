@@ -19,8 +19,8 @@ Usage: python3 train_tokenizer.py [--out out/tokenizer.bin] [--verify out/v2_cle
        python3 train_tokenizer.py --schema 3          # out/tokenizer_v3.bin (no names, + trust)
        python3 train_tokenizer.py --schema 4          # out/tokenizer_v4.bin (no shadow, + bored)
        python3 train_tokenizer.py --schema 5          # out/tokenizer_v5.bin (+ species, 10 species words)
-The schema is chosen by --schema, or by the POCKET_SCHEMA environment variable
-when imported (train.py / probe_dist.py): POCKET_SCHEMA=3 python train.py ...
+The schema is chosen by --schema, or by the AQUA_PETS_SCHEMA environment variable
+when imported (train.py / probe_dist.py): AQUA_PETS_SCHEMA=3 python train.py ...
 """
 
 import argparse
@@ -32,7 +32,7 @@ import struct
 BOS_ID, EOS_ID, UNK_ID = 1, 2, 0
 SEP = " -> "
 
-SCHEMA = int(os.environ.get("POCKET_SCHEMA", "2"))
+SCHEMA = int(os.environ.get("AQUA_PETS_SCHEMA", "2"))
 
 # v5 (2026-10-05, docs/species.md): the species words, in common/tank.h
 # species_t order (SPECIES[].token). `fish` is the classic fish (the v2 line's
