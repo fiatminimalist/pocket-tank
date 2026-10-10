@@ -25,3 +25,22 @@ endif()
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
              ${CMAKE_CURRENT_LIST_DIR}/../.git/HEAD ${CMAKE_CURRENT_LIST_DIR}/../.git/index)
 project(aqua_pets)
+# flash is nearly full (2026-10-10 night: the swordfish took the 1.8's image 4 KB past its 2.5 MB
+# slot). The network stack, the crypto and the HTTP pieces only run for an update and a time sync,
+# so they are built for size (-Os) while the tank keeps the performance build.
+foreach(comp lwip wpa_supplicant esp_netif esp-tls esp_http_client esp_https_ota esp_http_server
+             nvs_flash http_parser esp_event json protocomm wifi_provisioning mqtt esp_local_ctrl console
+             esp_wifi esp_coex esp_phy app_update bootloader_support esp_partition spiffs vfs)
+    idf_component_get_property(lib ${comp} COMPONENT_LIB)
+    if(lib AND TARGET ${lib})
+        get_target_property(kind ${lib} TYPE)
+        if(NOT kind STREQUAL "INTERFACE_LIBRARY")
+            target_compile_options(${lib} PRIVATE -Os)
+        endif()
+    endif()
+endforeach()
+foreach(t mbedtls mbedcrypto mbedx509 everest p256m)
+    if(TARGET ${t})
+        target_compile_options(${t} PRIVATE -Os)
+    endif()
+endforeach()
