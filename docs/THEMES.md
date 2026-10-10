@@ -48,7 +48,7 @@ food, bubbles, battery and menu treatments live alongside their Original paths i
 | Coral / reef | The keeper's coral / tube / brain hues on a dark basalt rock (2026-10-10; the first cut pulled every piece toward the water's tone and read as twigs and slabs): a ridged brain, streaked tubes, deep rims | Thick finger coral, stacked sponges, dotted dome |
 | Snail / companions | Warm shaded shell whorls, soft shrimp, fine urchin spines | Warm striped shell, segmented shrimp, rounded urchin tips |
 | Food / bubbles | Small flakes and pearl rings | Round tablets and outlined bubbles |
-| Battery / menus | Liquid gauge, dark-glass rows, soft highlights | Four-cell gauge, raised pill controls, rounded row cards |
+| Battery / menus | Liquid gauge; the settings page is the one shared layout (2026-10-10) in the lagoon's dark-glass greens and its font | Four-cell gauge; the same shared settings layout in the club's cream and teal with its pill-shaped buttons |
 | Ink / electricity | Black clouds with a whisper of green, fine mint arcs | Black cloud lobes with a whisper of blue, gold zigzags |
 
 All themes share the same behaviour. Lobsters, crabs, anglerfish, octopuses and

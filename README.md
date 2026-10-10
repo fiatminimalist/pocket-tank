@@ -468,14 +468,29 @@ long ago it was unplugged, the screen-on time since, and how long a full
 charge lasts. The tank learns those times from its own battery as you use
 it.
 
-**About.** The settings page has an ABOUT button (2026-10-10; on the themed
-layout it is the third page of rows, under MORE): the game's name, who makes it
+**One settings page.** Since 2026-10-10 every theme uses the same settings
+layout - the rows of segments and arrows, the foot of UPDATES / ABOUT / RESET /
+CLOSE - drawn in the theme's own colours and font; only the theme picker (from
+the SETTINGS / THEMES title) keeps its tiles. RESET starts the tank over: it
+opens the same NO / YES prompt as the BOOT-and-tap chord, with its timeout, so a
+stray tap wipes nothing.
+
+**About.** The settings page has an ABOUT button (2026-10-10): the game's name, who makes it
 (Softworkz Pte Ltd), the release and the build id, a fish crossing above them
 and bubbles rising - and a 30-second underwater jingle that loops while the
 page is up, synthesised on the device (`common/audio.c`: twelve bars of a
 kalimba arpeggio, a hummed melody, a soft pad and bubble chirps at 96 BPM,
 under a slow wobble and a low-pass; nothing in the sound bank). It follows the
 VOLUME setting. BACK returns to the settings.
+
+**The night and the battery (2026-10-10).** Lights out used to keep the full
+25 fps and never sleep, so a tank forgotten on the desk burned its cell at awake
+rates all night. Now the frame rate drops to 10 fps while the light is out and
+no finger is on the glass, and after two hours of darkness with nothing handling
+the tank (no touch, no motion; not while a cable is charging it, not while a page
+is up) it takes the same sleep the PWR key does: the grace, then the power-off or
+deep sleep. The PWR key brings it back and the night is lived through at that
+boot, as after any sleep.
 
 **Updates over Wi-Fi.** The settings page has an UPDATES button. Tap CHECK
 FOR UPDATES and the tank pauses, turns its radio on and looks for a newer

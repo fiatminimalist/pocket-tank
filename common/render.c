@@ -1646,9 +1646,11 @@ static int castle_tone(int mode, int lx, int y, float u) {
     return t < CT_LIGHT ? CT_LIGHT : t > CT_DARK ? CT_DARK : t;
 }
 typedef struct { ctx_t *c; int cx; int layer; bool final; } cst_t;
+static inline void rec_px(int x, int y);
 static inline void castle_put(const cst_t *k, int x, int y, uint16_t v) {
     ctx_t *c = k->c;
     if (!CTX_IN(c, x, y)) return;
+    rec_px(x, y);                            /* a themed castle baked IN FRONT: its mask (2026-10-10) */
     { int lx = x - k->cx + CASTLE_MASK_W / 2, r = y - (CASTLE_FY - CASTLE_ROWS);
       if ((unsigned)lx < CASTLE_MASK_W && (unsigned)r < CASTLE_ROWS + 12) g_castle_mask[r][lx >> 5] |= 1u << (lx & 31); }
     if ((g_front_cl_x >= 0 || g_front_co_x >= 0) && front_px(x, y)) return;   /* a piece baked IN FRONT stands over the castle: the front row's repaint leaves it */
@@ -1889,14 +1891,16 @@ static void draw_theme_castle(ctx_t *c,int cx,int front,bool final) {
     for(int y=CASTLE_FY-162;y<=CASTLE_FY+5;y++) {
         if(y<c->oy || y>=c->oy+c->h)continue;
         int h=CASTLE_FY-y;
-        for(int x=-92;x<=92;x++) {
+        int left=c->ox-cx;if(left< -92)left=-92;                               /* only the clip's columns (a drag, the live path) */
+        int right=c->ox+c->w-1-cx;if(right>92)right=92;
+        for(int x=left;x<=right;x++) {
             unsigned noise=((unsigned)(x+100)*1237u+(unsigned)(h+40)*719u)^((unsigned)(x+130)*(unsigned)(h+17));
             int ax=abs(x);
             bool mound=h>=-3&&h<9&&x*x+(h-2)*(h-2)*25<8464;
             /* the fruit: fat - 150 wide, 118 tall */
             float ex=x/75.f, ey=(h-60)/59.f; float e2=ex*ex+ey*ey;
             bool fruit=h>=3&&e2<1.0f, fedge=fruit&&e2>0.84f;
-            int li=0; bool leaf=pa_leaf(x,h,0,112,11,50,&li);
+            int li=0; bool leaf=h>=112&&pa_leaf(x,h,0,112,11,50,&li);
             bool stick=ax<=0&&h>=140&&h<160, flag=x>0&&x<=14&&h>=150&&h<160&&(x<=(160-h)*2+2);
             /* the gate, the windows (holes), their rings */
             bool opening=ax<26&&h>=0&&(h<24 || x*x+(h-24)*(h-24)<26*26);
@@ -1909,7 +1913,7 @@ static void draw_theme_castle(ctx_t *c,int cx,int front,bool final) {
             for(int cxi=0;cxi<2;cxi++){ int x0=cxi?-30:-58, y0=4, x1=cxi?-32:-52, y1=cxi?54:40; float u=(h-y0)/(float)(y1-y0);
                 if(h>=y0&&h<=y1&&x==(int)(x0+(x1-x0)*u+0.5f)&&(h%3)!=2)chain=true; }
             bool star=false;
-            { float sx=x-84, sh=h-6; float r=sqrtf(sx*sx+sh*sh); if(r<1||r<3.2f+3.8f*fabsf(cosf(atan2f(sh,sx)*2.5f)))star=h>=0&&r<7.5f; }
+            if(h>=0&&h<14&&ax>=76) { float sx=x-84, sh=h-6; float r=sqrtf(sx*sx+sh*sh); if(r<1||r<3.2f+3.8f*fabsf(cosf(atan2f(sh,sx)*2.5f)))star=r<7.5f; }
             if(hole){ if(!front)castle_put(&k,cx+x,y,rgb565(mix(water_rgb(y),0x4a3a26,.55f),c->dim)); continue; }
             if(!(mound||fruit||leaf||bridge||chain||stick||flag||star))continue;
             uint32_t rgb;
@@ -2023,6 +2027,7 @@ typedef struct {
     uint32_t cl_mask[CL_H + 1][(CL_CW * 2 + 31) / 32];      /* the pixels a piece baked IN FRONT covers (sprite + mound), */
     uint32_t co_mask[CORAL_H + 1][(CORAL_W + 31) / 32];     /* row 0 = its top row, bit 0 = its left edge */
     uint32_t wk_mask[WK_H + 1][(WK_W + 31) / 32];           /* the shipwreck's hull, anchor and mast (not its holes), likewise */
+    uint32_t ca_mask[CASTLE_ROWS + 12][(CASTLE_MASK_W + 31) / 32];   /* a THEMED castle's solid pixels IN FRONT (2026-10-10; the Original's front row has its own tone table) */
     uint8_t  sn_glass[35 * 35];                             /* the snail on the glass: what its heading alone decides (draw_snail) */
 } decor_scratch_t;
 static decor_scratch_t *g_ds;
@@ -2621,6 +2626,9 @@ static bool castle_state(const tank_t *t, int *cx, int *z, bool *placing) {
 static int g_scene_castle_x = -2, g_scene_castle_z = -1;   /* what the baked scene holds (-1 = no castle) */
 static int g_scene_wk_x = -2, g_scene_wk_z = -1;           /* the shipwreck in the scene (-1 = none) */
 static int g_bake_wk_x = -1, g_front_wk_x = -1;            /* baked IN FRONT (its mask filled) / this frame's */
+static int g_bake_ca_x = -1;                               /* a themed castle baked IN FRONT with its mask (2026-10-10) */
+static bool g_castle_live;                                 /* tests: the old per-rect repaint instead of the mask */
+void render_debug_castle_live(bool on) { g_castle_live = on; }
 static bool wreck_state(const tank_t *t, int *cx, int *z, bool *placing) {
     if (!(t->sd_unlocks & SD_ITEM_WRECK)) { *cx = -1; *z = DECOR_Z_FRONT; *placing = false; return false; }
     *cx = (int)tank_decor_x(t, SD_ITEM_WRECK_IDX); *z = tank_decor_z(t, SD_ITEM_WRECK_IDX);
@@ -3431,6 +3439,16 @@ static void bake_scene(const tank_t *t, uint16_t *sc, float dim) {
     }
     ctx_t c = ctx_full(sc, TANK_W, dim);
     if (g_scene_castle_x >= 0) draw_castle(&c, g_scene_castle_x, 0, true);   /* the castle, unless it is being dragged */
+    /* a themed castle IN FRONT (2026-10-10): its solid pixels come back over the fish through a
+       mask (front_restore), like the cluster's - it was repainted whole per dirty rect before,
+       and the pineapple's per-pixel geometry over 25 creatures' rects took ~200 ms a frame */
+    g_bake_ca_x = -1;
+    if (g_scene_front && g_scene_castle_x >= 0 && g_scene_castle_z == DECOR_Z_FRONT && theme_active()) {
+        memset(ds()->ca_mask, 0, sizeof ds()->ca_mask);
+        g_rec = &ds()->ca_mask[0][0]; g_rec_x0 = g_scene_castle_x - CASTLE_MASK_W / 2; g_rec_y0 = CASTLE_FY - CASTLE_ROWS; g_rec_w = CASTLE_MASK_W; g_rec_rows = CASTLE_ROWS + 12; g_rec_wpr = (CASTLE_MASK_W + 31) / 32;
+        draw_castle(&c, g_scene_castle_x, 1, true);                             /* the same pixels again, recorded */
+        g_bake_ca_x = g_scene_castle_x; g_rec = NULL;
+    }
     if (g_scene_coral_x >= 0 && g_scene_coral_z == DECOR_Z_BACK) draw_coral(&c, g_scene_coral_x, g_scene_coral_rgb, (g_scene_coral_q + 0.5f) / CORAL_Q, true);   /* the coral BEHIND, likewise */
     if (g_scene_cl_x >= 0 && g_scene_cl_z == DECOR_Z_BACK) draw_cluster(&c, g_scene_cl_x, g_scene_cl_scheme, (g_scene_cl_q + 0.5f) / CL_Q, true);   /* the cluster BEHIND */
     if (g_scene_wk_x >= 0 && g_scene_wk_z == DECOR_Z_BACK) draw_wreck(&c, g_scene_wk_x, true, -1);   /* the shipwreck BEHIND, whole */
@@ -3618,7 +3636,9 @@ void render_tank(const tank_t *t, uint16_t *fb, int stride) {
        the food, the bubbles), only where they were drawn - a fish in the arch
        swims THROUGH. BEHIND: nothing here; it is a backdrop the fish pass. */
     if (ccx >= 0 && cz == DECOR_Z_FRONT) {
-        if (cached) for (int i = 0; i < nr; i++)
+        if (cached && g_bake_ca_x == ccx && !placing && !g_castle_live)   /* a themed castle, baked: back from the scene where something was drawn over it */
+            front_restore(fb, &ds()->ca_mask[0][0], (CASTLE_MASK_W + 31) / 32, CASTLE_ROWS + 12, ccx - CASTLE_MASK_W / 2, CASTLE_FY - CASTLE_ROWS);
+        else if (cached) for (int i = 0; i < nr; i++)
             draw_castle_front_rect(&c, ccx, rects[i].x0, rects[i].y0, rects[i].x1, rects[i].y1);
         else draw_castle(&c, ccx, 1, false);
     }
@@ -5529,10 +5549,11 @@ static void render_original_settings(const tank_t *t, uint16_t *fb, int stride, 
 #else
     draw_text_8px(&c, SET_LABEL_X + (PAGE_BOWL ? 96 : 0), PAGE_H - 8 - 6, MSP_DIM, ver);
 #endif
-    button(&c, SET_CLOSE_X, SET_FOOT_Y, MSP_CLOSE_W, MSP_CLOSE_H, 0x1c2f36, MSP_TEAL, "CLOSE", 2);
-    /* UPDATES (2026-09-30, docs/OTA.md): bottom left, the same size as CLOSE */
+    button(&c, SET_CLOSE_X, SET_FOOT_Y, SET_CLOSE_W, MSP_CLOSE_H, 0x1c2f36, MSP_TEAL, "CLOSE", 2);
+    /* UPDATES (2026-09-30, docs/OTA.md): bottom left; ABOUT and RESET (2026-10-10) between */
     button(&c, SET_UPD_X, SET_FOOT_Y, SET_UPD_W, MSP_CLOSE_H, 0x1c2f36, MSP_TEAL, "UPDATES", 2);
-    button(&c, SET_ABT_X, SET_ABT_Y, SET_ABT_W, MSP_CLOSE_H, 0x1c2f36, MSP_TEAL, "ABOUT", 2);   /* (2026-10-10) */
+    button(&c, SET_ABT_X, SET_ABT_Y, SET_ABT_W, MSP_CLOSE_H, 0x1c2f36, MSP_TEAL, "ABOUT", 2);
+    button(&c, SET_RST_X, SET_RST_Y, SET_RST_W, MSP_CLOSE_H, 0x1c2f36, 0xe0785a, "RESET", 2);   /* a warm edge: it starts the tank over (after the prompt) */
 }
 /* ---- the ABOUT page (2026-10-10): the game's name, who makes it, the release and the build,
  * a little fish crossing above them and bubbles rising; a jingle plays while it is up (the
@@ -5581,13 +5602,14 @@ static int set_segment(float x, int n) { return set_segment_w(x, n, SET_SEG_DX);
  * toggle); the LIGHTS OUT row's own hits are LIGHT_PREV / LIGHT_NEXT (its
  * left and right halves). */
 enum { SET_HIT_LIGHT_PREV = 100, SET_HIT_LIGHT_NEXT, SET_HIT_THEMES, SET_HIT_THEME_PICK, SET_HIT_THEME_BACK, SET_HIT_PAGE, SET_HIT_BRIGHT_PREV, SET_HIT_BRIGHT_NEXT, SET_HIT_CYCLE_VOLUME, SET_HIT_TOGGLE_FEED, SET_HIT_TOGGLE_SCREEN,
-       SET_HIT_ABOUT, SET_HIT_ABOUT_BACK };   /* (2026-10-10) the ABOUT button / row, and the about page's BACK */
+       SET_HIT_ABOUT, SET_HIT_ABOUT_BACK, SET_HIT_RESET };   /* (2026-10-10) ABOUT, the about page's BACK, RESET */
 static bool g_settings_themes, g_settings_about;
 static int g_settings_page, g_settings_bright = 60, g_settings_volume = 2;
 static int original_settings_tap(float x, float y, int *value) {
     x -= PAGE_X; y -= PAGE_Y;                    /* the page's own coordinates */
     if (x >= (PAGE_W - 244) / 2 && x < (PAGE_W + 244) / 2 && y >= SET_TITLE_Y - 8 && y < SET_TITLE_Y + 32) return SET_HIT_THEMES;
-    if (x >= SET_ABT_X - 8 && x < SET_ABT_X + SET_ABT_W + 8 && y >= SET_ABT_Y - 6 && y < SET_ABT_Y + MSP_CLOSE_H + 8) return SET_HIT_ABOUT;   /* (before the foot's halves, on a wide foot it stands between them) */
+    if (x >= SET_ABT_X - 6 && x < SET_ABT_X + SET_ABT_W + 6 && y >= SET_ABT_Y - 6 && y < SET_ABT_Y + MSP_CLOSE_H + 8) return SET_HIT_ABOUT;   /* (before the foot's halves, on a wide foot they stand between them) */
+    if (x >= SET_RST_X - 6 && x < SET_RST_X + SET_RST_W + 6 && y >= SET_RST_Y - 6 && y < SET_RST_Y + MSP_CLOSE_H + 8) return SET_HIT_RESET;
     if (x >= SET_CLOSE_X - 8 && y >= SET_FOOT_Y - 4) return SET_TAP_CLOSE;
     if (x < SET_UPD_X + SET_UPD_W + 8 && y >= SET_FOOT_Y - 4) return SET_TAP_UPDATES;
     /* the row bands: from a little above each segment down to the next row
@@ -5618,9 +5640,6 @@ void render_settings_bounds(int *x, int *y, int *w, int *h) {
 #endif
 }
 void render_settings_leave(void) { g_settings_themes = false; g_settings_about = false; g_settings_page = 0; }
-static int modern_row_y(int y, int h, int row) {
-    return y + 64 + row * (h > 350 ? 90 : 64);
-}
 static bool hit_rect(float x, float y, int bx, int by, int w, int h) {
     return x >= bx && y >= by && x < bx+w && y < by+h;
 }
@@ -5629,7 +5648,10 @@ void render_settings(const tank_t *t, uint16_t *fb, int stride, int bright_pct, 
     g_settings_bright = bright_pct;
     g_settings_volume = volume < 0 ? 0 : volume > 2 ? 2 : volume;
     if (g_settings_about) { render_about_page(t, fb, stride); return; }
-    if (!g_settings_themes && !theme_active()) { render_original_settings(t, fb, stride, bright_pct, volume); return; }
+    /* one layout for every theme (2026-10-10, Alvin: "unify the menu to follow the original theme
+       menu layout"): the rows of segments and arrows, in the theme's own colours and font (button,
+       draw_text and theme_ui_color do that); only the theme picker keeps its tiles */
+    if (!g_settings_themes) { render_original_settings(t, fb, stride, bright_pct, volume); return; }
     int x,y,w,h; render_settings_bounds(&x,&y,&w,&h);
     const theme_palette_t *p = theme_palette(t->theme);
     ctx_t c = ctx_full(fb,stride,1); g_dirty_hold = true;
@@ -5663,34 +5685,6 @@ void render_settings(const tank_t *t, uint16_t *fb, int stride, int bright_pct, 
         button(&c,x+(w-112)/2,y+h-44,112,44,p->panel,p->border,"DONE",2);
         return;
     }
-    for (int row=0;row<3;row++) {
-        int by=modern_row_y(y,h,row), rh=h>350?72:54;
-        const char *label, *value;
-        char bld[24];
-        if (!g_settings_page) {
-            label=row==0?"THEME":row==1?"BRIGHTNESS":"SOUND";
-            value=row==0?p->name:row==1?SET_BRIGHT[bright_index(bright_pct)]:SET_VOLUME[g_settings_volume];
-        } else if (g_settings_page==2) {               /* the third page (2026-10-10): who made it; every row opens the about page */
-            snprintf(bld,sizeof bld,"%.22s",version_port_string());
-            for (char *q=bld;*q;q++) if (*q>='a'&&*q<='z') *q-=32;
-            label=row==0?"ABOUT":row==1?"VERSION":"BUILD";
-            value=row==0?"AQUA PETS BY SOFTWORKZ":row==1?"V" PT_RELEASE " ALPHA":bld;
-        } else {
-            label=row==0?"LIGHTS OUT":row==1?"AUTO FEED":TANK_WORN?"SCREEN":"ROTATION";
-            value=row==0?SET_LIGHT[tank_light_choice(t)]:row==1?SET_FEED[t->autofeed_off?1:0]:
-                TANK_WORN?(t->screen_turned?"TURNED":"NORMAL"):(t->orient_lock?"LOCKED":"FREE");
-        }
-        button(&c,x,by,w,rh,p->panel,p->border,"",2);
-        draw_text(&c,x+12,by+9,2,p->muted,label);
-        draw_text(&c,x+12,by+31,2,p->text,value);
-        if ((g_settings_page==1 && row==0) || (g_settings_page==0 && row==1)) {   /* LIGHTS OUT and BRIGHTNESS: a step either way */
-            button(&c,x+w-100,by+5,44,44,p->accent,p->accent,"-",2);
-            button(&c,x+w-50,by+5,44,44,p->accent,p->accent,"+",2);
-        } else draw_text(&c,x+w-28,by+(rh-14)/2,2,p->accent,"+");
-    }
-    button(&c,x,y+h-44,72,44,p->panel,p->border,g_settings_page==2?"BACK":"MORE",2);
-    button(&c,x+80,y+h-44,104,44,p->panel,p->border,"UPDATES",2);
-    button(&c,x+w-112,y+h-44,112,44,p->accent,p->accent,"DONE",2);
 }
 int render_settings_tap(float tx, float ty, int *value) {
     *value=0;
@@ -5700,28 +5694,7 @@ int render_settings_tap(float tx, float ty, int *value) {
         for (int i=0;i<THEME_COUNT;i++) if (hit_rect(tx,ty,x,y+64+i*62,w,56)) { *value=i; return SET_HIT_THEME_PICK; }
         return hit_rect(tx,ty,x+(w-112)/2,y+h-44,112,44)?SET_HIT_THEME_BACK:SET_TAP_NONE;
     }
-    if (!theme_active()) return original_settings_tap(tx,ty,value);
-    if (!hit_rect(tx,ty,x,y,w,h)) return SET_TAP_NONE;
-    if (hit_rect(tx,ty,x,y+h-44,72,44)) return SET_HIT_PAGE;
-    if (hit_rect(tx,ty,x+80,y+h-44,104,44)) return SET_TAP_UPDATES;
-    if (hit_rect(tx,ty,x+w-112,y+h-44,112,44)) return SET_TAP_CLOSE;
-    for (int row=0;row<3;row++) {
-        int by=modern_row_y(y,h,row),rh=h>350?72:54;
-        if (!hit_rect(tx,ty,x,by,w,rh)) continue;
-        if (!g_settings_page) {
-            if (row==0) return SET_HIT_THEMES;
-            if (row==2) return SET_HIT_CYCLE_VOLUME;
-            if (hit_rect(tx,ty,x+w-100,by+5,44,44)) return SET_HIT_BRIGHT_PREV;
-            if (hit_rect(tx,ty,x+w-50,by+5,44,44)) return SET_HIT_BRIGHT_NEXT;
-            return SET_TAP_NONE;
-        }
-        if (g_settings_page==2) return SET_HIT_ABOUT;
-        if (row==1) return SET_HIT_TOGGLE_FEED;
-        if (row==2) return TANK_WORN?SET_HIT_TOGGLE_SCREEN:SET_TAP_ROTATE;
-        if (hit_rect(tx,ty,x+w-100,by+5,44,44)) return SET_HIT_LIGHT_PREV;
-        if (hit_rect(tx,ty,x+w-50,by+5,44,44)) return SET_HIT_LIGHT_NEXT;
-    }
-    return SET_TAP_NONE;
+    return original_settings_tap(tx,ty,value);
 }
 
 int render_settings_touch(tank_t *t, float x, float y, bool down, int *value) {
@@ -5747,15 +5720,12 @@ int render_settings_touch(tank_t *t, float x, float y, bool down, int *value) {
                 }
                 r = SET_TAP_THEME; *value = t->theme;
             }
-            else if (h == SET_HIT_PAGE) { g_settings_page = (g_settings_page + 1) % 3; }
             else if (h == SET_HIT_ABOUT) { g_settings_about = true; r = SET_TAP_ABOUT; *value = 1; }
+            else if (h == SET_HIT_RESET) { r = SET_TAP_RESET; *value = 0; }
             else if (h == SET_HIT_ABOUT_BACK) { g_settings_about = false; r = SET_TAP_ABOUT; *value = 0; }
             else if (h == SET_HIT_BRIGHT_PREV || h == SET_HIT_BRIGHT_NEXT) {   /* one step either way; the ends hold */
                 int bi = bright_index(g_settings_bright) + (h == SET_HIT_BRIGHT_NEXT ? 1 : -1);
                 if (bi >= 0 && bi < SET_BRIGHT_N) { *value = g_settings_bright = SET_BRIGHT_PCT[bi]; r = SET_TAP_BRIGHT; tank_emit(TEV_WHEEL_TICK, -1); }
-            }
-            else if (h == SET_HIT_CYCLE_VOLUME) {
-                *value = g_settings_volume = (g_settings_volume + 1) % 3; r = SET_TAP_VOLUME;
             }
             else if (h == SET_HIT_TOGGLE_FEED) {
                 t->autofeed_off = !t->autofeed_off; progression_settings_changed();
@@ -5786,7 +5756,7 @@ int render_settings_touch(tank_t *t, float x, float y, bool down, int *value) {
         }
     }
     s_down = down;
-    if (r == SET_TAP_CLOSE || r == SET_TAP_UPDATES) { g_settings_themes = false; g_settings_about = false; g_settings_page = 0; }
+    if (r == SET_TAP_CLOSE || r == SET_TAP_UPDATES || r == SET_TAP_RESET) { g_settings_themes = false; g_settings_about = false; g_settings_page = 0; }
     return r;
 }
 

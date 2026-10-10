@@ -4317,6 +4317,22 @@ static int bench(void) {
     bench_scene("4 fish, canopy full + card", true);
     tank_grow_algae(&tank, 400);
     bench_scene("... + fouled glass", false);
+    /* a full tank (2026-10-10): 25 creatures of every kind and every decoration IN FRONT, in each
+       theme - the case that slowed the device to ~5 fps before the themed castles were baked */
+    tank_grow_algae(&tank, -400);
+    while (tank.n_fish < POP_CAP && tank.n_fish < N_FISH_MAX) tank_add_fish(&tank, 0, 1);
+    for (int i = 0; i < tank.n_fish; i++) { tank.fish[i].stage = STAGE_ADULT; if (i >= 13) tank_set_species(&tank, i, 1 + (i - 13) % (SP_COUNT - 1), i % 4); }
+    tank.sd_unlocks = SD_ITEM_PLANT | SD_ITEM_SNAIL | SD_ITEM_CASTLE | SD_ITEM_CORAL | SD_ITEM_CLUSTER | SD_ITEM_SHRIMP | SD_ITEM_URCHIN | SD_ITEM_WRECK | SD_ITEM_FROGMAN;
+    tank_plant_place(&tank); tank_snail_place(&tank); tank_castle_place(&tank); tank_coral_place(&tank); tank_cluster_place(&tank);
+    tank_shrimp_place(&tank, 6); tank_urchin_place(&tank); tank_wreck_place(&tank); tank_frogman_place(&tank);
+    tank.coral_growth = 1.25f; tank.cluster_growth = 1.8f;
+    tank_decor_set(&tank, 2, TANK_W * 0.5f, DECOR_Z_FRONT); tank_decor_set(&tank, 3, TANK_W * 0.22f, DECOR_Z_FRONT);
+    tank_decor_set(&tank, 4, TANK_W * 0.8f, DECOR_Z_FRONT); tank_decor_set(&tank, SD_ITEM_WRECK_IDX, TANK_W * 0.35f, DECOR_Z_FRONT);
+    for (int th = 0; th < THEME_COUNT; th++) {
+        tank.theme = (uint8_t)th; render_use_theme(th);
+        char label[40]; snprintf(label, sizeof label, "25 creatures + all decor, %s", th == 0 ? "Original" : th == 1 ? "Lagoon" : "Tidepool");
+        bench_scene(label, false);
+    }
     return 0;
 }
 
@@ -5201,6 +5217,8 @@ int main(int argc, char **argv) {
             else if (r == SET_TAP_FEED) printf("auto feed: %s\n", v ? "ON" : "OFF");
             else if (r == SET_TAP_THEME) printf("theme: %s\n", theme_palette(v)->name);
             else if (r == SET_TAP_ROTATE) printf("rotation: %s\n", v ? "LOCKED" : "unlocked");
+            else if (r == SET_TAP_RESET) { settings_view = false; confirm_view = true; confirm_ms = now_ms; selected_fish = -1;   /* RESET: the same prompt as the X key */
+                                           printf("reset prompt (from settings): click YES or NO (it gives up after %d s)\n", CONFIRM_MS / 1000); }
             else if (r == SET_TAP_ABOUT) { if (s_adev) { SDL_LockAudioDevice(s_adev); audio_jingle(v); SDL_UnlockAudioDevice(s_adev); }   /* the about page: its jingle while it is up */
                                            printf(v ? "about page up (the jingle plays)\n" : "about page closed\n"); }
         } else if (updates_view && !confirm_view) {              /* the UPDATES page: CHECK, FORGET, CLOSE */

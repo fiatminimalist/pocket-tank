@@ -317,9 +317,14 @@ enum { SET_TAP_NONE = 0, SET_TAP_CLOSE = 1, SET_TAP_BRIGHT = 2, SET_TAP_VOLUME =
                                    for the save - the platform only logs it (the picture turns on the next frame) */
        SET_TAP_FEED = 8,        /* AUTO FEED (0.3.2): *value 1 = ON; applied and marked for the save */
        SET_TAP_ROTATE = 9, SET_TAP_THEME = 10,      /* ROTATION (0.3.2): *value 1 = locked; applied and marked for the save */
-       SET_TAP_ABOUT = 11 };    /* the ABOUT page (2026-10-10) opened (*value 1) or left (0): the platform starts / stops
+       SET_TAP_ABOUT = 11,      /* the ABOUT page (2026-10-10) opened (*value 1) or left (0): the platform starts / stops
                                    its jingle (audio_jingle / audio_port_jingle); the page itself is render_settings' */
+       SET_TAP_RESET = 12 };    /* RESET (2026-10-10): the platform leaves the page and opens the reset confirm prompt
+                                   (render_confirm_reset: NO / YES, a timeout) - nothing is wiped here */
 void render_settings_leave(void);
+/* tests (2026-10-10): true = a themed castle IN FRONT is repainted per dirty rect, the way it was
+ * before it was baked with a mask; the theme selftest proves both paths give the same pixels */
+void render_debug_castle_live(bool on);
 /* Native-frame geometry shared with the settings hit tests and simulator. */
 void render_settings_bounds(int *x, int *y, int *w, int *h);
 void render_settings(const tank_t *t, uint16_t *fb, int stride, int bright_pct, int volume);
@@ -513,24 +518,44 @@ void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size
 #define SET_SPAN_MID  (SET_SEG_X + SET_SPAN_W / 2)
 /* ROTATION: one icon button where the first segment stands, its word beside it */
 #define SET_ROT_WORD_X (SET_SEG_X + SET_SEG_W + 14)
-#define SET_UPD_W     112
-/* ABOUT (2026-10-10): the game's name, its maker and version, a jingle while it is up. The
- * button sits between UPDATES and CLOSE on a wide foot; the watch has no room there, so it
- * stands alone above the foot, under the SCREEN row's note */
-#define SET_ABT_W     92
-#if TANK_WORN
-#define SET_ABT_X     ((PAGE_W - SET_ABT_W) / 2)
-#define SET_ABT_Y     338
-#else
-#define SET_ABT_X     188                      /* centred between UPDATES' right edge and CLOSE: 144..324 on the 1.8, 172..296 on the bowl */
-#define SET_ABT_Y     SET_FOOT_Y
-#endif
+/* the foot (2026-10-10, one layout for every theme): UPDATES | ABOUT | RESET | CLOSE on a wide
+ * glass; the watch has no room for four, so ABOUT and RESET stand above the foot's pair */
 #if TANK_WORN                        /* the watch: UPDATES 114..226 and CLOSE 242..334, clear of the lower corners */
 #define SET_UPD_X     114
+#define SET_UPD_W     112
 #undef  SET_CLOSE_X
 #define SET_CLOSE_X   242
-#else
-#define SET_UPD_X     (PAGE_BOWL ? 60 : 32)    /* the UPDATES button, bottom left (2026-09-30); in from the glass on the bowl */
+#define SET_CLOSE_W   92
+#define SET_ABT_X     114
+#define SET_ABT_W     112
+#define SET_ABT_Y     338
+#define SET_RST_X     242
+#define SET_RST_W     92
+#define SET_RST_Y     338
+#elif PAGE_BOWL                      /* the bowl: in from the glass, four across 60..388 */
+#define SET_UPD_X     60
+#define SET_UPD_W     90
+#define SET_ABT_X     156
+#define SET_ABT_W     70
+#define SET_RST_X     232
+#define SET_RST_W     70
+#undef  SET_CLOSE_X
+#define SET_CLOSE_X   308
+#define SET_CLOSE_W   80
+#define SET_ABT_Y     SET_FOOT_Y
+#define SET_RST_Y     SET_FOOT_Y
+#else                                /* the 1.8: four across 32..418 */
+#define SET_UPD_X     32
+#define SET_UPD_W     104
+#define SET_ABT_X     150
+#define SET_ABT_W     80
+#define SET_RST_X     244
+#define SET_RST_W     80
+#undef  SET_CLOSE_X
+#define SET_CLOSE_X   338
+#define SET_CLOSE_W   80
+#define SET_ABT_Y     SET_FOOT_Y
+#define SET_RST_Y     SET_FOOT_Y
 #endif
 
 #endif

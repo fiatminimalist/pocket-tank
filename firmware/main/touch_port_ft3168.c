@@ -466,9 +466,10 @@ void touch_port_poll(tank_t *t) {
         int v = 0, r = render_settings_touch(t, tx, ty, touched, &v);
         if (r) ESP_LOGI(TAG, "settings: %s %d", r == SET_TAP_CLOSE ? "CLOSE" : r == SET_TAP_BRIGHT ? "brightness" : r == SET_TAP_VOLUME ? "volume"
                                                   : r == SET_TAP_THEME ? "theme" : r == SET_TAP_LIGHT ? "lights out" : r == SET_TAP_SCREEN ? "screen (1 = turned)"
-                                                  : r == SET_TAP_FEED ? "auto feed (1 = on)" : r == SET_TAP_ROTATE ? "rotation (1 = locked)" : r == SET_TAP_ABOUT ? "about (1 = up)" : "idle seconds", v);
+                                                  : r == SET_TAP_FEED ? "auto feed (1 = on)" : r == SET_TAP_ROTATE ? "rotation (1 = locked)" : r == SET_TAP_ABOUT ? "about (1 = up)" : r == SET_TAP_RESET ? "reset" : "idle seconds", v);
         if (r == SET_TAP_CLOSE) { s_set = false; s_ms = true; s_back = true; }   /* back to the milestones page (2026-09-16); the release is spent */
         else if (r == SET_TAP_UPDATES) { s_set = false; s_upd = true; s_back = true; ESP_LOGI(TAG, "updates page up"); }
+        else if (r == SET_TAP_RESET) { s_set = false; s_back = true; touch_port_confirm_open(); ESP_LOGI(TAG, "settings: RESET - the confirm prompt is up (NO / YES, it times out)"); }
         else if (r == SET_TAP_BRIGHT || r == SET_TAP_VOLUME || r == SET_TAP_LIGHT || r == SET_TAP_IDLE || r == SET_TAP_FEED || r == SET_TAP_ROTATE || r == SET_TAP_ABOUT) { s_set_what = r; s_set_val = v; }
     }
     if (s_upd && !s_cf && !su) {                             /* the UPDATES page: CHECK (main restarts), FORGET, CLOSE */
@@ -670,6 +671,7 @@ bool touch_port_confirm_answer(int ans) {
     return true;
 }
 bool  touch_port_confirm_up(void)   { return s_cf; }
+bool  touch_port_down(void)         { return s_down; }
 float touch_port_confirm_frac(void) {
     if (!s_cf) return 0;
     float f = 1.0f - (esp_timer_get_time() - s_cf_us) / (float)CONFIRM_TIMEOUT_US;

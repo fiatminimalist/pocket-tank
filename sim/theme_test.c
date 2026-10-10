@@ -40,11 +40,15 @@ static void shot(const char *prefix,const char *page,int theme) {
     }
     fclose(f);
 }
+/* the settings rows' tap spots, page coordinates (sim/main.c has the same three) */
+#define SETP_SEG_X(i)  (SET_SEG_X + (i) * SET_SEG_DX + SET_SEG_W / 2)
+#define SETP_PREV_X    (SET_SEG_X + SET_ARW_W / 2)
+#define SETP_NEXT_X    (SET_SEG_X + SET_SPAN_W - SET_ARW_W / 2)
 static void settings_open_themes(tank_t *t) {
     int x,y,w,h,v; render_settings_bounds(&x,&y,&w,&h);
     render_settings_leave(); render_settings(t,fb,TANK_W,60,1);
-    if (t->theme==THEME_ORIGINAL) tap(t,PAGE_X+PAGE_W/2,PAGE_Y+SET_TITLE_Y+12,&v);
-    else tap(t,x+w/2,y+90,&v);
+    (void)x;(void)y;(void)w;(void)h;
+    tap(t,PAGE_X+PAGE_W/2,PAGE_Y+SET_TITLE_Y+12,&v);   /* the SETTINGS / THEMES title button, in every theme (2026-10-10) */
     render_settings(t,fb,TANK_W,60,1);
 }
 /* Native art sheets exercise every new drawing path and the shared cache. */
@@ -83,6 +87,20 @@ static int art_sheets(const tank_t *base,const char *prefix) {
             memcpy(first,fb,sizeof fb);a.theme=(id+1)%THEME_COUNT;render_tank(&a,fb,TANK_W);
             a.theme=id;render_tank(&a,fb,TANK_W);
             CHECK(!memcmp(first,fb,sizeof fb),"decor cache restores exact geometry");
+            if(which==0&&id){
+                /* the themed castle IN FRONT is baked with a mask (2026-10-10): a busy frame - fish in and
+                   around the arch, pellets, bubbles - must come out pixel for pixel as the old per-rect
+                   repaint drew it */
+                tank_t b=a; b.sd_unlocks=SD_ITEM_CASTLE; tank_castle_place(&b); b.castle_x=TANK_W/2; b.castle_z=DECOR_Z_FRONT;
+                for(int f=0;f<6&&f<N_FISH_MAX;f++){ tank_make_fish(&b,f,f%2,.5f,.5f,STAGE_ADULT); b.fish[f].x=TANK_W/2-60+f*24; b.fish[f].y=TANK_BOT-30-(f%3)*40; b.fish[f].heading=f%2?3.1f:0; tank_fish_face(&b.fish[f]); }
+                b.n_fish=6; if(b.n_fish>1)tank_set_species(&b,1,SP_OCTOPUS,0);
+                static uint16_t masked[TANK_W*TANK_H], live[TANK_W*TANK_H];
+                render_debug_castle_live(false); render_tank(&b,fb,TANK_W); b.clock+=.3f; render_tank(&b,fb,TANK_W); memcpy(masked,fb,sizeof masked);
+                render_debug_castle_live(true);  render_tank(&b,fb,TANK_W); b.clock-=.3f; render_tank(&b,fb,TANK_W); b.clock+=.3f; render_tank(&b,fb,TANK_W); memcpy(live,fb,sizeof live);
+                render_debug_castle_live(false);
+                int diff=0; for(int i=0;i<TANK_W*TANK_H;i++) diff+=masked[i]!=live[i];
+                CHECK(diff==0,"the baked castle front matches the per-rect repaint pixel for pixel");
+            }
         }
         for(int effect=0;effect<5;effect++) {
             tank_t a=t; a.sd_unlocks=0;
@@ -226,7 +244,6 @@ int selftest_themes(const char *prefix) {
     tank_set_name(&t,0,"miso"); t.fish[0].trust=6.25f; t.sd_balance=173;
     uint32_t body=t.fish[0].color; int count=t.n_fish;
     int x,y,w,h,v; render_settings_bounds(&x,&y,&w,&h);
-    int row_step = h > 350 ? 90 : 64;
     render_set_scene_cache(scene); render_set_vignette_cache(vignette);
     render_set_dirty_mask(dirty); render_set_card_cache(card);
     render_tank(&t,fb,TANK_W); memcpy(first,fb,sizeof fb);
@@ -240,37 +257,27 @@ int selftest_themes(const char *prefix) {
         CHECK(t.n_fish==count && t.fish[0].color==body && t.fish[0].trust==6.25f && t.sd_balance==173 && !strcmp(t.fish[0].name,"miso"),"theme selection preserves the simulation");
         render_settings(&t,fb,TANK_W,60,1); CHECK(safe_page(),"selected picker safe"); shot(prefix,"picker",id);
         tap(&t,x+w/2,y+h-22,&v);
-        render_settings(&t,fb,TANK_W,60,1); if (id) CHECK(safe_page(),"settings safe"); shot(prefix,"settings",id);
-        if (id) {
-            CHECK(tap(&t,x+w-28,y+64+row_step+27,&v)==SET_TAP_BRIGHT && v==70,"brightness up a step");
-            CHECK(tap(&t,x+w-78,y+64+row_step+27,&v)==SET_TAP_BRIGHT && v==60,"brightness down a step");
-            CHECK(tap(&t,x+28,y+64+row_step+20,&v)==SET_TAP_NONE,"the brightness row's label is not a button");
-            for(int k=0;k<4;k++)tap(&t,x+w-28,y+64+row_step+27,&v);
-            CHECK(v==100 && tap(&t,x+w-28,y+64+row_step+27,&v)==SET_TAP_NONE,"brightness holds at 100");
-            CHECK(tap(&t,x+28,y+64+2*row_step+20,&v)==SET_TAP_VOLUME && v==2,"volume cycle");
-            tap(&t,x+36,y+h-22,&v); render_settings(&t,fb,TANK_W,100,2);
-            CHECK(safe_page(),"second settings page safe"); shot(prefix,"settings_more",id);
-            CHECK(tap(&t,x+w-28,y+64+27,&v)==SET_TAP_LIGHT,"light cycle still works");
-            CHECK(tap(&t,x+30,y+64+row_step+20,&v)==SET_TAP_FEED && !v,"auto feeding toggle");
-            CHECK(tap(&t,x+30,y+64+row_step+20,&v)==SET_TAP_FEED && v,"auto feeding restored");
+        render_settings(&t,fb,TANK_W,60,1); shot(prefix,"settings",id);
+        /* one layout for every theme (2026-10-10): the Original's rows and foot, in the theme's colours.
+           BRIGHTNESS between arrows, VOLUME segments, LIGHTS OUT, AUTO FEED, then ABOUT, RESET, CLOSE */
+        {
+            CHECK(tap(&t,PAGE_X+SETP_NEXT_X,PAGE_Y+SET_ROW1_Y+10,&v)==SET_TAP_BRIGHT && v==70,"brightness up a step");
+            CHECK(tap(&t,PAGE_X+SETP_PREV_X,PAGE_Y+SET_ROW1_Y+10,&v)==SET_TAP_BRIGHT && v==60,"brightness down a step");
+            CHECK(tap(&t,PAGE_X+SETP_SEG_X(2),PAGE_Y+SET_ROW2_Y+10,&v)==SET_TAP_VOLUME && v==2,"volume segment");
+            CHECK(tap(&t,PAGE_X+SETP_NEXT_X,PAGE_Y+SET_ROW3_Y+10,&v)==SET_TAP_LIGHT && v==1,"lights out: a step to AUTO");
+            CHECK(tap(&t,PAGE_X+SETP_PREV_X,PAGE_Y+SET_ROW3_Y+10,&v)==SET_TAP_LIGHT && v==0,"lights out: back to the double-tap");
+            CHECK(tap(&t,PAGE_X+SETP_SEG_X(1),PAGE_Y+SET_ROW4_Y+10,&v)==SET_TAP_FEED && !v,"auto feeding off");
+            CHECK(tap(&t,PAGE_X+SETP_SEG_X(0),PAGE_Y+SET_ROW4_Y+10,&v)==SET_TAP_FEED && v,"auto feeding restored");
             tank_light_choice_set(&t,0);
-            /* the third page (2026-10-10): ABOUT / VERSION / BUILD rows, any of them the about page, BACK out of it */
-            tap(&t,x+36,y+h-22,&v); render_settings(&t,fb,TANK_W,100,2);
-            CHECK(safe_page(),"third settings page safe"); shot(prefix,"settings_about_rows",id);
-            CHECK(tap(&t,x+30,y+64+20,&v)==SET_TAP_ABOUT && v==1,"the ABOUT row opens the about page");
-            t.clock=7; render_settings(&t,fb,TANK_W,100,2); CHECK(safe_page(),"about page safe"); shot(prefix,"about",id);
+            CHECK(tap(&t,PAGE_X+SET_ABT_X+SET_ABT_W/2,PAGE_Y+SET_ABT_Y+MSP_CLOSE_H/2,&v)==SET_TAP_ABOUT && v==1,"the ABOUT button opens the about page");
+            t.clock=7; render_settings(&t,fb,TANK_W,60,1); CHECK(safe_page(),"about page safe"); shot(prefix,"about",id);
             CHECK(tap(&t,x+w/2,y+40,&v)==SET_TAP_NONE,"a tap on the about page's words does nothing");
             CHECK(tap(&t,x+w/2,y+h-22,&v)==SET_TAP_ABOUT && v==0,"BACK leaves the about page");
-            render_settings(&t,fb,TANK_W,100,2);
-            CHECK(tap(&t,x+36,y+h-22,&v)==SET_TAP_NONE,"BACK from the third page");
-            CHECK(tap(&t,x+w-40,y+h-22,&v)==SET_TAP_CLOSE,"Done closes settings");
-        } else {
-            /* the Original layout's ABOUT button (2026-10-10), its page, BACK */
-            CHECK(tap(&t,PAGE_X+SET_ABT_X+SET_ABT_W/2,PAGE_Y+SET_ABT_Y+MSP_CLOSE_H/2,&v)==SET_TAP_ABOUT && v==1,"the ABOUT button opens the about page");
-            t.clock=7; render_settings(&t,fb,TANK_W,60,1); shot(prefix,"about",id);
-            CHECK(tap(&t,x+w/2,y+h-22,&v)==SET_TAP_ABOUT && v==0,"BACK leaves the about page (Original)");
             render_settings(&t,fb,TANK_W,60,1);
-            CHECK(tap(&t,PAGE_X+SET_CLOSE_X+40,PAGE_Y+SET_FOOT_Y+10,&v)==SET_TAP_CLOSE,"CLOSE after the about page");
+            CHECK(tap(&t,PAGE_X+SET_RST_X+SET_RST_W/2,PAGE_Y+SET_RST_Y+MSP_CLOSE_H/2,&v)==SET_TAP_RESET,"RESET asks the platform for the prompt");
+            CHECK(t.n_fish==count && t.sd_balance==173,"RESET itself wipes nothing");
+            render_settings(&t,fb,TANK_W,60,1);
+            CHECK(tap(&t,PAGE_X+SET_CLOSE_X+SET_CLOSE_W/2,PAGE_Y+SET_FOOT_Y+10,&v)==SET_TAP_CLOSE,"CLOSE closes settings");
         }
         CHECK(progression_save(&t),"save theme");
         tank_init(&loaded,1); progression_boot(&loaded);

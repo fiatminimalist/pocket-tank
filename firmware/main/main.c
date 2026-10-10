@@ -580,6 +580,15 @@ static void start_tank_task(void *arg) {
         ESP_LOGE(TAG, "THE TANK TASK COULD NOT START: no internal RAM for its stack");
 }
 #define FRAME_MIN_MS 40                      /* the frame rate's ceiling: 25 fps (see the loop's foot) */
+/* the night (2026-10-10, the battery pass): lights out used to keep the full 25 fps and never
+   sleep - a tank left on the desk burned the cell at awake rates all night. Now: the frame rate
+   drops to 10 fps while the light is out and no finger is on the glass (the fish sleep, the panel
+   is dim; the bubbles still rise), and after NIGHT_OFF_S of darkness with nothing handling the
+   tank - no touch, no motion - it takes the same sleep the PWR key does (the grace, then the
+   power-off / deep sleep; the PWR key brings it back and the night is lived through at that
+   boot). Not while a cable is charging it, and not while a page is up. */
+#define NIGHT_FRAME_MS 100
+#define NIGHT_OFF_S    (2 * 3600)
 static void tank_task(void *arg) {
     (void)arg;
     int64_t last = esp_timer_get_time(); int cur = 0;
@@ -638,6 +647,11 @@ static void tank_task(void *arg) {
                       ESP_LOGI(TAG, "shop: placement page up for the %s", SD_ITEMS[item].name); } }
               else ESP_LOGI(TAG, "shop: %s refused (balance %d, price %d)", SD_ITEMS[item].name, (int)tank.sd_balance, SD_ITEMS[item].price); } }
         brightness_apply(tank.night);
+        if (tank.night && !tank.ui_cover && !touch_port_down() && tank.idle_s > (float)NIGHT_OFF_S && !s_bat_chg) {
+            ESP_LOGI(TAG, "night: %d h dark and untouched - sleeping as the PWR key would", NIGHT_OFF_S / 3600);
+            enter_sleep();                      /* returns only for a wake within the grace */
+            tank_handled(&tank);                /* the wake was a hand: the idle clock restarts */
+        }
         { static int64_t last_bat; if (now - last_bat > 5LL * 60 * 1000000) {   /* battery log: awake sample every 5 min */
             batlog_add(battery_pct(), battery_port_vbat_mv(), display_port_brightness(), false, last_bat ? "" : "boot"); last_bat = now; } }
         int64_t pf_tick = esp_timer_get_time(); polls_us += pf_tick - now;
@@ -775,7 +789,8 @@ static void tank_task(void *arg) {
            3.93 s (~40 ms a decision per frame a second; the bigger glasses pay more). Strato: decisions
            past 4 s are too slow, so a light tank no longer spends the model's time on frames past 25.
            Always yield >= 1 tick. */
-        int rest = (int)((FRAME_MIN_MS * 1000 - (esp_timer_get_time() - now)) / 1000);
+        int frame_ms = tank.night && !tank.ui_cover && !touch_port_down() ? NIGHT_FRAME_MS : FRAME_MIN_MS;
+        int rest = (int)((frame_ms * 1000 - (esp_timer_get_time() - now)) / 1000);
         slept_from = esp_timer_get_time(); tail_us += slept_from - pf_tail;
         vTaskDelay(pdMS_TO_TICKS(rest < 1 ? 1 : rest));
     }
