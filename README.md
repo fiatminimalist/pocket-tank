@@ -490,7 +490,7 @@ the squid and the octopus ink, the crab raises its claws), the shrimp
 scattering, the frogman thrown too. Over about three seconds the throw damps
 out and they settle back to their own ways, a little stressed, a little less
 trusting. The accelerometer sees the shake as a jolt of about 1.5 g of change
-within one poll, once every 2.5 s at most; the sim's Q key does the same.
+within one poll, once every 2.5 s at most; the sim's 1 key does the same.
 
 **The night and the battery (2026-10-10).** Lights out used to keep the full
 25 fps and never sleep, so a tank forgotten on the desk burned its cell at awake

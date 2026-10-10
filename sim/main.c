@@ -5496,7 +5496,7 @@ int main(int argc, char **argv) {
         gdown = k[SDL_SCANCODE_G];
         if (k[SDL_SCANCODE_Q] || k[SDL_SCANCODE_ESCAPE]) { progression_save(&tank); break; }
         if (k[SDL_SCANCODE_F] && !fdown) tank_feed(&tank, (float)mx, 3);
-        { static bool qdown; if (k[SDL_SCANCODE_Q] && !qdown) { tank_shake(&tank, 1.0f); printf("shaken: every creature tossed, settling over ~%.0f s\n", TOSS_S); } qdown = k[SDL_SCANCODE_Q]; }   /* Q: a hard shake (2026-10-10) */
+        { static bool onedown; if (k[SDL_SCANCODE_1] && !onedown) { tank_shake(&tank, 1.0f); printf("shaken: every creature tossed, settling over ~%.0f s\n", TOSS_S); } onedown = k[SDL_SCANCODE_1]; }   /* 1: a hard shake (2026-10-10; Q quits, A is the light) */
         if (k[SDL_SCANCODE_N] && !ndown) tank_toggle_light(&tank);
         if (k[SDL_SCANCODE_A]) tank_light_auto(&tank);
         if (k[SDL_SCANCODE_L] && !ldown && llm_available) {

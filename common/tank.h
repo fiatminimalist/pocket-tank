@@ -895,7 +895,7 @@ float tank_fish_hit_r(const fish_t *f);
 bool  tank_poke(tank_t *t, int idx);        /* a double tap on creature idx: its trick (puff, ink); false = it has none */
 void  tank_wreck_place(tank_t *t);           /* the shipwreck bought: its default spot (item 7) */
 void  tank_frogman_place(tank_t *t);         /* the frogman bought (or loaded): mid-tank, heading right (item 8) */
-/* a hard shake of the device (2026-10-10; the IMU's shake detector, the sim's Q key): every
+/* a hard shake of the device (2026-10-10; the IMU's shake detector, the sim's 1 key): every
  * creature is thrown - a random velocity and spin, tumbling off the glass, the species'
  * startle reactions on the way (the puffer puffs, the squid and octopus ink, the crab's
  * claws), the shrimp scatter, the frogman tumbles - and settles back over TOSS_S seconds
