@@ -224,9 +224,11 @@ static float yaw_at(float yh, float yt, float lx) {
  * same 2 x 5 px marks), the preview's size so they read on a big fish */
 static void draw_creature(ctx_t *c, const fish_t *f, float clock, bool asleep);   /* the species, below */
 static void draw_lagoon_fish(ctx_t *c,const fish_t *f,float clock,bool asleep);
+static void draw_blackwater_fish(ctx_t *c,const fish_t *f,float clock,bool asleep);   /* blackwater.inc */
 static void draw_fish_core(ctx_t *c, const fish_t *f, float clock, bool asleep, float mark) {
     if (f->species != SP_FISH) { draw_creature(c, f, clock, asleep); return; }
     if(theme_active()==THEME_QUIET_LAGOON){draw_lagoon_fish(c,f,clock,asleep);return;}
+    if(theme_active()==THEME_BLACKWATER){draw_blackwater_fish(c,f,clock,asleep);return;}
     float tail = sinf(clock * (8 + f->speed * 0.055f) + f->wander) *
                  (0.32f + f->speed * 0.007f);
     float stress = f->stress / 10.0f;
@@ -554,6 +556,7 @@ static void draw_ink(const sk_t *k) {
    fan that is its whole engine. Leans into its slow swim. ---- */
 #include "living_lagoon.inc"
 #include "theme_creatures.inc"
+#include "blackwater.inc"
 
 static void draw_seahorse(sk_t *k) {
     if(theme_active()){draw_theme_species(k,SP_SEAHORSE);return;}
@@ -1885,8 +1888,10 @@ static bool pa_leaf(int x, int h, int px, int top, int n, int tall, int *which) 
         if (h >= top && h < lh && abs(x - lx - sway) <= w) { *which = i; return true; } }
     return false;
 }
+#include "blackwater_castle.inc"
 static void draw_theme_castle(ctx_t *c,int cx,int front,bool final) {
     if(theme_active()==THEME_QUIET_LAGOON){draw_lagoon_castle(c,cx,front,final);return;}
+    if(theme_active()==THEME_BLACKWATER){draw_blackwater_castle(c,cx,front,final);return;}
     cst_t k={c,cx,front,final};
     for(int y=CASTLE_FY-162;y<=CASTLE_FY+5;y++) {
         if(y<c->oy || y>=c->oy+c->h)continue;
@@ -3142,8 +3147,10 @@ static void draw_wreck_club(ctx_t *c, int cx, bool final, int layer) {
     }
     draw_floor_mound(c, cx, WRECK_HALF_W - 8, 5, final);
 }
+#include "blackwater_wreck.inc"
 static void draw_wreck(ctx_t *c, int cx, bool final, int layer) {
     if (theme_active() == THEME_QUIET_LAGOON) draw_wreck_lagoon(c, cx, final, layer);
+    else if (theme_active() == THEME_BLACKWATER) draw_wreck_blackwater(c, cx, final, layer);
     else if (theme_active() == THEME_TIDEPOOL_CLUB) draw_wreck_club(c, cx, final, layer);
     else draw_wreck_original(c, cx, final, layer);
 }
@@ -4308,7 +4315,7 @@ static void draw_text(ctx_t *c, int x, int y, int scale, uint32_t rgb, const cha
     if (theme_active() && (scale == 2 || scale == 3)) {
         int w = 5 * scale, h = 7 * scale;
         for (; *s; s++, x += 6 * scale) {
-            const uint8_t *g = theme_font_glyph(theme_active(), scale, (unsigned char)*s);
+            const uint8_t *g = theme_font_glyph(theme_asset_set(theme_active()), scale, (unsigned char)*s);
             if (!g) continue;
             for (int yy = 0; yy < h; yy++) for (int xx = 0; xx < w; xx++) {
                 int k = yy * w + xx, a = ((k & 1) ? g[k / 2] & 15 : g[k / 2] >> 4) * 17;
@@ -5639,6 +5646,13 @@ void render_settings_bounds(int *x, int *y, int *w, int *h) {
     *x = 22; *y = 20; *w = 404; *h = 328;
 #endif
 }
+/* the theme picker's tiles (2026-10-10, four themes): the page's height above the DONE button shared
+   between them, a 62 px pitch at most (the 1.8 gets 53, the bowl 47, the watch 62) */
+void render_theme_tile_rect(int i, int *tx, int *ty, int *tw, int *th) {
+    int x, y, w, h; render_settings_bounds(&x, &y, &w, &h);
+    int pitch = (h - 44 - 8 - 64) / THEME_COUNT; if (pitch > 62) pitch = 62;
+    *tx = x; *ty = y + 64 + i * pitch; *tw = w; *th = pitch - 6;
+}
 void render_settings_leave(void) { g_settings_themes = false; g_settings_about = false; g_settings_page = 0; }
 static bool hit_rect(float x, float y, int bx, int by, int w, int h) {
     return x >= bx && y >= by && x < bx+w && y < by+h;
@@ -5660,25 +5674,26 @@ void render_settings(const tank_t *t, uint16_t *fb, int stride, int bright_pct, 
     draw_text(&c,x,y+34,2,p->muted,g_settings_themes ? "YOUR TANK, YOUR STYLE" : "CREATURE COMFORTS");
     if (g_settings_themes) {
         for (int i=0;i<THEME_COUNT;i++) {
-            int by = y+64+i*62;
+            int tx,by,tw,th; render_theme_tile_rect(i,&tx,&by,&tw,&th);   /* the tiles share the page above DONE (four since 2026-10-10) */
             const theme_palette_t *tile = theme_palette(i);
             /* A tile previews its own colours; restore the active palette before returning. */
             theme_activate(i);
-            round_fill(&c,x,by,w,56,i==THEME_TIDEPOOL_CLUB?18:6,i==t->theme ? tile->accent : p->border);
-            round_fill(&c,x+2,by+2,w-4,52,i==THEME_TIDEPOOL_CLUB?16:4,tile->panel);
+            int r=i==THEME_TIDEPOOL_CLUB?18:6; if(r>th/3)r=th/3;
+            round_fill(&c,x,by,w,th,r,i==t->theme ? tile->accent : p->border);
+            round_fill(&c,x+2,by+2,w-4,th-4,r-2,tile->panel);
             const icon_t *ic = theme_preview_icon(i);
-            if (ic) blit_icon(&c,x+8,by+8,ic,255);
+            if (ic) blit_icon(&c,x+8,by+(th-ic->h)/2,ic,255);
             else {
-                fish_t f; memset(&f,0,sizeof f); f.x=x+34; f.y=by+29; f.size=.85f;
+                fish_t f; memset(&f,0,sizeof f); f.x=x+34; f.y=by+th/2+1; f.size=.85f;
                 f.yaw=f.yaw_tail=1; f.color=0x66caca; f.fin=0x417b96; f.accent=0x92dcaf;
                 f.stage=STAGE_ADULT; draw_fish_core(&c,&f,0,false,1);
             }
-            draw_text(&c,x+66,by+12,2,tile->text,tile->name);
-            round_fill(&c,x+66,by+36,22,6,3,tile->accent);
-            round_fill(&c,x+92,by+36,22,6,3,tile->gold);
+            draw_text(&c,x+66,by+th/2-16,2,tile->text,tile->name);
+            round_fill(&c,x+66,by+th/2+8,22,6,3,tile->accent);
+            round_fill(&c,x+92,by+th/2+8,22,6,3,tile->gold);
             if (i==t->theme) {
-                fill_ellipse(&c,x+w-21,by+28,7,7,tile->accent,255);
-                draw_text(&c,x+w-26,by+22,1,tile->on_accent,"+");
+                fill_ellipse(&c,x+w-21,by+th/2,7,7,tile->accent,255);
+                draw_text(&c,x+w-26,by+th/2-6,1,tile->on_accent,"+");
             }
         }
         theme_activate(theme_valid(t->theme));
@@ -5691,7 +5706,7 @@ int render_settings_tap(float tx, float ty, int *value) {
     int x,y,w,h; render_settings_bounds(&x,&y,&w,&h);
     if (g_settings_about) return hit_rect(tx,ty,x+(w-112)/2-8,y+h-52,128,56)?SET_HIT_ABOUT_BACK:SET_TAP_NONE;
     if (g_settings_themes) {
-        for (int i=0;i<THEME_COUNT;i++) if (hit_rect(tx,ty,x,y+64+i*62,w,56)) { *value=i; return SET_HIT_THEME_PICK; }
+        for (int i=0;i<THEME_COUNT;i++) { int ax,ay,aw,ah; render_theme_tile_rect(i,&ax,&ay,&aw,&ah); if (hit_rect(tx,ty,ax,ay,aw,ah)) { *value=i; return SET_HIT_THEME_PICK; } }
         return hit_rect(tx,ty,x+(w-112)/2,y+h-44,112,44)?SET_HIT_THEME_BACK:SET_TAP_NONE;
     }
     return original_settings_tap(tx,ty,value);

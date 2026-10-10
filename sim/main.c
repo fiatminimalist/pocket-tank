@@ -4347,7 +4347,7 @@ static int bench(void) {
     tank_decor_set(&tank, 4, TANK_W * 0.8f, DECOR_Z_FRONT); tank_decor_set(&tank, SD_ITEM_WRECK_IDX, TANK_W * 0.35f, DECOR_Z_FRONT);
     for (int th = 0; th < THEME_COUNT; th++) {
         tank.theme = (uint8_t)th; render_use_theme(th);
-        char label[40]; snprintf(label, sizeof label, "25 creatures + all decor, %s", th == 0 ? "Original" : th == 1 ? "Lagoon" : "Tidepool");
+        char label[40]; snprintf(label, sizeof label, "25 creatures + all decor, %s", theme_palette(th)->name);
         bench_scene(label, false);
     }
     return 0;

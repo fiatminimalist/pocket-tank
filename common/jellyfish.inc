@@ -6,6 +6,7 @@
  * (flat / translucent / scalloped), never the design the keeper bought. */
 #define JELLY_CENTRE 6.0f   /* bell + arms span ~ -16..+28: drawn about f->y's middle (rings, cards, rows) */
 static void draw_jellyfish(sk_t *source) {
+    if(theme_active()==THEME_BLACKWATER){draw_blackwater_species(source,SP_JELLYFISH);return;}   /* blackwater.inc centres it itself */
     sk_t local=*source,*k=&local;
     bool quiet=theme_active()==THEME_QUIET_LAGOON,club=theme_active()==THEME_TIDEPOOL_CLUB;
     bool fry=k->f->stage==STAGE_FRY,elder=k->f->stage==STAGE_ELDER;

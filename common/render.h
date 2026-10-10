@@ -327,6 +327,7 @@ void render_settings_leave(void);
 void render_debug_castle_live(bool on);
 /* Native-frame geometry shared with the settings hit tests and simulator. */
 void render_settings_bounds(int *x, int *y, int *w, int *h);
+void render_theme_tile_rect(int i, int *x, int *y, int *w, int *h);   /* the picker's tile i (2026-10-10) */
 void render_settings(const tank_t *t, uint16_t *fb, int stride, int bright_pct, int volume);
 int  render_settings_tap(float x, float y, int *value);
 int  render_settings_touch(tank_t *t, float x, float y, bool down, int *value);

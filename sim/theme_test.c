@@ -252,7 +252,7 @@ int selftest_themes(const char *prefix) {
         /* Sliding from one option to another must not silently select it. */
         render_settings_touch(&t,x+w/2,y+90,true,&v);
         CHECK(render_settings_touch(&t,x+w/2,y+152,false,&v)==SET_TAP_NONE,"drag does not select another theme");
-        CHECK(tap(&t,x+w/2,y+64+id*62+28,&v)==SET_TAP_THEME,"theme option touch routes");
+        { int ax,ay,aw,ah; render_theme_tile_rect(id,&ax,&ay,&aw,&ah); CHECK(tap(&t,ax+aw/2,ay+ah/2,&v)==SET_TAP_THEME,"theme option touch routes"); }
         CHECK(t.theme==id && v==id,"chosen theme applied");
         CHECK(t.n_fish==count && t.fish[0].color==body && t.fish[0].trust==6.25f && t.sd_balance==173 && !strcmp(t.fish[0].name,"miso"),"theme selection preserves the simulation");
         render_settings(&t,fb,TANK_W,60,1); CHECK(safe_page(),"selected picker safe"); shot(prefix,"picker",id);
@@ -319,6 +319,6 @@ int selftest_themes(const char *prefix) {
     CHECK(!art_sheets(&t,prefix),"native art regression sheets");
     CHECK(!jellyfish_checks(),"jellyfish integration");
     unlink(save);
-    printf("selftest-themes: PASS (%dx%d): 3 themes, safe touch pages, persistence, legacy saves, wheel, native assets, cache invalidation, exact Original restoration\n",TANK_W,TANK_H);
+    printf("selftest-themes: PASS (%dx%d): %d themes, safe touch pages, persistence, legacy saves, wheel, native assets, cache invalidation, exact Original restoration\n",TANK_W,TANK_H,THEME_COUNT);
     return 0;
 }

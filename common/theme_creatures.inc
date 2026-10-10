@@ -1,5 +1,6 @@
 /* Native vector art for the two modern themes. Included after the sk_* primitives.
  * Existing species motion/state and per-creature colours remain the inputs. */
+static void draw_blackwater_species(sk_t *k,int species);   /* blackwater.inc, included after this file */
 static void theme_creature_pattern(sk_t *k,float x,float y,float spread) {
     if(!k->marked)return;
     bool club=theme_active()==THEME_TIDEPOOL_CLUB;
@@ -13,6 +14,7 @@ static void theme_creature_pattern(sk_t *k,float x,float y,float spread) {
 }
 static void draw_theme_species(sk_t *k,int species) {
     if(theme_active()==THEME_QUIET_LAGOON){draw_lagoon_species(k,species);return;}
+    if(theme_active()==THEME_BLACKWATER){draw_blackwater_species(k,species);return;}
     bool club=theme_active()==THEME_TIDEPOOL_CLUB;
     float t=k->t, beat=sinf(t*3+k->f->wander), round=club?1.15f:1;
     uint32_t belly=mix(k->body,0xffefd1,club?.42f:.26f);

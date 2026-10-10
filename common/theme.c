@@ -12,11 +12,18 @@ static const theme_palette_t palettes[THEME_COUNT] = {
      {0x929380,0x798471,0x5a705f,0x35524b},7},
     {"TIDEPOOL CLUB",0xc8b89c,0xd1c3a9,0x423e33,0x65624f,0x337966,0xfffaf0,0x968a6c,0xa6532d,
      {0xb7b488,0x93a283,0x71927f}, {0x416d50,0x2e5c41,0xa09f5c,0x71844a},
-     {0xc5ad84,0xb79e75,0xa6936c,0x918461},14}
+     {0xc5ad84,0xb79e75,0xa6936c,0x918461},14},
+    /* Blackwater (2026-10-10, Alvin: "a realistic version of the creatures ... let the water and the
+       sand be darker ... the creatures brighter for contrast"): near-black water over dark volcanic
+       sand, the sunlight's caustics the only brightness; cyan accents, amber gold */
+    {"BLACKWATER",0x04090e,0x0c171f,0xe6f2f5,0x56707c,0x3fd8e6,0x04090e,0x1b2f3b,0xffb648,
+     {0x0a2434,0x05141e,0x02080c}, {0x1f5c3c,0x123a2a,0x3d8a55,0x24633c},
+     {0x33302c,0x262421,0x1a1917,0x100f0e},5}
 };
 int theme_valid(int id) { return id >= 0 && id < THEME_COUNT ? id : THEME_ORIGINAL; }
 const theme_palette_t *theme_palette(int id) { return &palettes[theme_valid(id)]; }
 int theme_active(void) { return active; }
+int theme_asset_set(int id) { return id == THEME_BLACKWATER ? THEME_QUIET_LAGOON : id; }
 void theme_activate(int id) { active = theme_valid(id); }
 uint32_t theme_ui_color(uint32_t rgb) {
     if (!active) return rgb;
@@ -34,6 +41,19 @@ uint32_t theme_ui_color(uint32_t rgb) {
 }
 uint32_t theme_creature_color(uint32_t rgb, int fin) {
     if (!active) return rgb;
+    if (active == THEME_BLACKWATER) {
+        /* vivid against the dark water: the brightest channel lifted to ~240 (fins a little less, they
+           are translucent) and the saturation pushed a quarter - the hue the keeper chose stays */
+        int r = (rgb >> 16) & 255, g = (rgb >> 8) & 255, b = rgb & 255;
+        int m = r > g ? (r > b ? r : b) : (g > b ? g : b);
+        if (m < 8) return rgb;
+        int target = fin ? 222 : 240;
+        r = r * target / m; g = g * target / m; b = b * target / m;
+        int mean = (r + g + b) / 3;
+        r = mean + (r - mean) * 5 / 4; g = mean + (g - mean) * 5 / 4; b = mean + (b - mean) * 5 / 4;
+        r = r < 0 ? 0 : r > 255 ? 255 : r; g = g < 0 ? 0 : g > 255 ? 255 : g; b = b < 0 ? 0 : b > 255 ? 255 : b;
+        return (uint32_t)(r << 16 | g << 8 | b);
+    }
     /* Preserve each creature's chosen hue and earned markings; soften saturation
        with a warm tint instead of changing the saved body/fin/accent colours. */
     uint32_t tint = active == THEME_QUIET_LAGOON ? 0x92b6a4 : 0xf1c69b;
@@ -47,5 +67,5 @@ const icon_t *theme_icon(const icon_t *original) {
     if(original==&icon_shop_jellyfish)return jellyfish_theme_icon(active);
     if(original==&icon_shop_wreck)return wreck_theme_icon(active);
     if(original==&icon_shop_frogman)return frogman_theme_icon(active);
-    return active ? theme_asset_icon(active, original) : original;
+    return active ? theme_asset_icon(theme_asset_set(active), original) : original;
 }
