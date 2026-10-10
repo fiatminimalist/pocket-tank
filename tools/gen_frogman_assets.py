@@ -9,7 +9,8 @@ root=Path(__file__).resolve().parent.parent
 # suit, band, fin, tank, glass, mask, mist - per theme
 PAL=[('original',    '#f5c242','#1d2a33','#d8402c','#b8c4cc','#9fd8e2','#1d2a33','#9fd8e2'),
      ('quiet-lagoon','#2fb8a6','#ff7f66','#8a5cc8','#e8d9a0','#c4e6d1','#264a44','#c4e6d1'),
-     ('tidepool-club','#ff4f9a','#b6f05a','#33c7e0','#ff9f3f','#fff6d9','#5a2d7a','#3d8e83')]
+     ('tidepool-club','#ff4f9a','#b6f05a','#33c7e0','#ff9f3f','#fff6d9','#5a2d7a','#3d8e83'),
+     ('blackwater',   '#202428','#ffb020','#f2c230','#d4dade','#aee6f0','#0f1215','#c8e8ee')]
 def svg(suit,band,fin,tank,glass,mask,mist):
     return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
 <circle cx="24" cy="8" r="1.2" fill="{mist}" opacity=".8"/><circle cx="26.5" cy="4.5" r="1.6" fill="{mist}" opacity=".6"/><circle cx="22" cy="3" r=".9" fill="{mist}" opacity=".5"/>
@@ -30,9 +31,9 @@ for i,(name,*cols) in enumerate(PAL):
     pixels=list(im.getdata());rgb=[((r>>3)<<11)|((g>>2)<<5)|(b>>3) for r,g,b,a in pixels];alpha=[a for r,g,b,a in pixels]
     symbol='icon_shop_frogman' if not i else f'frogman_icon_{i}'
     code.extend([array(symbol+'_rgb','uint16_t',rgb),array(symbol+'_a','uint8_t',alpha),f'{"static " if i else ""}const icon_t {symbol}={{32,32,{symbol}_rgb,{symbol}_a}};\n'])
-code.append('const icon_t *frogman_theme_icon(int theme){return theme==1?&frogman_icon_1:theme==2?&frogman_icon_2:&icon_shop_frogman;}\n')
+code.append('const icon_t *frogman_theme_icon(int theme){return theme==1?&frogman_icon_1:theme==2?&frogman_icon_2:theme==3?&frogman_icon_3:&icon_shop_frogman;}\n')
 outputs[root/'common/frogman_assets.c']='\n'.join(code).encode()
 for p,data in outputs.items():
     if '--check' in sys.argv: assert p.read_bytes()==data,f'Stale asset: {p}'
     else: p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(data)
-print('Verified frogman icons' if '--check' in sys.argv else 'Generated 3 frogman SVG/PNG icons and common/frogman_assets.c')
+print('Verified frogman icons' if '--check' in sys.argv else 'Generated 4 frogman SVG/PNG icons and common/frogman_assets.c')

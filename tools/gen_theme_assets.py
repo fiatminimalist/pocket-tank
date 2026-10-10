@@ -20,6 +20,7 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / 'common/theme_assets.c'
 THEMES = [(1, 'quiet-lagoon'), (2, 'tidepool-club')]
+PREVIEW_ONLY = [(3, 'blackwater')]   # a picker fish of its own; icons and fonts borrowed from the lagoon (theme_asset_set: flash)
 class Rect(C.Structure):
     _fields_ = [('x', C.c_double), ('y', C.c_double), ('width', C.c_double), ('height', C.c_double)]
 
@@ -76,6 +77,15 @@ def main():
             if not preview: replacements.append((tid,cname(src.stem),name))
             byte_count+=w*h*3
             manifest.append({'theme':directory,'file':svg.name,'width':w,'height':h,'bytes':w*h*3,'sha256':hashlib.sha256(svg.read_bytes()).hexdigest()})
+    for tid,directory in PREVIEW_ONLY:
+        base=ROOT/'assets/themes'/directory; src=base/'fish.svg'; w,h=48,40
+        img=raster(src.read_bytes(),w,h); png=io.BytesIO(); img.save(png,format='PNG'); outputs[base/'fish.png']=png.getvalue()
+        name=f'theme_{tid}_icon_fish'; rgb=[]; alpha=[]
+        for r,g,b,a in img.getdata():
+            rgb.append(((r>>3)<<11)|((g>>2)<<5)|(b>>3)); alpha.append(a)
+        source += [array(name+'_rgb','uint16_t',rgb),array(name+'_a','uint8_t',alpha),f'static const icon_t {name} = {{{w},{h},{name}_rgb,{name}_a}};\n']
+        byte_count+=w*h*3
+        manifest.append({'theme':directory,'file':src.name,'width':w,'height':h,'bytes':w*h*3,'sha256':hashlib.sha256(src.read_bytes()).hexdigest()})
     # A fixed cell and height preserve the existing software renderer's hit-test contract.
     for tid,directory in THEMES:
         font_path=ROOT/'assets/themes'/('DejaVuSansMono-Bold.ttf' if tid==2 else 'DejaVuSans.ttf')
@@ -95,7 +105,8 @@ def main():
         source.extend(f'        if (original == &{old}) return &{new};\n' for theme_id,old,new in replacements if theme_id==tid)
         source.append('    }\n')
     source.append('    return original;\n}\n')
-    source.append('const icon_t *theme_preview_icon(int theme) {\n    return theme == 1 ? &theme_1_icon_fish : theme == 2 ? &theme_2_icon_fish : 0;\n}\n')
+    previews=' : '.join(f'theme == {tid} ? &theme_{tid}_icon_fish' for tid,_ in THEMES+PREVIEW_ONLY)
+    source.append(f'const icon_t *theme_preview_icon(int theme) {{\n    return {previews} : 0;\n}}\n')
     source.append('const uint8_t *theme_font_glyph(int theme, int scale, unsigned char ch) {\n    if (ch < 32 || ch > 126) return 0;\n')
     for tid,_ in THEMES:
         for scale in [2,3]: source.append(f'    if (theme == {tid} && scale == {scale}) return font_{tid}_{scale} + (ch - 32) * {(5*scale*7*scale+1)//2};\n')

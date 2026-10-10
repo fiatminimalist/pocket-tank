@@ -1,8 +1,8 @@
 # Display themes
 
-Open **Settings → SETTINGS / THEMES** in Original, or **Settings → Theme** in either modern theme. Tap Original, Quiet Lagoon, or Tidepool Club. The selection applies immediately and is saved; Done returns to settings.
+Open **Settings → SETTINGS / THEMES** (the title button, in every theme). Tap Original, Quiet Lagoon, Tidepool Club or Blackwater. The selection applies immediately and is saved; Done returns to settings. The four tiles share the page above DONE (a 62 px pitch at most: 53 on the 1.8, 47 on the bowl).
 
-Original is the default for new tanks and existing saves. It keeps the original tank art, fonts, menus and character wheel, with a theme entry added to the settings heading. Quiet Lagoon implements the approved Living Lagoon direction with layered teal water, shaded naturalistic creatures, soft baked light shafts and dark-glass controls. Tidepool Club uses pale water, cream panels, green controls and bolder lettering. All three retain the live procedural creatures, their growth stages, animations and individual saved colours.
+Original is the default for new tanks and existing saves. It keeps the original tank art, fonts, menus and character wheel, with a theme entry added to the settings heading. Quiet Lagoon implements the approved Living Lagoon direction with layered teal water, shaded naturalistic creatures, soft baked light shafts and dark-glass controls. Tidepool Club uses pale water, cream panels, green controls and bolder lettering. Blackwater (2026-10-10) is the realistic one: near-black water over dark volcanic sand, the sun's caustics moving through the water every frame, the creatures drawn as the real animals in vivid colours, a Mayan step pyramid and a fighter-plane wreck (its own section below). All four retain the live procedural creatures, their growth stages, animations and individual saved colours.
 
 Since 2026-10-10 the two new themes run about 20 % darker than their design studies
 (Quiet Lagoon's water, sand and panels scaled by 0.8; Tidepool Club's by 0.82 / 0.78 / 0.72
@@ -16,9 +16,9 @@ The modern settings and seven-character naming wheel use device-specific safe bo
 
 ## Assets and rebuilds
 
-`assets/themes/quiet-lagoon/` and `assets/themes/tidepool-club/` contain editable SVGs and native-size RGBA PNGs. Each theme includes 50 UI/creature icons and a picker fish. The bundled DejaVu fonts and their license produce four fixed-cell antialiased glyph atlases. Existing Original assets are untouched.
+`assets/themes/quiet-lagoon/` and `assets/themes/tidepool-club/` contain editable SVGs and native-size RGBA PNGs. Each theme includes 50 UI/creature icons and a picker fish. `assets/themes/blackwater/` holds only its picker fish and its wreck / frogman thumbnails: a full icon set and font atlas cost ~160 KB of flash each and the app slot has ~120 KB left, so Blackwater draws its icons and text with the lagoon's set (`theme_asset_set()` in theme.c; the jellyfish thumbnail is the lagoon's moon jelly too). The bundled DejaVu fonts and their license produce four fixed-cell antialiased glyph atlases. Existing Original assets are untouched.
 
-Regenerate with `python3 tools/gen_theme_assets.py`; verify with `python3 tools/gen_theme_assets.py --check`. Generation requires Pillow, librsvg-2 and libcairo. It does not require network access. Firmware and simulator use the checked-in `common/theme_assets.c`, so normal builds need none of those generation dependencies. Pixel/font arrays consume 319,416 bytes of flash; there is no runtime SVG or font engine.
+Regenerate with `python3 tools/gen_theme_assets.py`; verify with `python3 tools/gen_theme_assets.py --check`. Generation requires Pillow, librsvg-2 and libcairo. It does not require network access. Firmware and simulator use the checked-in `common/theme_assets.c`, so normal builds need none of those generation dependencies. Pixel/font arrays consume 325,176 bytes of flash; there is no runtime SVG or font engine.
 
 The persisted theme ID is appended at byte 3592 of the save, leaving every previous field at its original offset. Missing/unknown IDs fall back to Original. Do not reorder the IDs in `common/theme.h`.
 
@@ -38,18 +38,18 @@ tinting the original creatures. `common/living_lagoon.inc` contains the ten shad
 food, bubbles, battery and menu treatments live alongside their Original paths in
 `common/render.c`. They need no additional runtime bitmap allocation.
 
-| Element | Quiet Lagoon | Tidepool Club |
-|---|---|---|
-| Creatures | Shaded natural profiles, fin rays, scales, gills and shell detail | Rounder bodies, spots, bold fins and claws |
-| Sword plant / weeds | Veined leaves and delicate stems | Scalloped leaves and fuller blades |
-| Castle | A French chateau (2026-10-10): a limestone facade with two pepper-pot corner towers under conical slate roofs, a main block with two rows of tall windows and a balustrade, a taller central pavilion with quoins, a hipped slate roof and a spire, dormers, chimneys, the grand arched entrance with a tall window and an oculus above it | A fat single pineapple castle (2026-10-10): one wide pineapple in a diamond skin with an eye in every cell, a swept crown of eleven leaves with a pennant in it, three pineapple-slice ring windows that are holes the fish pass behind, the arched gate with a drawbridge on two chains, a starfish on the mound |
-| Shipwreck (2026-10-10) | An old sailing ship listing on the sand: the stern sunk and its ribs bared, the bow risen with a bowsprit, two holes in the side, a tilted broken mast with a yard and a rag of sail, a stay, a deckhouse, an anchor off the bow | A cheerful upright tug: cream topsides, a red boot stripe, a teal bottom, brass-rimmed porthole holes, a wheelhouse with lit windows, an orange funnel, a cyan pennant, a life ring, an anchor off the bow |
-| Frogman (2026-10-10) | Turquoise suit with coral bands, violet fins, a cream tank, a green mask | Hot pink suit with lime bands, cyan fins, an orange tank, a purple mask (Original: yellow with black bands, red fins) |
-| Coral / reef | The keeper's coral / tube / brain hues on a dark basalt rock (2026-10-10; the first cut pulled every piece toward the water's tone and read as twigs and slabs): a ridged brain, streaked tubes, deep rims | Thick finger coral, stacked sponges, dotted dome |
-| Snail / companions | Warm shaded shell whorls, soft shrimp, fine urchin spines | Warm striped shell, segmented shrimp, rounded urchin tips |
-| Food / bubbles | Small flakes and pearl rings | Round tablets and outlined bubbles |
-| Battery / menus | Liquid gauge; the settings page is the one shared layout (2026-10-10) in the lagoon's dark-glass greens and its font | Four-cell gauge; the same shared settings layout in the club's cream and teal with its pill-shaped buttons |
-| Ink / electricity | Black clouds with a whisper of green, fine mint arcs | Black cloud lobes with a whisper of blue, gold zigzags |
+| Element | Quiet Lagoon | Tidepool Club | Blackwater (2026-10-10) |
+|---|---|---|---|
+| Creatures | Shaded natural profiles, fin rays, scales, gills and shell detail | Rounder bodies, spots, bold fins and claws | The real animals: countershaded bodies with a specular band, translucent rayed fins, real eyes, scale lattices, gill covers, suckers, segmented shells, antennae; colours lifted to vivid |
+| Sword plant / weeds | Veined leaves and delicate stems | Scalloped leaves and fuller blades | Dark kelp greens (the lagoon's veined leaves in the dark palette) |
+| Castle | A French chateau (2026-10-10): a limestone facade with two pepper-pot corner towers under conical slate roofs, a main block with two rows of tall windows and a balustrade, a taller central pavilion with quoins, a hipped slate roof and a spire, dormers, chimneys, the grand arched entrance with a tall window and an oculus above it | A fat single pineapple castle (2026-10-10): one wide pineapple in a diamond skin with an eye in every cell, a swept crown of eleven leaves with a pennant in it, three pineapple-slice ring windows that are holes the fish pass behind, the arched gate with a drawbridge on two chains, a starfish on the mound | A sunken Mayan step pyramid in dark basalt: receding tiers with a central stair up to a temple house with a roof comb, carved glyph bands, moss in the lower joints, tumbled blocks at the base, the shared arched gate |
+| Shipwreck (2026-10-10) | An old sailing ship listing on the sand: the stern sunk and its ribs bared, the bow risen with a bowsprit, two holes in the side, a tilted broken mast with a yard and a rag of sail, a stay, a deckhouse, an anchor off the bow | A cheerful upright tug: cream topsides, a red boot stripe, a teal bottom, brass-rimmed porthole holes, a wheelhouse with lit windows, an orange funnel, a cyan pennant, a life ring, an anchor off the bow | A WWII fighter plane on the sand, nose down: one wing on the sand and the far one behind, a bent propeller, the open cockpit and a torn rear fuselage as the two holes, tail fin and tailplane, panel lines, rust and growth, a worn roundel, an anchor off the nose |
+| Frogman (2026-10-10) | Turquoise suit with coral bands, violet fins, a cream tank, a green mask | Hot pink suit with lime bands, cyan fins, an orange tank, a purple mask (Original: yellow with black bands, red fins) | Black neoprene, high-vis amber bands and fins, an aluminium tank, a black mask |
+| Coral / reef | The keeper's coral / tube / brain hues on a dark basalt rock (2026-10-10; the first cut pulled every piece toward the water's tone and read as twigs and slabs): a ridged brain, streaked tubes, deep rims | Thick finger coral, stacked sponges, dotted dome | Near-black basalt, dull olive weed, the keeper's hues lifted to vivid with deep rims |
+| Snail / companions | Warm shaded shell whorls, soft shrimp, fine urchin spines | Warm striped shell, segmented shrimp, rounded urchin tips | The lagoon's shaded snail; the Original's pixel cherry shrimp (legs, antennae, tail fan) and fine-spined urchin |
+| Food / bubbles | Small flakes and pearl rings | Round tablets and outlined bubbles | Tan flakes with a lit edge and a crease; real bubbles - a thin rim, a dark glassy inside, the sun's window top-left |
+| Battery / menus | Liquid gauge; the settings page is the one shared layout (2026-10-10) in the lagoon's dark-glass greens and its font | Four-cell gauge; the same shared settings layout in the club's cream and teal with its pill-shaped buttons | Liquid gauge; the shared layout in near-black panels with cyan controls, the lagoon's font |
+| Ink / electricity | Black clouds with a whisper of green, fine mint arcs | Black cloud lobes with a whisper of blue, gold zigzags | Black clouds, pale arcs |
 
 All themes share the same behaviour. Lobsters, crabs, anglerfish, octopuses and
 pufferfish occasionally visit the upper water. Pufferfish inflate for their trip.
@@ -88,8 +88,8 @@ and the milestones rows frame it. Jellyfish have no ink or electric effects.
 
 `common/jellyfish.inc` is the live geometry. Shop thumbnails are generated from
 the approved HTML study by `python3 tools/gen_jellyfish_assets.py` (or `--check`).
-The shipwreck's and the frogman's thumbnails (one per theme, matching the three hulls and
-the three suits) come from `tools/gen_wreck_assets.py` and `tools/gen_frogman_assets.py`.
+The shipwreck's and the frogman's thumbnails (one per theme, matching the four hulls and
+the four suits) come from `tools/gen_wreck_assets.py` and `tools/gen_frogman_assets.py`.
 The three thumbnails add 9,216 bytes of pixel data. Existing persisted IDs and
 save offsets are unchanged; the shop presence flag uses the next unused bit.
 
@@ -98,3 +98,39 @@ the word `jellyfish` is id 65 of the 66-word tokenizer, the teacher prompt has
 a jellyfish sentence, and the student was retrained on the v5 data plus a
 jellyfish-focused run. A board still on v5m (65 words) hears a jellyfish as
 `species fish` until it is flashed; the encoder self-test covers both.
+
+## Blackwater (2026-10-10)
+
+Alvin asked for "a realistic version of the creatures" with "accurate moving reflective
+lighting in the water", darker water and sand, brighter creatures, and decorations unlike the
+other themes'. Blackwater is the diver's name for exactly that look - black water, vivid life.
+
+**The light** (`render.c`, "the Blackwater light"; PROF stage 1, the old shafts' slot) is
+computed from the physics every frame rather than painted:
+
+- The surface is a sum of four deep-water waves (92, 55, 31 and 17 px; dispersion, so the
+  long ones outrun the short: c = 26 px/s × √(λ/92)). The two short ones are faint - their
+  caustics focus within 40 px of the surface and read as rain.
+- A ray entering at `u` is refracted by (1 − 1/n) ≈ ¼ of the surface slope there and lands
+  at `u + d·slope/4` at depth `d` (plus `d × 0.17` for the high sun on the left: the shafts
+  lean right going down). The light at a depth is where the rays crowd: `bw_deposit` drops one
+  ray per 2 px into an accumulator, and the brightness is the density over the mean, blurred
+  and scaled. Energy is conserved - a caustic is bright exactly because the water beside it is
+  dark - and the pattern sharpens with depth and drifts with the waves, as it does in a pool.
+- Ten depth bands hold that 1-D pattern for the water column (a sheet of light seen edge-on),
+  blended between bands per row and faded a little with depth (19 % → 12 % of full light).
+  The sand takes the deepest band crossed with a second wave set running into the screen: the
+  net of cells. The top rows show the surface's underside - a mirror line riding the waves
+  with the sun's glints where the slope faces it.
+- Applied in 2 × 2 blocks after everything else is drawn, so the fish, the decor and the sand
+  all take the same light; the vignette's darkening scales it down toward the glass's rim.
+  A ribbon is never thinner than 3 px after the blur, so the half resolution never shows.
+  Night is moonlight: a third as bright, blue. On the PC bench the pass costs about what the
+  lagoon's grass does (~0.1 ms of a 0.7 ms frame; ~2 ms on the S3).
+
+**The look:** water 0x0a2434 → 0x02080c, dark volcanic sand with shell grit and the odd
+rounded pebble, cyan accents, amber gold, a 120-strength vignette. `theme_creature_color` lifts
+every saved creature colour so its brightest channel is ~240 and pushes the saturation a
+quarter: the keeper's hue, vivid. The creatures live in `common/blackwater.inc`, the pyramid
+in `common/blackwater_castle.inc`, the plane in `common/blackwater_wreck.inc`. The theme
+test adds a `night` shot for every theme.

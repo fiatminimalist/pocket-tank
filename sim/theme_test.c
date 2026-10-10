@@ -285,6 +285,7 @@ int selftest_themes(const char *prefix) {
         unsigned before; const uint16_t *baked=render_scene_buf(&before); if(baked){memcpy(fb,baked,sizeof fb);render_fb_primed(fb,before);}
         render_tank(&t,fb,TANK_W); shot(prefix,"tank",id);
         if (id) CHECK(memcmp(first,fb,sizeof fb)!=0,"theme changes native tank pixels");
+        t.night=true; render_tank(&t,fb,TANK_W); render_tank(&t,fb,TANK_W); shot(prefix,"night",id); t.night=false; render_tank(&t,fb,TANK_W);   /* lights out (2026-10-10: the Blackwater moon) */
         render_stats_card(&t,0,fb,TANK_W); shot(prefix,"card",id);
         render_milestones_leave(); render_milestones(&t,fb,TANK_W); shot(prefix,"milestones",id);
         render_shop_leave(); render_shop(&t,fb,TANK_W); shot(prefix,"shop",id);

@@ -307,7 +307,9 @@ broken off short with a yard and a rag of sail, a deckhouse, an anchor off the
 bow; Tidepool Club a cheerful little tug sitting upright -
 cream topsides, a red boot stripe, a teal bottom, a wheelhouse with lit windows,
 an orange funnel, a pennant on the mast, a life ring on the side and an anchor
-hung off the bow. Every hull has two big holes (the tug's are brass-rimmed
+hung off the bow; Blackwater (2026-10-10) a sunken fighter plane lying on the
+sand, nose down, one wing on the sand, a bent propeller, the open cockpit and a
+torn fuselage for its holes, an anchor off the nose. Every hull has two big holes (the tug's are brass-rimmed
 portholes): IN FRONT, the fish pass behind the hull and show through them,
 swimming in and out; BEHIND it is a backdrop in the weeds. The octopus, crab
 and lobster den under its holes when there is no reef.
@@ -320,7 +322,8 @@ and then, bobbing on the water's lift, a mist of fine bubbles rising from his
 mask. His arm reaches forward, and every 23 s it goes up and waves. He wears
 the theme's suit: a yellow-and-black banded wetsuit with red fins in Original,
 turquoise with coral bands and violet fins in Quiet Lagoon, hot pink with lime
-bands and cyan fins in Tidepool Club. A resident like the snail: bought once,
+bands and cyan fins in Tidepool Club, black neoprene with high-vis amber bands
+and fins and an aluminium tank in Blackwater. A resident like the snail: bought once,
 never placed or sold.
 
 **The coral.** The fourth thing in the shop (100) is a branching coral,
@@ -467,6 +470,20 @@ charging, about how long it will last (or how long until it is full), how
 long ago it was unplugged, the screen-on time since, and how long a full
 charge lasts. The tank learns those times from its own battery as you use
 it.
+
+**Four themes.** Settings → SETTINGS / THEMES picks the look: Original, Quiet
+Lagoon, Tidepool Club, and since 2026-10-10 Blackwater - the realistic one.
+Near-black water over dark volcanic sand, and the sun's light moving through
+it every frame: the surface is a sum of real deep-water waves, each ray is
+refracted by the slope where it enters, and the water is bright exactly where
+the rays crowd (a deposit, so energy is conserved) - soft shafts leaning from
+the high sun, caustic ribbons that sharpen with depth and drift with the waves,
+a net of light cells creeping over the sand, a wavy mirror line with the sun's
+glints under the surface; moonlight, a third as bright and blue, at night. The
+creatures are drawn as the real animals (countershading, rayed fins, real eyes,
+scales, suckers, shells) in vivid colours lifted from the ones you chose, so
+they stand off the dark water; the castle slot holds a sunken Mayan step
+pyramid and the wreck slot a fighter plane. docs/THEMES.md has the details.
 
 **One settings page.** Since 2026-10-10 every theme uses the same settings
 layout - the rows of segments and arrows, the foot of UPDATES / ABOUT / RESET /
@@ -832,6 +849,8 @@ seven-minute prompt check before an overnight run is always worth it.
   default
 - ✅ Sand dollars: care earns points, the shop spends them; a sword plant,
   an algae-grazing snail, a swim-through castle, a sunken shipwreck (a different boat in each theme) and a drifting frogman; what you buy you place yourself,
+  (four themes: Original, Quiet Lagoon, Tidepool Club and the realistic
+  Blackwater with its moving sunlight)
   where along the floor and whether it stands behind, among or in front
   of the fish
 - ✅ Browser installer: one click from Chrome or Edge, from the hosted

@@ -337,4 +337,4 @@ static const uint8_t jellyfish_icon_2_a[1024] = {
 
 static const icon_t jellyfish_icon_2={32,32,jellyfish_icon_2_rgb,jellyfish_icon_2_a};
 
-const icon_t *jellyfish_theme_icon(int theme){return theme==1?&jellyfish_icon_1:theme==2?&jellyfish_icon_2:&icon_shop_jellyfish;}
+const icon_t *jellyfish_theme_icon(int theme){return theme==1||theme==3?&jellyfish_icon_1:theme==2?&jellyfish_icon_2:&icon_shop_jellyfish;}

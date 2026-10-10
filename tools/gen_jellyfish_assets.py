@@ -19,7 +19,7 @@ for i,svg in enumerate(svgs):
  pixels=list(im.getdata());rgb=[((r>>3)<<11)|((g>>2)<<5)|(b>>3) for r,g,b,a in pixels];alpha=[a for r,g,b,a in pixels]
  symbol='icon_shop_jellyfish' if not i else f'jellyfish_icon_{i}'
  code.extend([array(symbol+'_rgb','uint16_t',rgb),array(symbol+'_a','uint8_t',alpha),f'{"static " if i else ""}const icon_t {symbol}={{32,32,{symbol}_rgb,{symbol}_a}};\n'])
-code.append('const icon_t *jellyfish_theme_icon(int theme){return theme==1?&jellyfish_icon_1:theme==2?&jellyfish_icon_2:&icon_shop_jellyfish;}\n')
+code.append('const icon_t *jellyfish_theme_icon(int theme){return theme==1||theme==3?&jellyfish_icon_1:theme==2?&jellyfish_icon_2:&icon_shop_jellyfish;}\n')   # Blackwater (2026-10-10) shows the lagoon's moon jelly
 outputs[root/'common/jellyfish_assets.c']='\n'.join(code).encode()
 for p,data in outputs.items():
  if '--check' in sys.argv:
