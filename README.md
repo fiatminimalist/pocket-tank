@@ -320,7 +320,8 @@ and lobster den under its holes when there is no reef.
 line from the wreck's stern) is a little diver who floats sideways, horizontal,
 drifting across the water from glass to glass at a walking pace, turning at
 each end (he thins through the turn, as a fish does), easing to a new lane now
-and then, bobbing on the water's lift, a mist of fine bubbles rising from his
+and then - anywhere from just under the surface to just above the sand since
+2026-10-10 night (a mid-water band before) - bobbing on the water's lift, a mist of fine bubbles rising from his
 mask. His arm reaches forward, and every 23 s it goes up and waves. He wears
 the theme's suit: a yellow-and-black banded wetsuit with red fins in Original,
 turquoise with coral bands and violet fins in Quiet Lagoon, hot pink with lime
@@ -329,7 +330,8 @@ and fins and an aluminium tank in Blackwater. A resident like the snail: bought 
 never placed or sold.
 
 **The submarine.** The tenth thing (60, 2026-10-10 night) is a little sub
-that cruises the upper water from glass to glass, propeller turning behind it
+that cruises the water from glass to glass, anywhere between the surface and
+the sand, propeller turning behind it
 and a stream of bubbles from the stern, easing to a new lane now and then; every
 22-40 s it eases to a halt, a periscope rises from the tower, its head turns to
 look each way, and it sinks before the sub goes on. The hull is the theme's:

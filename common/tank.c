@@ -1490,14 +1490,15 @@ static float lane_clear_of(float lane, float other, float lo, float hi) {
  * turns it on sub_look), and sinks over the last - then on again; a new lane now and then */
 static void sub_tick(tank_t *t, float dt) {
     if (!(t->sd_unlocks & SD_ITEM_SUB)) return;
-    float lo = SUB_MARGIN, hi = TANK_W - SUB_MARGIN;
+    float lo = tank_glass_x0(t->sub_y) + SUB_MARGIN, hi = tank_glass_x1(t->sub_y) - SUB_MARGIN;   /* the glass at its height: the bowl narrows toward the top and the sand */
     if (t->sub_toss > 0) {
         t->sub_toss -= dt; float damp = expf(-dt * 1.5f);
         t->sub_vx *= damp; t->sub_vy = t->sub_vy * damp + 6 * dt;
         t->sub_x += t->sub_vx * dt; t->sub_y += t->sub_vy * dt;
         if (t->sub_x < lo) { t->sub_x = lo; t->sub_vx = fabsf(t->sub_vx) * 0.6f; }
         if (t->sub_x > hi) { t->sub_x = hi; t->sub_vx = -fabsf(t->sub_vx) * 0.6f; }
-        if (t->sub_y < SUB_LANE_LO - 20) { t->sub_y = SUB_LANE_LO - 20; t->sub_vy = fabsf(t->sub_vy) * 0.6f; }
+        float top = fmaxf(SUB_LANE_LO - 10, tank_glass_top(t->sub_x) + 20);
+        if (t->sub_y < top) { t->sub_y = top; t->sub_vy = fabsf(t->sub_vy) * 0.6f; }
         if (t->sub_y > TANK_BOT - 50) { t->sub_y = TANK_BOT - 50; t->sub_vy = -fabsf(t->sub_vy) * 0.5f; }
         t->sub_yaw = clampf(t->sub_yaw + (t->sub_vx >= 0 ? 4 : -4) * dt, -1, 1); t->sub_dir = t->sub_vx >= 0 ? 1 : -1;
         t->sub_stop = 0; t->sub_peri = 0;
@@ -1526,7 +1527,7 @@ static void sub_tick(tank_t *t, float dt) {
     t->sub_lane_t -= dt;
     if (t->sub_lane_t <= 0) {
         t->sub_lane_t = tank_randf(t, 15, 35);
-        t->sub_lane = tank_randf(t, SUB_LANE_LO, SUB_LANE_HI);
+        t->sub_lane = tank_randf(t, fmaxf(SUB_LANE_LO, tank_glass_top(t->sub_x) + 30), SUB_LANE_HI);
         if (t->sd_unlocks & SD_ITEM_FROGMAN) t->sub_lane = lane_clear_of(t->sub_lane, t->frog_lane, SUB_LANE_LO, SUB_LANE_HI);
     }
     bool dodge = (t->sd_unlocks & SD_ITEM_FROGMAN) && fabsf(t->frog_x - t->sub_x) < PASS_DX && fabsf(t->frog_y - t->sub_y) < PASS_DY;   /* the frogman ahead: pass him (frogman_tick) */
@@ -1544,14 +1545,15 @@ bool tank_frogman_hit(const tank_t *t, float x, float y) {
  * off the clock. */
 static void frogman_tick(tank_t *t, float dt) {
     if (!(t->sd_unlocks & SD_ITEM_FROGMAN)) return;
-    float lo = FROG_MARGIN, hi = TANK_W - FROG_MARGIN;
+    float lo = tank_glass_x0(t->frog_y) + FROG_MARGIN, hi = tank_glass_x1(t->frog_y) - FROG_MARGIN;   /* the glass at his height (the whole column is his since 2026-10-10 night) */
     if (t->frog_toss > 0) {                                  /* tossed by a shake: the throw, damping out, off the glass */
         t->frog_toss -= dt; float damp = expf(-dt * 1.5f);
         t->frog_vx *= damp; t->frog_vy = t->frog_vy * damp + 8 * dt;
         t->frog_x += t->frog_vx * dt; t->frog_y += t->frog_vy * dt;
         if (t->frog_x < lo) { t->frog_x = lo; t->frog_vx = fabsf(t->frog_vx) * 0.6f; }
         if (t->frog_x > hi) { t->frog_x = hi; t->frog_vx = -fabsf(t->frog_vx) * 0.6f; }
-        if (t->frog_y < FROG_LANE_LO - 30) { t->frog_y = FROG_LANE_LO - 30; t->frog_vy = fabsf(t->frog_vy) * 0.6f; }
+        float top = fmaxf(FROG_LANE_LO - 10, tank_glass_top(t->frog_x) + 18);
+        if (t->frog_y < top) { t->frog_y = top; t->frog_vy = fabsf(t->frog_vy) * 0.6f; }
         if (t->frog_y > TANK_BOT - 40) { t->frog_y = TANK_BOT - 40; t->frog_vy = -fabsf(t->frog_vy) * 0.5f; }
         t->frog_yaw = clampf(t->frog_yaw + (t->frog_vx >= 0 ? 4 : -4) * dt, -1, 1); t->frog_dir = t->frog_vx >= 0 ? 1 : -1;
         if (t->frog_toss <= 0) { t->frog_toss = 0; t->frog_lane = clampf(t->frog_y, FROG_LANE_LO, FROG_LANE_HI); }
@@ -1566,7 +1568,7 @@ static void frogman_tick(tank_t *t, float dt) {
     t->frog_lane_t -= dt;
     if (t->frog_lane_t <= 0) {
         t->frog_lane_t = tank_randf(t, 20, 40);
-        t->frog_lane = tank_randf(t, FROG_LANE_LO, FROG_LANE_HI);
+        t->frog_lane = tank_randf(t, fmaxf(FROG_LANE_LO, tank_glass_top(t->frog_x) + 26), FROG_LANE_HI);
         if (t->sd_unlocks & SD_ITEM_SUB) t->frog_lane = lane_clear_of(t->frog_lane, t->sub_lane, FROG_LANE_LO, FROG_LANE_HI);
     }
     /* the sub coming (2026-10-10 night, Alvin: "make sure the submarine and frogman don't crash into

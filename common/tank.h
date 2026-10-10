@@ -923,12 +923,12 @@ bool  tank_frogman_hit(const tank_t *t, float x, float y);   /* within a fingert
 bool  tank_sub_hit(const tank_t *t, float x, float y);       /* within a fingertip of the sub */
 #define FROG_SPEED     9.0f                  /* px/s across the tank */
 #define FROG_MARGIN    (DECOR_MARGIN + 24)   /* he turns this far from the glass */
-#define FROG_LANE_LO   (TANK_H * 0.20f)      /* the band of water he drifts in */
-#define FROG_LANE_HI   (TANK_H * 0.56f)
+#define FROG_LANE_LO   (TANK_H * 0.07f)      /* the water he drifts in: all of it (2026-10-10 night, Alvin: "float freely */
+#define FROG_LANE_HI   (TANK_BOT - 46)       /*   anywhere in the tank"; a mid-water band before), the sand and the surface kept */
 #define SUB_SPEED      13.0f                 /* px/s, cruising */
 #define SUB_MARGIN     (DECOR_MARGIN + 30)
-#define SUB_LANE_LO    (TANK_H * 0.14f)
-#define SUB_LANE_HI    (TANK_H * 0.48f)
+#define SUB_LANE_LO    (TANK_H * 0.07f)      /* the whole water column, like the frogman's (2026-10-10 night) */
+#define SUB_LANE_HI    (TANK_BOT - 50)
 #define SUB_STOP_S     8.0f                  /* a stop: the periscope up for the middle six seconds */
 #define SUB_CRUISE_LO  22.0f                 /* seconds of cruising between stops */
 #define SUB_CRUISE_HI  40.0f
