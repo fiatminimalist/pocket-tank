@@ -70,8 +70,9 @@ DIALOG_EDITS = [
     # dialog itself: the tank reports the manifest's own version string - director.c)
     ('<div slot="headline">Connected to ${this._info.name}</div>', 1,
      '<div slot="headline">${this._isSameVersion?"Your tank is up to date":"Connected to "+this._info.name}</div>'),
-    # the link the tank hands the page is the update log, not a device
-    ('<div slot="headline">Visit Device</div>', 2, '<div slot="headline">See what\'s new</div>'),
+    # the dialog's "Visit Device" item (the link the tank hands the page; it read "See what's new"
+    # until 2026-10-10, when Alvin had it removed): never shown, in the menu or after an install
+    ('void 0===this._client.nextUrl?"":', 2, '!0?"":'),
     # a tank on this version got an "Erase User Data" item in the menu (an ERASING reinstall): this
     # page's button never erases - the "start over" button below it is the only way to a wipe
     ('this._isSameVersion?s`', 1, '!1?s`'),
