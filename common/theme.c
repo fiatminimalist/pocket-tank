@@ -67,5 +67,6 @@ const icon_t *theme_icon(const icon_t *original) {
     if(original==&icon_shop_jellyfish)return jellyfish_theme_icon(active);
     if(original==&icon_shop_wreck)return wreck_theme_icon(active);
     if(original==&icon_shop_frogman)return frogman_theme_icon(active);
+    if(original==&icon_shop_sub)return sub_theme_icon(active);
     return active ? theme_asset_icon(theme_asset_set(active), original) : original;
 }

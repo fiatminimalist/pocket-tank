@@ -296,7 +296,7 @@ fish swim through the arch, tucked behind the jambs as they pass. The
 fish do not know it is there. They find the arch by chance, which is most
 of the charm.
 
-**The shipwreck.** The eighth thing in the shop (200, 2026-10-10) is a small
+**The wreck.** The eighth thing in the shop (200, 2026-10-10; WRECK in the shop since that night, SHIPWRECK before) is a small
 sunken boat lying on the sand, drawn from geometry like the castle, and a
 different boat in each theme (later that day): Original a planked hull tilted
 up toward the bow, a broken mast with a yard and a rag of sail, a cabin with a
@@ -325,6 +325,17 @@ turquoise with coral bands and violet fins in Quiet Lagoon, hot pink with lime
 bands and cyan fins in Tidepool Club, black neoprene with high-vis amber bands
 and fins and an aluminium tank in Blackwater. A resident like the snail: bought once,
 never placed or sold.
+
+**The submarine.** The tenth thing (60, 2026-10-10 night) is a little sub
+that cruises the upper water from glass to glass, propeller turning behind it
+and a stream of bubbles from the stern, easing to a new lane now and then; every
+22-40 s it eases to a halt, a periscope rises from the tower, its head turns to
+look each way, and it sinks before the sub goes on. The hull is the theme's:
+the yellow sub with black trim in Original, a moss-green navy boat with brass in
+Quiet Lagoon, a red-and-white toy with a cyan tower in Tidepool Club, a grey
+steel boat with a black waterline and rust in Blackwater. A resident like the
+frogman - and the two never collide: a lane picked near the other's is pushed
+clear, and when they close nearly level each eases off to the far side.
 
 **The coral.** The fourth thing in the shop (100) is a branching coral,
 drawn from a little skeleton of rounded branches on a chunky pixel grid:
@@ -854,7 +865,7 @@ seven-minute prompt check before an overnight run is always worth it.
   and touch) puts a tank left on the desk to sleep; the double-tap by
   default
 - ✅ Sand dollars: care earns points, the shop spends them; a sword plant,
-  an algae-grazing snail, a swim-through castle, a sunken shipwreck (a different boat in each theme) and a drifting frogman; what you buy you place yourself,
+  an algae-grazing snail, a swim-through castle, a sunken wreck (a different boat in each theme), a drifting frogman and a cruising submarine with a periscope; what you buy you place yourself,
   (four themes: Original, Quiet Lagoon, Tidepool Club and the realistic
   Blackwater with its moving sunlight)
   where along the floor and whether it stands behind, among or in front

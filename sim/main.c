@@ -3380,7 +3380,7 @@ static int selftest_shop(void) {
            walls; BEHIND the fish and the grass pass in front of it; the spot and
            the depth survive a save */
         {
-            if (SD_ITEM_COUNT != 19 || SD_ITEMS[2].bit != SD_ITEM_CASTLE || SD_ITEMS[2].price != SD_PRICE_CASTLE) { printf("FAIL: the castle is not the third item\n"); return 1; }
+            if (SD_ITEM_COUNT != 20 || SD_ITEMS[2].bit != SD_ITEM_CASTLE || SD_ITEMS[2].price != SD_PRICE_CASTLE) { printf("FAIL: the castle is not the third item\n"); return 1; }
             if (!tank_decor_placeable(2) || tank_decor_z_count(2) != 2 || tank_decor_z_at(2, 0) != DECOR_Z_BACK || tank_decor_z_at(2, 1) != DECOR_Z_FRONT
                 || tank_decor_z_index(2, DECOR_Z_FRONT) != 1 || tank_decor_z_index(2, DECOR_Z_BACK) != 0) { printf("FAIL: the castle's depths\n"); return 1; }
             tank.sd_balance = SD_PRICE_CASTLE - 1;
@@ -3943,7 +3943,7 @@ static int selftest_shop(void) {
        depths with the scene cache, sold back */
     {
         static uint16_t fb[TANK_W * TANK_H];
-        if (SD_ITEMS[SD_ITEM_WRECK_IDX].bit != SD_ITEM_WRECK || SD_ITEMS[SD_ITEM_WRECK_IDX].price != SD_PRICE_WRECK || strcmp(SD_ITEMS[SD_ITEM_WRECK_IDX].name, "SHIPWRECK")) { printf("FAIL: the wreck is not item %d at %d\n", SD_ITEM_WRECK_IDX, SD_PRICE_WRECK); return 1; }
+        if (SD_ITEMS[SD_ITEM_WRECK_IDX].bit != SD_ITEM_WRECK || SD_ITEMS[SD_ITEM_WRECK_IDX].price != SD_PRICE_WRECK || strcmp(SD_ITEMS[SD_ITEM_WRECK_IDX].name, "WRECK")) { printf("FAIL: the wreck is not item %d at %d\n", SD_ITEM_WRECK_IDX, SD_PRICE_WRECK); return 1; }
         if (!tank_decor_placeable(SD_ITEM_WRECK_IDX) || tank_decor_z_count(SD_ITEM_WRECK_IDX) != 2 || tank_decor_half_w(SD_ITEM_WRECK_IDX) != WRECK_HALF_W) { printf("FAIL: the wreck's depths / reach\n"); return 1; }
         tank.sd_unlocks &= ~SD_ITEM_WRECK; tank.sd_balance = SD_PRICE_WRECK - 1;
         if (progression_buy(&tank, SD_ITEM_WRECK_IDX)) { printf("FAIL: the wreck sold short\n"); return 1; }
@@ -3991,12 +3991,40 @@ static int selftest_shop(void) {
           progression_save(&tank); tank_t back; tank_init(&back, 8); progression_boot(&back);
           if (!(back.sd_unlocks & SD_ITEM_FROGMAN) || back.frog_x != TANK_W / 2) { printf("FAIL: the frogman did not come back from the save mid-tank\n"); return 1; }
           printf("shop: the frogman - item %d at %d, a resident (no MOVE, no SELL), drifted %d turns across x %.0f..%.0f, y %.0f..%.0f, back from the save\n", SD_ITEM_FROGMAN_IDX, SD_PRICE_FROGMAN, turns, lo, hi, ylo, yhi); }
+        /* the submarine (2026-10-10 night, item 9): a resident that cruises like the frogman, stops every
+           SUB_CRUISE_LO..HI s to raise its periscope, and never meets the frogman - each eases off the
+           other's path (PASS_DX / PASS_DY in tank.c) */
+        if (SD_ITEMS[SD_ITEM_SUB_IDX].bit != SD_ITEM_SUB || SD_ITEMS[SD_ITEM_SUB_IDX].price != SD_PRICE_SUB || strcmp(SD_ITEMS[SD_ITEM_SUB_IDX].name, "SUBMARINE")) { printf("FAIL: the submarine is not item %d at %d\n", SD_ITEM_SUB_IDX, SD_PRICE_SUB); return 1; }
+        if (tank_decor_placeable(SD_ITEM_SUB_IDX) || progression_item_species(SD_ITEM_SUB_IDX) != -1) { printf("FAIL: the submarine reads as placeable or a species\n"); return 1; }
+        tank.sd_unlocks &= ~SD_ITEM_SUB; tank.sd_balance = SD_PRICE_SUB;
+        if (!progression_buy(&tank, SD_ITEM_SUB_IDX) || tank.sd_balance != 0 || !(tank.sd_unlocks & SD_ITEM_SUB)) { printf("FAIL: the submarine did not sell at %d\n", SD_PRICE_SUB); return 1; }
+        if (progression_buy(&tank, SD_ITEM_SUB_IDX) || progression_sell(&tank, SD_ITEM_SUB_IDX)) { printf("FAIL: a second submarine, or one sold back\n"); return 1; }
+        { int turns = 0, dir = tank.sub_dir, stops = 0; bool stopped = false, peri_up = false; float lo = 1e9f, hi = -1e9f, closest = 1e9f, vmax = 0;
+          for (int i = 0; i < 300 * 60; i++) { tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
+              if (tank.sub_dir != dir) { turns++; dir = tank.sub_dir; }
+              if (tank.sub_x < lo) lo = tank.sub_x;
+              if (tank.sub_x > hi) hi = tank.sub_x;
+              if (tank.sub_stop > 0 && !stopped) stops++;
+              stopped = tank.sub_stop > 0;
+              if (tank.sub_peri > 0.95f) peri_up = true;
+              if (tank.sub_peri > 0.5f && tank.sub_v > 2) vmax = fmaxf(vmax, tank.sub_v);
+              float dx = tank.sub_x - tank.frog_x, dy = tank.sub_y - tank.frog_y, dd = sqrtf(dx * dx + dy * dy);
+              if (dd < closest) closest = dd; }
+          if (turns < 2 || lo < SUB_MARGIN - 3 || hi > TANK_W - SUB_MARGIN + 3) { printf("FAIL: the submarine's cruise: %d turns, x %.0f..%.0f\n", turns, lo, hi); return 1; }
+          if (stops < 5 || !peri_up || vmax > 0) { printf("FAIL: the submarine's stops: %d, periscope up %d, moving with it up %.1f\n", stops, peri_up, vmax); return 1; }
+          if (closest < 30) { printf("FAIL: the submarine and the frogman came within %.0f px\n", closest); return 1; }
+          if (!tank_sub_hit(&tank, tank.sub_x, tank.sub_y) || tank_sub_hit(&tank, tank.sub_x + 80, tank.sub_y)) { printf("FAIL: the submarine's hit test\n"); return 1; }
+          render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
+          progression_save(&tank); tank_t back; tank_init(&back, 8); progression_boot(&back);
+          if (!(back.sd_unlocks & SD_ITEM_SUB) || back.sub_x != TANK_W / 2) { printf("FAIL: the submarine did not come back from the save mid-tank\n"); return 1; }
+          printf("shop: the submarine - item %d at %d, cruised %d turns, %d stops with the periscope up, never nearer the frogman than %.0f px, back from the save\n", SD_ITEM_SUB_IDX, SD_PRICE_SUB, turns, stops, closest); }
         /* a hard shake (2026-10-10): every creature and the frogman thrown, moving fast at once, then
            settled within TOSS_S + 2 s - inside the glass, steering back, nothing NaN */
         { float s0 = 0; for (int i = 0; i < tank.n_fish; i++) s0 += tank.fish[i].stress;
           tank_shake(&tank, 1.0f);
           for (int i = 0; i < tank.n_fish; i++) if (tank.fish[i].toss <= 0 || fabsf(tank.fish[i].toss_vx) + fabsf(tank.fish[i].toss_vy) < 100) { printf("FAIL: fish %d was not tossed\n", i); return 1; }
           if (tank.frog_toss <= 0) { printf("FAIL: the frogman was not tossed\n"); return 1; }
+          if (tank.sub_toss <= 0) { printf("FAIL: the submarine was not tossed\n"); return 1; }
           float s1 = 0; for (int i = 0; i < tank.n_fish; i++) s1 += tank.fish[i].stress;
           if (s1 <= s0) { printf("FAIL: a shake did not stress the creatures\n"); return 1; }
           float moved = 0; { float x0[N_FISH_MAX]; for (int i = 0; i < tank.n_fish; i++) x0[i] = tank.fish[i].x;
@@ -4339,9 +4367,9 @@ static int bench(void) {
     tank_grow_algae(&tank, -400);
     while (tank.n_fish < POP_CAP && tank.n_fish < N_FISH_MAX) tank_add_fish(&tank, 0, 1);
     for (int i = 0; i < tank.n_fish; i++) { tank.fish[i].stage = STAGE_ADULT; if (i >= 13) tank_set_species(&tank, i, 1 + (i - 13) % (SP_COUNT - 1), i % 4); }
-    tank.sd_unlocks = SD_ITEM_PLANT | SD_ITEM_SNAIL | SD_ITEM_CASTLE | SD_ITEM_CORAL | SD_ITEM_CLUSTER | SD_ITEM_SHRIMP | SD_ITEM_URCHIN | SD_ITEM_WRECK | SD_ITEM_FROGMAN;
+    tank.sd_unlocks = SD_ITEM_PLANT | SD_ITEM_SNAIL | SD_ITEM_CASTLE | SD_ITEM_CORAL | SD_ITEM_CLUSTER | SD_ITEM_SHRIMP | SD_ITEM_URCHIN | SD_ITEM_WRECK | SD_ITEM_FROGMAN | SD_ITEM_SUB;
     tank_plant_place(&tank); tank_snail_place(&tank); tank_castle_place(&tank); tank_coral_place(&tank); tank_cluster_place(&tank);
-    tank_shrimp_place(&tank, 6); tank_urchin_place(&tank); tank_wreck_place(&tank); tank_frogman_place(&tank);
+    tank_shrimp_place(&tank, 6); tank_urchin_place(&tank); tank_wreck_place(&tank); tank_frogman_place(&tank); tank_sub_place(&tank);
     tank.coral_growth = 1.25f; tank.cluster_growth = 1.8f;
     tank_decor_set(&tank, 2, TANK_W * 0.5f, DECOR_Z_FRONT); tank_decor_set(&tank, 3, TANK_W * 0.22f, DECOR_Z_FRONT);
     tank_decor_set(&tank, 4, TANK_W * 0.8f, DECOR_Z_FRONT); tank_decor_set(&tank, SD_ITEM_WRECK_IDX, TANK_W * 0.35f, DECOR_Z_FRONT);

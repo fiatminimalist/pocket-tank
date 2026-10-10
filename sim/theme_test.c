@@ -69,7 +69,7 @@ static int art_sheets(const tank_t *base,const char *prefix) {
             }
             shot(prefix,page==2?"species3":page?"species2":"species1",id);
         }
-        for(int which=0;which<7;which++) {
+        for(int which=0;which<8;which++) {
             tank_t a=t; a.sd_unlocks=0;
             for(int b=0;b<VEG_BEDS_MAX;b++)for(int i=0;i<VEG_FRONDS_MAX;i++)a.veg_h[b][i]=which==3?.34f:VEG_NUB;
             tank_veg_sync(&a);
@@ -80,6 +80,7 @@ static int art_sheets(const tank_t *base,const char *prefix) {
             else if(which==3){a.sd_unlocks=SD_ITEM_PLANT;tank_plant_place(&a);label="plants";}
             else if(which==5){a.sd_unlocks=SD_ITEM_WRECK;tank_wreck_place(&a);a.wreck_x=TANK_W/2;label="wreck";}
             else if(which==6){a.sd_unlocks=SD_ITEM_FROGMAN;tank_frogman_place(&a);a.frog_x=TANK_W/2;a.frog_y=TANK_H*.4f;a.clock=23.8f;label="frogman";}
+            else if(which==7){a.sd_unlocks=SD_ITEM_SUB;tank_sub_place(&a);a.sub_x=TANK_W/2;a.sub_y=TANK_H*.3f;a.sub_stop=4;a.sub_peri=1;a.sub_look=1.2f;a.sub_v=0;label="submarine";}
             else{a.sd_unlocks=SD_ITEM_SNAIL|SD_ITEM_SHRIMP|SD_ITEM_URCHIN;tank_snail_place(&a);tank_shrimp_place(&a,3);tank_urchin_place(&a);a.snail_x=TANK_W/2;a.snail_y=SNAIL_FLOOR_Y;a.snail_front=true;a.urchin_x=TANK_W/2+48;label="companions";}
             for(int j=0;j<5;j++){a.food[j].alive=true;a.food[j].x=TANK_W/2-45+j*17;a.food[j].y=TANK_H/2-25+j%2*10;}
             render_tank(&a,fb,TANK_W);render_tank(&a,fb,TANK_W);shot(prefix,label,id);

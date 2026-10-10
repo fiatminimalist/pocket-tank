@@ -342,8 +342,9 @@ const sd_item_t SD_ITEMS[SD_ITEM_COUNT] = {
     { SD_ITEM_CLUSTER, "REEF CLUSTER", "A MATURE REEF ON A ROCK,", "FILLS OUT, THEN IT BLOOMS",  SD_PRICE_CLUSTER },  /* 2026-09-24: the dearest; three looks on its page */
     { SD_ITEM_SHRIMP,  "SHRIMP",    "A SCHOOL OF CHERRY SHRIMP", "THEY EAT SCRAPS AND MULTIPLY", SD_PRICE_SHRIMP },
     { SD_ITEM_URCHIN,  "SEA URCHIN", "NIBBLES THE TALL GRASS,",  "EVEN WHILE THE TANK SLEEPS",  SD_PRICE_URCHIN },
-    { SD_ITEM_WRECK,   "SHIPWRECK",  "A SUNKEN BOAT WITH HOLES", "TO SWIM THROUGH, AN ANCHOR",   SD_PRICE_WRECK },
-    { SD_ITEM_FROGMAN, "FROGMAN",    "A DIVER WHO DRIFTS ACROSS", "THE TANK, TRAILING BUBBLES",  SD_PRICE_FROGMAN },   /* 2026-10-10 (he came with the wreck that morning) */   /* 2026-10-10 */  /* 2026-10-02: the episode 5 promise, a resident like the snail */  /* 2026-09-29: a resident, like the snail; Strato: "should mention that they multiply" (28 chars, as the plant's) */
+    { SD_ITEM_WRECK,   "WRECK",      "A SUNKEN BOAT WITH HOLES", "TO SWIM THROUGH, AN ANCHOR",   SD_PRICE_WRECK },   /* "SHIPWRECK" until 2026-10-10 night */
+    { SD_ITEM_FROGMAN, "FROGMAN",    "A DIVER WHO DRIFTS ACROSS", "THE TANK, TRAILING BUBBLES",  SD_PRICE_FROGMAN },
+    { SD_ITEM_SUB,     "SUBMARINE",  "CRUISES THE TANK, BUBBLING;", "STOPS TO RAISE A PERISCOPE", SD_PRICE_SUB },   /* 2026-10-10 night */   /* 2026-10-10 (he came with the wreck that morning) */   /* 2026-10-10 */  /* 2026-10-02: the episode 5 promise, a resident like the snail */  /* 2026-09-29: a resident, like the snail; Strato: "should mention that they multiply" (28 chars, as the plant's) */
     /* the species (2026-10-05, docs/species.md; one a purchase since 2026-10-07), in
        species order; the words say what makes them them, and that two of a kind breed */
     { SD_ITEM_SP_SEAHORSE, "SEAHORSE",    "A YOUNG ONE. IT HOLDS THE", "GRASS BY ITS TAIL. 2 BREED",  SD_PRICE_SP_SEAHORSE },
@@ -486,6 +487,7 @@ bool progression_buy(tank_t *t, int item) {
     if (it->bit == SD_ITEM_URCHIN) tank_urchin_place(t);
     if (it->bit == SD_ITEM_WRECK) tank_wreck_place(t);
     if (it->bit == SD_ITEM_FROGMAN) tank_frogman_place(t);
+    if (it->bit == SD_ITEM_SUB) tank_sub_place(t);
     progression_save(t);                                   /* a purchase sticks at once */
     return true;
 }
@@ -908,6 +910,7 @@ static bool load_save(tank_t *t, int64_t *saved_unix) {
     tank_cluster_set_scheme(t, sv.cluster_scheme);
     if (sv.wreck_x > 0) tank_decor_set(t, SD_ITEM_WRECK_IDX, sv.wreck_x, sv.wreck_z1 ? sv.wreck_z1 - 1 : DECOR_Z_FRONT);
     if (t->sd_unlocks & SD_ITEM_FROGMAN) tank_frogman_place(t);   /* (his motion is not saved) */
+    if (t->sd_unlocks & SD_ITEM_SUB) tank_sub_place(t);
     t->cluster_growth = sv.cluster_growth > 0 ? sv.cluster_growth : 0;
     if (t->sd_unlocks & SD_ITEM_SHRIMP) {             /* the school back in the grass, its count and its progress */
         tank_shrimp_place(t, sv.shrimp_n >= SHRIMP_START ? sv.shrimp_n : SHRIMP_START);

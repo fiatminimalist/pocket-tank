@@ -44,6 +44,7 @@ food, bubbles, battery and menu treatments live alongside their Original paths i
 | Sword plant / weeds | Veined leaves and delicate stems | Scalloped leaves and fuller blades | Dark kelp greens (the lagoon's veined leaves in the dark palette) |
 | Castle | A French chateau (2026-10-10): a limestone facade with two pepper-pot corner towers under conical slate roofs, a main block with two rows of tall windows and a balustrade, a taller central pavilion with quoins, a hipped slate roof and a spire, dormers, chimneys, the grand arched entrance with a tall window and an oculus above it | A fat single pineapple castle (2026-10-10): one wide pineapple in a diamond skin with an eye in every cell, a swept crown of eleven leaves with a pennant in it, three pineapple-slice ring windows that are holes the fish pass behind, the arched gate with a drawbridge on two chains, a starfish on the mound | A sunken Mayan step pyramid in dark basalt: receding tiers with a central stair up to a temple house with a roof comb, carved glyph bands, moss in the lower joints, tumbled blocks at the base, the shared arched gate |
 | Shipwreck (2026-10-10) | An old sailing ship listing on the sand: the stern sunk and its ribs bared, the bow risen with a bowsprit, two holes in the side, a tilted broken mast with a yard and a rag of sail, a stay, a deckhouse, an anchor off the bow | A cheerful upright tug: cream topsides, a red boot stripe, a teal bottom, brass-rimmed porthole holes, a wheelhouse with lit windows, an orange funnel, a cyan pennant, a life ring, an anchor off the bow | A WWII fighter plane on the sand, nose down: one wing on the sand and the far one behind, a bent propeller, the open cockpit and a torn rear fuselage as the two holes, tail fin and tailplane, panel lines, rust and growth, a worn roundel, an anchor off the nose |
+| Submarine (2026-10-10 night) | A moss-green navy boat with brass fittings | A red-and-white toy with a cyan tower and gold propeller | A grey steel boat with a black waterline and rust (Original: the yellow sub with black trim) |
 | Frogman (2026-10-10) | Turquoise suit with coral bands, violet fins, a cream tank, a green mask | Hot pink suit with lime bands, cyan fins, an orange tank, a purple mask (Original: yellow with black bands, red fins) | Black neoprene, high-vis amber bands and fins, an aluminium tank, a black mask |
 | Coral / reef | The keeper's coral / tube / brain hues on a dark basalt rock (2026-10-10; the first cut pulled every piece toward the water's tone and read as twigs and slabs): a ridged brain, streaked tubes, deep rims | Thick finger coral, stacked sponges, dotted dome | Near-black basalt, dull olive weed, the keeper's hues lifted to vivid with deep rims |
 | Snail / companions | Warm shaded shell whorls, soft shrimp, fine urchin spines | Warm striped shell, segmented shrimp, rounded urchin tips | The lagoon's shaded snail; the Original's pixel cherry shrimp (legs, antennae, tail fan) and fine-spined urchin |
@@ -88,8 +89,9 @@ and the milestones rows frame it. Jellyfish have no ink or electric effects.
 
 `common/jellyfish.inc` is the live geometry. Shop thumbnails are generated from
 the approved HTML study by `python3 tools/gen_jellyfish_assets.py` (or `--check`).
-The shipwreck's and the frogman's thumbnails (one per theme, matching the four hulls and
-the four suits) come from `tools/gen_wreck_assets.py` and `tools/gen_frogman_assets.py`.
+The wreck's, the frogman's and the submarine's thumbnails (one per theme, matching the four
+hulls, the four suits and the four subs) come from `tools/gen_wreck_assets.py`,
+`tools/gen_frogman_assets.py` and `tools/gen_sub_assets.py`.
 The three thumbnails add 9,216 bytes of pixel data. Existing persisted IDs and
 save offsets are unchanged; the shop presence flag uses the next unused bit.
 

@@ -605,6 +605,20 @@ typedef struct tank {
     float    frog_lane;            /* the y he eases toward */
     float    frog_lane_t;          /* seconds until he picks another lane */
     float    frog_toss, frog_vx, frog_vy;   /* tossed by a shake (tank_shake): seconds left, the throw */
+    /* the submarine (2026-10-10 night, item 9): a little sub that cruises the water from glass to
+       glass like the frogman, propeller turning, bubbles streaming from the stern - and every
+       SUB_CRUISE_LO..HI s it stops, a periscope rises, scans, and sinks before it goes on. The
+       hull is the theme's (render.c). Only the bit is saved: a load puts it mid-tank. */
+    float    sub_x, sub_y;
+    float    sub_yaw;              /* -1 facing left .. 1 facing right */
+    int8_t   sub_dir;
+    float    sub_lane, sub_lane_t;
+    float    sub_v;                /* px/s along its heading: eases to SUB_SPEED, or to 0 for a stop */
+    float    sub_stop;             /* seconds left of a stop (0 = cruising) */
+    float    sub_next;             /* seconds until the next stop */
+    float    sub_peri;             /* the periscope: 0 down .. 1 up */
+    float    sub_look;             /* seconds the periscope has been up (it scans on this) */
+    float    sub_toss, sub_vx, sub_vy;
     /* the shrimp school (SD_ITEM_SHRIMP, see SHRIMP_*): how many (saved), the
      * pellets eaten toward the next one (0..SHRIMP_PER_JOIN, saved), the seconds
      * before another may join (saved), each shrimp's motion (not saved: a load
@@ -895,6 +909,7 @@ float tank_fish_hit_r(const fish_t *f);
 bool  tank_poke(tank_t *t, int idx);        /* a double tap on creature idx: its trick (puff, ink); false = it has none */
 void  tank_wreck_place(tank_t *t);           /* the shipwreck bought: its default spot (item 7) */
 void  tank_frogman_place(tank_t *t);         /* the frogman bought (or loaded): mid-tank, heading right (item 8) */
+void  tank_sub_place(tank_t *t);             /* the submarine bought (or loaded): mid-tank, heading left (item 9) */
 /* a hard shake of the device (2026-10-10; the IMU's shake detector, the sim's 1 key): every
  * creature is thrown - a random velocity and spin, tumbling off the glass, the species'
  * startle reactions on the way (the puffer puffs, the squid and octopus ink, the crab's
@@ -904,10 +919,18 @@ void  tank_frogman_place(tank_t *t);         /* the frogman bought (or loaded): 
 void  tank_shake(tank_t *t, float strength);
 #define TOSS_S 3.2f
 bool  tank_frogman_hit(const tank_t *t, float x, float y);   /* within a fingertip of him */
+bool  tank_sub_hit(const tank_t *t, float x, float y);       /* within a fingertip of the sub */
 #define FROG_SPEED     9.0f                  /* px/s across the tank */
 #define FROG_MARGIN    (DECOR_MARGIN + 24)   /* he turns this far from the glass */
 #define FROG_LANE_LO   (TANK_H * 0.20f)      /* the band of water he drifts in */
 #define FROG_LANE_HI   (TANK_H * 0.56f)
+#define SUB_SPEED      13.0f                 /* px/s, cruising */
+#define SUB_MARGIN     (DECOR_MARGIN + 30)
+#define SUB_LANE_LO    (TANK_H * 0.14f)
+#define SUB_LANE_HI    (TANK_H * 0.48f)
+#define SUB_STOP_S     8.0f                  /* a stop: the periscope up for the middle six seconds */
+#define SUB_CRUISE_LO  22.0f                 /* seconds of cruising between stops */
+#define SUB_CRUISE_HI  40.0f
 float tank_species_size(const fish_t *f);   /* its base size: from its personality, so a load gets the same */
 /* the species' motion, for the renderer and the tests (see THE CONVENTION in
  * fish_t). tank_ground_y: the top of what a floor walker stands on at x -
@@ -954,10 +977,12 @@ enum { SD_ITEM_PLANT = 1u << 0, SD_ITEM_SNAIL = 1u << 1, SD_ITEM_CASTLE = 1u << 
        SD_ITEM_SP_LOBSTER = 1u << 15, SD_ITEM_SP_JELLYFISH = 1u << 16,
        SD_ITEM_WRECK = 1u << 17,   /* the shipwreck (2026-10-10): item index 7, after the urchin - a thing, before the species */
        SD_ITEM_FROGMAN = 1u << 18, /* the frogman (2026-10-10, later that day): item index 8, a resident like the snail */
-       SD_ITEM_COUNT = 19 };
-#define SD_ITEM_SP_FIRST 9         /* the item index of the first species (the seahorse) */
+       SD_ITEM_SUB = 1u << 19,     /* the submarine (2026-10-10, that night): item index 9, a resident that cruises the water */
+       SD_ITEM_COUNT = 20 };
+#define SD_ITEM_SP_FIRST 10        /* the item index of the first species (the seahorse) */
 #define SD_ITEM_WRECK_IDX 7        /* the shipwreck's item index */
 #define SD_ITEM_FROGMAN_IDX 8      /* the frogman's item index */
+#define SD_ITEM_SUB_IDX 9          /* the submarine's item index */
 /* per-fish paid bits (sd_paid_fish) */
 enum { SD_PAID_JUV = 1u << 0, SD_PAID_ADULT = 1u << 1, SD_PAID_ELDER = 1u << 2, SD_PAID_TRUST = 1u << 3 };
 #define PX_PER_INCH 24.0f          /* the tank reads as ~15 in tall; a fish ~1.7 in */

@@ -151,11 +151,11 @@ static void show_state(const tank_t *t) {
              t->courting ? t->fish[t->court_a].name : "no", t->courting ? "+" : "",
              t->courting ? t->fish[t->court_b].name : "", t->spawning ? " (SPAWNING)" : t->court_active > 0 ? " (circling)" : "",
              progression_arrival_pending() ? "staged" : "-");
-    ESP_LOGI(TAG, "sand dollars %d (earned %d) | shop:%s%s%s%s%s%s%s%s%s%s | colonies %d | %.0f cm trimmed",
+    ESP_LOGI(TAG, "sand dollars %d (earned %d) | shop:%s%s%s%s%s%s%s%s%s%s%s | colonies %d | %.0f cm trimmed",
              (int)t->sd_balance, (int)t->sd_earned, t->sd_unlocks & SD_ITEM_PLANT ? " plant" : "", t->sd_unlocks & SD_ITEM_SNAIL ? " snail" : "",
              t->sd_unlocks & SD_ITEM_CASTLE ? " castle" : "", t->sd_unlocks & SD_ITEM_CORAL ? " coral" : "", t->sd_unlocks & SD_ITEM_CLUSTER ? " cluster" : "",
              t->sd_unlocks & SD_ITEM_SHRIMP ? " shrimp" : "", t->sd_unlocks & SD_ITEM_URCHIN ? " urchin" : "",
-             t->sd_unlocks & SD_ITEM_WRECK ? " wreck" : "", t->sd_unlocks & SD_ITEM_FROGMAN ? " frogman" : "", t->sd_unlocks ? "" : " -", (int)t->algae_colonies, t->trim_px / PX_PER_CM);
+             t->sd_unlocks & SD_ITEM_WRECK ? " wreck" : "", t->sd_unlocks & SD_ITEM_FROGMAN ? " frogman" : "", t->sd_unlocks & SD_ITEM_SUB ? " submarine" : "", t->sd_unlocks ? "" : " -", (int)t->algae_colonies, t->trim_px / PX_PER_CM);
     {   /* who lives here, by species (2026-10-05): "fish 4, seahorse 2" - and which pairs the shop holds back */
         char sl[160] = ""; size_t l = 0;
         for (int sp = 0; sp < SP_COUNT && l + 24 < sizeof sl; sp++) {
@@ -370,9 +370,9 @@ static void run(tank_t *t, char *line) {
         ESP_LOGI(TAG, "sand dollars %d (earned %d) | colonies %d | %.0f cm trimmed", (int)t->sd_balance, (int)t->sd_earned,
                  (int)t->algae_colonies, t->trim_px / PX_PER_CM);
     } else if (!strcmp(c, "buy") && argc > 1) {      /* buy plant|snail|...|shrimp|<species>: the shop's sale, at the price */
-        int item = !strcmp(argv[1], "plant") ? 0 : !strcmp(argv[1], "snail") ? 1 : !strcmp(argv[1], "castle") ? 2 : !strcmp(argv[1], "coral") ? 3 : !strcmp(argv[1], "cluster") ? 4 : !strcmp(argv[1], "shrimp") ? 5 : !strcmp(argv[1], "urchin") ? 6 : !strcmp(argv[1], "wreck") ? SD_ITEM_WRECK_IDX : !strcmp(argv[1], "frogman") ? SD_ITEM_FROGMAN_IDX : -1;
+        int item = !strcmp(argv[1], "plant") ? 0 : !strcmp(argv[1], "snail") ? 1 : !strcmp(argv[1], "castle") ? 2 : !strcmp(argv[1], "coral") ? 3 : !strcmp(argv[1], "cluster") ? 4 : !strcmp(argv[1], "shrimp") ? 5 : !strcmp(argv[1], "urchin") ? 6 : !strcmp(argv[1], "wreck") ? SD_ITEM_WRECK_IDX : !strcmp(argv[1], "frogman") ? SD_ITEM_FROGMAN_IDX : !strcmp(argv[1], "submarine") ? SD_ITEM_SUB_IDX : -1;
         if (item < 0 && species_of(argv[1]) > 0) item = SD_ITEM_SP_FIRST + species_of(argv[1]) - 1;   /* a species' pair */
-        if (item < 0) ESP_LOGW(TAG, "buy plant|snail|castle|coral|cluster|shrimp|urchin|wreck|frogman|seahorse|octopus|puffer|angler|eel|shark|squid|crab|lobster|jellyfish");
+        if (item < 0) ESP_LOGW(TAG, "buy plant|snail|castle|coral|cluster|shrimp|urchin|wreck|frogman|submarine|seahorse|octopus|puffer|angler|eel|shark|squid|crab|lobster|jellyfish");
         else if (progression_item_species(item) > 0 && !progression_has_room_one(t)) ESP_LOGW(TAG, "%s refused: no room (%d of %d)", SD_ITEMS[item].name, t->n_fish, POP_CAP);
         else if (progression_buy(t, item)) ESP_LOGI(TAG, "%s unlocked, %d sand dollars left%s", SD_ITEMS[item].name, (int)t->sd_balance,
                                                     tank_decor_placeable(item) ? " (`place` opens the placement page)" : "");

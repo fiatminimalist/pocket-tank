@@ -540,6 +540,7 @@ void tank_init(tank_t *t, uint32_t seed) {
     t->wreck_x = 0; t->wreck_z = DECOR_Z_FRONT;
     t->frog_x = TANK_W / 2; t->frog_y = t->frog_lane = TANK_H * 0.36f; t->frog_yaw = 1; t->frog_dir = 1; t->frog_lane_t = 20;
     t->frog_toss = 0; t->frog_vx = t->frog_vy = 0;
+    tank_sub_place(t);
     t->tank_ms_bits = 0; t->tank_ms_seen = 0; t->ask_rr = 0; t->advisor_asks = 0;
     tank_scatter_food(t, 2);
 }
@@ -1459,6 +1460,74 @@ void tank_castle_place(tank_t *t) {
 void tank_frogman_place(tank_t *t) {
     t->frog_x = TANK_W / 2; t->frog_y = t->frog_lane = TANK_H * 0.36f; t->frog_yaw = 1; t->frog_dir = 1; t->frog_lane_t = 20;
 }
+void tank_sub_place(tank_t *t) {
+    t->sub_x = TANK_W / 2; t->sub_y = t->sub_lane = TANK_H * 0.26f; t->sub_yaw = -1; t->sub_dir = -1; t->sub_lane_t = 15;
+    t->sub_v = SUB_SPEED; t->sub_stop = 0; t->sub_next = 18; t->sub_peri = 0; t->sub_look = 0; t->sub_toss = 0; t->sub_vx = t->sub_vy = 0;
+}
+bool tank_sub_hit(const tank_t *t, float x, float y) {
+    if (!(t->sd_unlocks & SD_ITEM_SUB)) return false;
+    float dx = x - t->sub_x, dy = y - t->sub_y;
+    return dx * dx / (30.0f * 30.0f) + dy * dy / (16.0f * 16.0f) < 1;
+}
+/* the frogman and the sub share the water (2026-10-10 night): a lane picked within PASS_DY of
+ * the other's is pushed PASS_DY + 6 away (the side with room), and when they close within
+ * PASS_DX nearly level, each eases off to the far side of the other - they pass, never collide */
+#define PASS_DX 110.0f
+#define PASS_DY 34.0f
+static float lane_clear_of(float lane, float other, float lo, float hi) {
+    if (fabsf(lane - other) >= PASS_DY) return lane;
+    float up = other - (PASS_DY + 6), down = other + (PASS_DY + 6);
+    if (lane < other) return up >= lo ? up : down;
+    return down <= hi ? down : up;
+}
+/* the submarine's cruise (2026-10-10 night): the frogman's drift at SUB_SPEED, easing to a halt for
+ * a stop every SUB_CRUISE_LO..HI s - the periscope rises over the first second, scans (the renderer
+ * turns it on sub_look), and sinks over the last - then on again; a new lane now and then */
+static void sub_tick(tank_t *t, float dt) {
+    if (!(t->sd_unlocks & SD_ITEM_SUB)) return;
+    float lo = SUB_MARGIN, hi = TANK_W - SUB_MARGIN;
+    if (t->sub_toss > 0) {
+        t->sub_toss -= dt; float damp = expf(-dt * 1.5f);
+        t->sub_vx *= damp; t->sub_vy = t->sub_vy * damp + 6 * dt;
+        t->sub_x += t->sub_vx * dt; t->sub_y += t->sub_vy * dt;
+        if (t->sub_x < lo) { t->sub_x = lo; t->sub_vx = fabsf(t->sub_vx) * 0.6f; }
+        if (t->sub_x > hi) { t->sub_x = hi; t->sub_vx = -fabsf(t->sub_vx) * 0.6f; }
+        if (t->sub_y < SUB_LANE_LO - 20) { t->sub_y = SUB_LANE_LO - 20; t->sub_vy = fabsf(t->sub_vy) * 0.6f; }
+        if (t->sub_y > TANK_BOT - 50) { t->sub_y = TANK_BOT - 50; t->sub_vy = -fabsf(t->sub_vy) * 0.5f; }
+        t->sub_yaw = clampf(t->sub_yaw + (t->sub_vx >= 0 ? 4 : -4) * dt, -1, 1); t->sub_dir = t->sub_vx >= 0 ? 1 : -1;
+        t->sub_stop = 0; t->sub_peri = 0;
+        if (t->sub_toss <= 0) { t->sub_toss = 0; t->sub_lane = clampf(t->sub_y, SUB_LANE_LO, SUB_LANE_HI); t->sub_next = tank_randf(t, SUB_CRUISE_LO, SUB_CRUISE_HI); }
+        return;
+    }
+    if (t->sub_stop > 0) {
+        t->sub_stop -= dt;
+        float into = SUB_STOP_S - t->sub_stop, want = into < 1 ? into : t->sub_stop < 1 ? t->sub_stop : 1;
+        want = clampf(want, 0, 1);
+        t->sub_peri += (want - t->sub_peri) * fminf(1, 5 * dt);
+        t->sub_look += dt;
+        t->sub_v = fmaxf(0, t->sub_v - 24 * dt);
+        if (t->sub_stop <= 0) { t->sub_stop = 0; t->sub_peri = 0; t->sub_look = 0; t->sub_next = tank_randf(t, SUB_CRUISE_LO, SUB_CRUISE_HI); }
+    } else {
+        t->sub_next -= dt;
+        if (t->sub_next <= 0) { t->sub_stop = SUB_STOP_S; t->sub_look = 0; }
+        t->sub_v = fminf(SUB_SPEED, t->sub_v + 10 * dt);
+    }
+    if (t->sub_dir >= 0 && t->sub_x >= hi) t->sub_dir = -1;
+    if (t->sub_dir < 0 && t->sub_x <= lo) t->sub_dir = 1;
+    float want = (float)t->sub_dir, d = want - t->sub_yaw, step = 1.6f * dt;
+    t->sub_yaw += d > step ? step : d < -step ? -step : d;
+    t->sub_x += t->sub_yaw * t->sub_v * dt;
+    t->sub_x = t->sub_x < lo - 2 ? lo - 2 : t->sub_x > hi + 2 ? hi + 2 : t->sub_x;
+    t->sub_lane_t -= dt;
+    if (t->sub_lane_t <= 0) {
+        t->sub_lane_t = tank_randf(t, 15, 35);
+        t->sub_lane = tank_randf(t, SUB_LANE_LO, SUB_LANE_HI);
+        if (t->sd_unlocks & SD_ITEM_FROGMAN) t->sub_lane = lane_clear_of(t->sub_lane, t->frog_lane, SUB_LANE_LO, SUB_LANE_HI);
+    }
+    bool dodge = (t->sd_unlocks & SD_ITEM_FROGMAN) && fabsf(t->frog_x - t->sub_x) < PASS_DX && fabsf(t->frog_y - t->sub_y) < PASS_DY;   /* the frogman ahead: pass him (frogman_tick) */
+    if (dodge) t->sub_lane = clampf(t->frog_y + (t->sub_y >= t->frog_y ? PASS_DY + 6 : -(PASS_DY + 6)), SUB_LANE_LO, SUB_LANE_HI);
+    t->sub_y += (t->sub_lane - t->sub_y) * fminf(1, (dodge ? 0.9f : 0.12f) * dt);
+}
 bool tank_frogman_hit(const tank_t *t, float x, float y) {
     if (!(t->sd_unlocks & SD_ITEM_FROGMAN)) return false;
     float dx = x - t->frog_x, dy = y - t->frog_y;
@@ -1493,8 +1562,14 @@ static void frogman_tick(tank_t *t, float dt) {
     if (t->frog_lane_t <= 0) {
         t->frog_lane_t = tank_randf(t, 20, 40);
         t->frog_lane = tank_randf(t, FROG_LANE_LO, FROG_LANE_HI);
+        if (t->sd_unlocks & SD_ITEM_SUB) t->frog_lane = lane_clear_of(t->frog_lane, t->sub_lane, FROG_LANE_LO, FROG_LANE_HI);
     }
-    t->frog_y += (t->frog_lane - t->frog_y) * fminf(1, 0.15f * dt);
+    /* the sub coming (2026-10-10 night, Alvin: "make sure the submarine and frogman don't crash into
+       each other's path"): within PASS_DX of it and nearly level, he eases off to a lane PASS_DY
+       clear of it - quickly - and the sub does the same the other way, so they pass */
+    bool dodge = (t->sd_unlocks & SD_ITEM_SUB) && fabsf(t->sub_x - t->frog_x) < PASS_DX && fabsf(t->sub_y - t->frog_y) < PASS_DY;
+    if (dodge) t->frog_lane = clampf(t->sub_y + (t->frog_y >= t->sub_y ? PASS_DY + 6 : -(PASS_DY + 6)), FROG_LANE_LO, FROG_LANE_HI);
+    t->frog_y += (t->frog_lane - t->frog_y) * fminf(1, (dodge ? 0.9f : 0.15f) * dt);
 }
 void tank_wreck_place(tank_t *t) {
     t->wreck_x = 0; t->wreck_z = DECOR_Z_FRONT;            /* the default spot, in front of the grass: the fish pass behind its holes */
@@ -2783,6 +2858,10 @@ void tank_shake(tank_t *t, float strength) {
         float a = tank_randf(t, 0, 6.2831853f), v = tank_randf(t, 120, 220) * strength;
         t->frog_toss = TOSS_S; t->frog_vx = cosf(a) * v; t->frog_vy = sinf(a) * v;
     }
+    if (t->sd_unlocks & SD_ITEM_SUB) {
+        float a = tank_randf(t, 0, 6.2831853f), v = tank_randf(t, 80, 160) * strength;
+        t->sub_toss = TOSS_S; t->sub_vx = cosf(a) * v; t->sub_vy = sinf(a) * v;
+    }
     tank_emit(TEV_SPOOK, -1);
 }
 static void update_fish(tank_t *t, int idx, float dt) {
@@ -3251,6 +3330,7 @@ void tank_tick(tank_t *t, float dt, advisor_fn advise) {
     urchin_tick(t, dt);
     shrimp_tick(t, dt);
     frogman_tick(t, dt);
+    sub_tick(t, dt);
 
     /* bubbles rise */
     for (int i = 0; i < MAX_BUBBLE; i++) {
