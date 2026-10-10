@@ -1823,7 +1823,8 @@ static void draw_lagoon_castle(ctx_t *c,int cx,int front,bool final) {
             /* the windows: two rows on the block, a tall one and an oculus on the pavilion */
             bool win=false, sill=false;
             { int wx=ax; bool col=(wx>=36&&wx<44)||(wx>=48&&wx<56); if(block&&col&&((h>=20&&h<38)||(h>=52&&h<70)))win=true; if(block&&col&&(h==19||h==51))sill=true; }
-            if(pav&&ax<6&&h>=58&&h<80)win=true; if(pav&&ax<=6&&h==57)sill=true;
+            if(pav&&ax<6&&h>=58&&h<80)win=true;
+            if(pav&&ax<=6&&h==57)sill=true;
             { int oy=h-92; if(pav&&ax*ax+oy*oy<5*5)win=true; }
             bool win_bar=win&&((h>=20&&h<38&&(h==29||ax==40||ax==52))||(h>=52&&h<70&&(h==61||ax==40||ax==52))||(h>=58&&h<80&&ax<6&&(h==69||ax==0)));
             /* the entrance: the opening, its stone ring and keystone */
