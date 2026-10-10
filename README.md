@@ -307,9 +307,11 @@ broken off short with a yard and a rag of sail, a deckhouse, an anchor off the
 bow; Tidepool Club a cheerful little tug sitting upright -
 cream topsides, a red boot stripe, a teal bottom, a wheelhouse with lit windows,
 an orange funnel, a pennant on the mast, a life ring on the side and an anchor
-hung off the bow; Blackwater (2026-10-10) a sunken fighter plane lying on the
-sand, nose down, one wing on the sand, a bent propeller, the open cockpit and a
-torn fuselage for its holes, an anchor off the nose. Every hull has two big holes (the tug's are brass-rimmed
+hung off the bow; Blackwater (2026-10-10) a bare-aluminium fighter plane on the
+sand, nose up a little, one wing down on the sand with a big roundel and the
+far wing rising behind, a red-and-white tail, a three-blade propeller, a yellow
+band aft, the open cockpit and a torn rear fuselage for its holes (redrawn that
+night so it reads as a plane at a glance: outlined pieces, a silver skin). Every hull has two big holes (the tug's are brass-rimmed
 portholes): IN FRONT, the fish pass behind the hull and show through them,
 swimming in and out; BEHIND it is a backdrop in the weeds. The octopus, crab
 and lobster den under its holes when there is no reef.
@@ -487,8 +489,10 @@ Lagoon, Tidepool Club, and since 2026-10-10 Blackwater - the realistic one.
 Near-black water over dark volcanic sand, and the creatures drawn as the real
 animals (countershading, rayed fins, real eyes, scales, suckers, shells) in
 vivid colours lifted from the ones you chose, so they stand off the dark water;
-the castle slot holds a sunken Mayan step pyramid and the wreck slot a fighter
-plane. (A moving caustic light lived in it for a few hours that night and was
+the castle slot holds a sunken Mayan step pyramid in pale limestone, the wreck
+slot a silver fighter plane, and the reef cluster is a sea fan, tube sponges, a
+staghorn coral and an anemone on basalt (all three redrawn that night to read
+at a glance against the dark water). (A moving caustic light lived in it for a few hours that night and was
 taken out again.) docs/THEMES.md has the details.
 
 **One settings page.** Since 2026-10-10 every theme uses the same settings

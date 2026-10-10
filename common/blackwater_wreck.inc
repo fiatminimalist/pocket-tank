@@ -1,50 +1,98 @@
-/* Blackwater (2026-10-10): the wreck slot is a sunken WWII FIGHTER. A single-engine,
-   radial-cowled fighter lying on the sand nose to the right and a little nose-down: the near
-   wing toward the viewer, resting on the sand, with a worn roundel; the far wing behind,
-   above the fuselage; the fin and the near tailplane at the left; the cockpit's canopy frame
-   slid open over the cockpit (a HOLE the fish pass behind), a torn gap in the rear fuselage
-   (the second hole); a bent propeller blade over the cowl and one dug into the sand; panel
-   lines, rivets, rust streaks, encrusting growth low down; a small anchor on the sand off
-   the nose. Dark olive-grey paint lit from the upper left. Same layers as the other hulls:
+/* Blackwater (2026-10-10): the wreck slot is a sunken WWII FIGHTER. Redrawn the same day so it
+   reads as a plane at tank scale (the first cut was dark olive on near-black water and came
+   out an unnameable shape): bare ALUMINIUM, lit from the upper left, a 1 px dark outline round
+   every piece and between the pieces, big simple features. A single-engine radial fighter on
+   the sand, nose to the right and a little nose-up: the near wing sweeps down toward the
+   viewer onto the sand with a big tricolour roundel; the far wing rises behind the fuselage;
+   the fin at the left with a red rudder and a white stripe; a yellow band round the rear
+   fuselage; the canopy a pale frame round the cockpit (a HOLE the fish pass behind); a torn
+   gap in the rear fuselage (the second hole); the propeller as two long blades on the spinner,
+   one up (bent back, yellow tip) and one dug into the sand. Same layers as the other hulls:
    -1 = all of it, 0 = only the dark inside (baked, never in the front mask), 1 = the solid
    pieces (the mask). Local coordinates: x from the centre, h up from WK_FY. */
-static inline float wkb_axis(int x) { return 22 - (x + 58) * 0.07f; }           /* the fuselage's centre line, tail to nose */
-static inline float wkb_r(int x) {                                               /* its half-height: a thin tail, a fat cowl, the spinner */
-    if (x < -10) return 4 + 6 * (x + 58) / 48.0f;
-    if (x < 30) return 10;
-    if (x < 46) { float u = (x - 30) / 16.0f; return 10 - u * u * 3; }
-    return 7 * (50 - x) / 4.0f;
+static inline float wkb_axis(int x) { return 13 + (x + 52) * 0.15f; }           /* the fuselage's centre line, tail to nose */
+static inline float wkb_r(int x) {                                               /* its half-height: a thin tail, a fat cowl, the spinner's cone */
+    if (x < -16) return 4.5f + 6.5f * (x + 52) / 36.0f;
+    if (x < 40) return 11;
+    return 5.0f * (48 - x) / 8.0f;
 }
 static inline bool wkb_fuselage(int x, int h) {
-    if (x < -58 || x >= 50) return false;
+    if (x < -52 || x >= 48) return false;
     float d = h - wkb_axis(x), r = wkb_r(x);
     return d > -r && d < r;
 }
-/* the cockpit, cut into the top of the fuselage, and the torn gap in the rear fuselage */
-static inline bool wkb_cockpit(int x, int h) { float top = wkb_axis(x) + wkb_r(x); return x >= 6 && x < 22 && h >= top - 7 && h <= top; }
+/* the canopy: a bubble on the spine from x=-6 to 20, a gentle fairing aft, a steep windscreen forward */
+static inline float wkb_bump(int x) { return x <= 12 ? 9.0f * (x + 6) / 18.0f : 9.0f * (20 - x) / 8.0f; }
+static inline bool wkb_canopy(int x, int h) {
+    if (x < -6 || x > 20) return false;
+    float top = wkb_axis(x) + 11;
+    return h >= top - 1 && h < top + wkb_bump(x);
+}
+/* the cockpit cut into the fuselage under the canopy, and the torn gap in the rear fuselage */
+static inline bool wkb_cut(int x, int h) { float top = wkb_axis(x) + 11; return x >= -2 && x <= 17 && h >= top - 5 && h < top; }
 static inline bool wkb_gap(int x, int h) {
     float a = wkb_axis(x), r = wkb_r(x);
     int jag = (int)(chash(x, 9) % 4u), jag2 = (int)(chash(h, 11) % 3u);        /* ragged: the edge wanders per column and row */
-    float dx = (x + 29 + (h > a ? jag2 : -jag2)) / 8.0f, dy = (h - a + 1) / (r * 0.6f + jag * 0.7f);
+    float dx = (x + 31 + (h > a ? jag2 : -jag2)) / 7.0f, dy = (h - a + 1) / (r * 0.55f + jag * 0.6f);
     return dx * dx + dy * dy < 1;
 }
-/* the near wing: from the root under the fuselage down and to the left onto the sand */
+/* the near wing: from the root on the fuselage's side down and to the left onto the sand */
+#define WKB_WING_ROOT (wkb_axis(6) + 4)
 static inline bool wkb_near_wing(int x, int h) {
-    float a0 = wkb_axis(8);
-    if (h < 0 || h >= a0 + 1) return false;
+    float a0 = WKB_WING_ROOT;
+    if (h < 0 || h >= a0) return false;
     float u = (a0 - h) / a0;                                                       /* 0 at the root, 1 on the sand */
-    float x0 = -8 - 14 * u, x1 = 26 - 24 * u;
-    return x >= x0 && x <= x1;
+    return x >= -10 - 26 * u && x <= 24 - 36 * u;
 }
-/* the far wing: behind the fuselage, up and to the left (the plane lies a little on its side) */
+/* the far wing: behind the fuselage, up and to the left */
 static inline bool wkb_far_wing(int x, int h) {
-    float a0 = wkb_axis(8) + 9;
-    if (h < a0 || h >= a0 + 22) return false;
-    float u = (h - a0) / 22.0f;
-    float x0 = -4 - 24 * u, x1 = 22 - 30 * u;
-    return x >= x0 && x <= x1;
+    float a1 = wkb_axis(6) + 11;
+    if (h < a1 || h >= a1 + 20) return false;
+    float u = (h - a1) / 20.0f;
+    return x >= -4 - 22 * u && x <= 20 - 30 * u;
+}
+static inline bool wkb_fin(int x, int h) {
+    if (h < 20 || h >= 50) return false;
+    float t = (h - 20) / 30.0f;
+    return x >= -53 + 2 * t && x <= -36 - 12 * t;
+}
+static inline bool wkb_tailplane(int x, int h) {
+    float a = wkb_axis(x), k = a - 3 - h;
+    return k >= 0 && k < 6 && x >= -56 + k * 0.5f && x <= -40 - k * 0.3f;
+}
+/* the propeller: three blades on the hub, up (bent back at the tip), down-left and down-right; the
+   blade a pixel is on in *blade (0 up, 1 down-left, 2 down-right) and how far along it in *along */
+static inline bool wkb_prop_at(int x, int h, int *blade, int *along) {
+    float hub = wkb_axis(42);
+    int up = (int)(h - hub);
+    if (up >= 0) {
+        int bend = up > 16 ? (up - 16) * 3 / 5 : 0;
+        *blade = 0; *along = up;
+        return up < 27 && x >= 39 - bend && x <= 42 - bend;
+    }
+    int dn = -up;
+    if (dn >= 25 || h < 0) return false;
+    *along = dn;
+    int lean = dn * 2 / 5;                                                       /* the V: 0.4 px sideways per px down */
+    if (x >= 39 - lean && x <= 42 - lean) { *blade = 1; return true; }
+    if (x >= 39 + lean && x <= 42 + lean) { *blade = 2; return true; }
+    return false;
+}
+static inline bool wkb_prop(int x, int h) { int b, a; return wkb_prop_at(x, h, &b, &a); }
+/* which piece owns a pixel, front to back (the holes count as their piece: no outline inside them) */
+static int wkb_piece(int x, int h) {
+    if (h < 0) return 0;
+    if (wkb_prop(x, h)) return 6;
+    if (wkb_near_wing(x, h)) return 2;
+    if (wkb_tailplane(x, h)) return 5;
+    if (wkb_canopy(x, h)) return 7;
+    if (wkb_fuselage(x, h)) return 1;
+    if (wkb_fin(x, h)) return 4;
+    if (wkb_far_wing(x, h)) return 3;
+    return 0;
 }
 static void draw_wreck_blackwater(ctx_t *c, int cx, bool final, int layer) {
+    const uint32_t OUTLINE = 0x0c1216, FRAME = 0xe4e8ea;
     for (int h = -2; h <= WK_H; h++) {
         int y = WK_FY - h;
         if (y < c->oy || y >= c->oy + c->h) continue;
@@ -53,86 +101,66 @@ static void draw_wreck_blackwater(ctx_t *c, int cx, bool final, int layer) {
             if (X < c->ox || X >= c->ox + c->w) continue;
             unsigned noise = ((unsigned)(x + 100) * 1237u + (unsigned)(h + 40) * 719u) ^ ((unsigned)(x + 130) * (unsigned)(h + 17));
             float axis = wkb_axis(x), r = wkb_r(x);
-            bool fus = wkb_fuselage(x, h);
-            if (layer == 0) { if (fus) wk_put(c, X, y, mix(water_rgb(y), 0x070c10, 0.8f), final); continue; }
-            bool hole = fus && (wkb_cockpit(x, h) || wkb_gap(x, h));
-            if (hole) { if (layer < 0) wk_put(c, X, y, mix(water_rgb(y), 0x070c10, 0.8f), final); continue; }
-            uint32_t rgb = 0; bool on = false;
-            float d = h - axis;                                                    /* above (+) or below the centre line */
-            /* the far wing and the fin, behind the fuselage */
-            bool farw = !fus && wkb_far_wing(x, h);
-            float fin_le = -44 - (h - (axis + r)) * 0.33f;                         /* the fin's leading edge sweeps back */
-            bool fin = !fus && x >= -58 && x <= fin_le && h > wkb_axis(-50) + wkb_r(-50) - 1 && h < 46 && x >= -58 + (h > 42 ? (h - 42) * 2 : 0);
-            if (farw) { on = true; rgb = (noise % 7 == 0) ? 0x3d4234 : 0x363b2f; if (((x + h) % 9) == 0) rgb = 0x272b23; }
-            if (fin) { on = true; rgb = (noise % 7 == 0) ? 0x4a4f3f : 0x42473a;
-                if (x <= -55) rgb = 0x3a3e33;                                       /* the rudder */
-                if ((int)(h - 22) % 8 == 0) rgb = 0x2c2f27;
-                if (x == -55 || h == 45) rgb = 0x5c6152; }
-            /* the fuselage: olive-grey topsides, a pale belly, panel lines and rivets */
-            if (fus) {
-                on = true;
-                float t = d / r;                                                    /* -1 belly .. 1 spine */
-                rgb = t > 0.15f ? 0x4d5242 : t > -0.35f ? 0x565a4e : 0x7d8078;
-                if (t > 0.72f) rgb = mix(rgb, 0xb9bcae, 0.32f);                     /* the sun on the spine */
-                if (t < -0.75f) rgb = mix(rgb, 0x1c1e1a, 0.4f);
-                if (noise % 9 == 0) rgb = mix(rgb, 0x6a6e60, 0.5f);
-                bool panel = ((x + 58) % 12) == 0 || (x == 30) || (x == 46);
-                if (panel) rgb = mix(rgb, 0x23261f, 0.6f);
-                if (((x + 58) % 12) == 6 && ((h + x) & 3) == 0) rgb = mix(rgb, 0x8d9085, 0.5f);   /* rivets */
-                if (x >= 30 && x < 46 && t > -0.4f && t < 0.4f && x >= 36) rgb = mix(rgb, 0x2a2d28, 0.4f);   /* the cowl's dark mouth */
-                if (x >= 46) rgb = (x == 46) ? 0x2a2d28 : mix(0x8a8c84, 0x3a3d38, (float)(x - 46) / 4);      /* the spinner */
-                if (x >= -5 && x < 4 && t > 0.3f) rgb = mix(rgb, 0x8a8c84, 0.3f);   /* the windscreen frame's root */
-                if (x < -40 && t > 0.6f) rgb = mix(rgb, 0x2c2f27, 0.3f);
-                /* rust streaks down the side, growth along the belly */
-                if ((noise % 100) < 9 && t < 0.5f) rgb = mix(rgb, 0x6b3c1e, 0.55f);
-                if (((x + 58) % 12 == 1) && t < 0.2f && (noise % 3)) rgb = mix(rgb, 0x5c3418, 0.4f);
-                if (t < -0.5f && (noise % 100) < 30) rgb = (noise & 1) ? 0x6f7a60 : 0x55634c;
-                /* torn edges round the gap, a lip round the cockpit */
-                if (wkb_gap(x - 1, h) || wkb_gap(x + 1, h) || wkb_gap(x, h - 1) || wkb_gap(x, h + 1) || (wkb_gap(x - 2, h) && (noise & 1)) || (wkb_gap(x + 2, h) && (noise & 2))) rgb = (noise % 3) ? 0x1f211c : 0x9a9c92;
-                if (wkb_cockpit(x - 1, h) || wkb_cockpit(x + 1, h) || wkb_cockpit(x, h - 1)) rgb = 0x8a8c84;
+            bool fus = wkb_fuselage(x, h), can = wkb_canopy(x, h);
+            uint32_t inside = mix(water_rgb(y), 0x070c10, 0.8f);
+            if (layer == 0) { if (fus || can) wk_put(c, X, y, inside, final); continue; }
+            int piece = wkb_piece(x, h);
+            if (!piece) continue;
+            /* the holes: the canopy's glass and the cockpit under it, the torn gap aft */
+            bool frame = can && (!wkb_canopy(x - 2, h) || !wkb_canopy(x + 2, h) || !wkb_canopy(x, h + 2) || x == 12 || x == 13);
+            bool hole = (piece == 7 && !frame) || (piece == 1 && (wkb_cut(x, h) || wkb_gap(x, h)));
+            if (hole) { if (layer < 0) wk_put(c, X, y, inside, final); continue; }
+            /* the dark outline: wherever the piece changes */
+            if (wkb_piece(x - 1, h) != piece || wkb_piece(x + 1, h) != piece || wkb_piece(x, h - 1) != piece || wkb_piece(x, h + 1) != piece) {
+                wk_put(c, X, y, OUTLINE, final);
+                continue;
             }
-            /* the canopy frame, slid open over the cockpit: an arch of struts, the water through it */
-            { float top = wkb_axis(14) + wkb_r(14);
-              bool strut = (x >= 6 && x < 24 && h > top && h < top + 7 && ((x == 6 || x == 7 || x == 14 || x == 23) || h >= top + 6))
-                        || (x >= 24 && x < 32 && h > top && h < top + 7 - (x - 24) && (h == (int)(top + 7 - (x - 24)) - 1 || x == 24 || x == 25));
-              if (strut) { on = true; rgb = ((x + h) & 1) ? 0x9a9c92 : 0x7a7d74; } }
-            /* the near wing over the fuselage, resting on the sand: its roundel, panel lines, growth at the tip */
-            if (wkb_near_wing(x, h)) {
-                on = true;
-                float a0 = wkb_axis(8), u = (a0 - h) / a0;
-                rgb = (noise % 7 == 0) ? 0x6c7160 : 0x5f6455;
-                if (u < 0.12f) rgb = mix(rgb, 0x8d9085, 0.5f);
-                if (u < 0.05f || x > 26 - 24 * u - 1.2f) rgb = 0x272b23;             /* the root seam and the trailing edge */
-                if (u > 0.3f && x < -8 - 14 * u + 2) rgb = mix(rgb, 0x9a9c92, 0.45f);   /* the lit leading edge */                      /* the lit root fillet */
-                if (((int)(h * 1.0f) % 6) == 0 || ((x + 8 + (int)(14 * u)) % 11) == 0) rgb = mix(rgb, 0x272b23, 0.55f);
-                { int rx = x - 2, rh = h - 9; int d2 = rx * rx + rh * rh;              /* the worn roundel */
-                  if (d2 < 30) rgb = (noise % 4) ? 0xb3b2a2 : 0x8e8d80;
-                  if (d2 < 11) rgb = (noise % 4) ? 0x7a2e26 : 0x5a2420;
-                  if (d2 >= 30 && d2 < 46) rgb = (noise % 3) ? 0x2f3f6a : 0x3a4a78; }
-                if (h < 4 && (noise % 100) < 45) rgb = (noise & 1) ? 0x6f7a60 : 0x55634c;
-                if (h == 0 || (x < -15 && (noise % 5) == 0)) rgb = mix(rgb, 0x8a8c84, 0.3f);
+            uint32_t rgb = 0xb4bcc2;
+            float t = (h - axis) / (r > 1 ? r : 1);                                /* -1 belly .. 1 spine */
+            if (piece == 1) {
+                /* the fuselage: bright aluminium above, a shaded belly, panel lines, the cowl's mouth, the spinner */
+                rgb = t > 0.55f ? 0xe0e4e6 : t > 0.1f ? 0xbcc4ca : t > -0.45f ? 0x98a2aa : 0x5e6a72;
+                if (((x + 52) % 13) == 0 && x < 38) rgb = mix(rgb, 0x3a4248, 0.55f);
+                if (h == (int)(axis - 3) && x < 38) rgb = mix(rgb, 0x3a4248, 0.45f);
+                if (x >= -21 && x <= -17) rgb = t > 0.4f ? 0xf4d060 : t > -0.45f ? 0xe0b830 : 0x8a7020;   /* the yellow band */
+                if (x >= 38 && x < 40 && (t > 0.45f || t < -0.45f)) rgb = 0x1e2428;                     /* the cowl's dark mouth */
+                if (x >= 40) rgb = t > 0.2f ? 0xd8dde0 : 0x7a848c;                                      /* the spinner */
+                if (x > 44 && x < 48 && (noise & 1)) rgb = mix(rgb, 0xc8441e, 0.6f);                     /* its red nose tip, worn */
+                if ((noise % 100) < 5 && t < 0.4f && x < 38) rgb = mix(rgb, 0x8a4a28, 0.6f);            /* rust */
+                if (t < -0.6f && (noise % 100) < 28 && x < 36) rgb = (noise & 2) ? 0x4f6a32 : 0x3a5228;  /* growth along the belly */
+                /* the lip round the cockpit cut, the torn edge round the gap */
+                if (wkb_cut(x - 1, h) || wkb_cut(x + 1, h) || wkb_cut(x, h - 1)) rgb = FRAME;
+                if (wkb_gap(x - 1, h) || wkb_gap(x + 1, h) || wkb_gap(x, h - 1) || wkb_gap(x, h + 1)) rgb = (noise % 3) ? 0x2a3036 : FRAME;
+            } else if (piece == 7) {
+                rgb = FRAME;                                                       /* the canopy frame */
+            } else if (piece == 2) {
+                /* the near wing: lit along the leading edge, a seam at the root, the big roundel */
+                float u = (WKB_WING_ROOT - h) / WKB_WING_ROOT;
+                rgb = (noise % 11 == 0) ? 0xc4ccd2 : 0xb4bcc2;
+                if (x < -10 - 26 * u + 3) rgb = 0xe0e4e6;                          /* the leading edge in the sun */
+                if (x > 24 - 36 * u - 3) rgb = 0x7a848c;                           /* the trailing edge turned from it */
+                if (((x + 10 + (int)(26 * u)) % 12) == 6) rgb = mix(rgb, 0x3a4248, 0.4f);
+                { int rx = x + 9, rh = (int)((h - 14) * 1.2f); int d2 = rx * rx + rh * rh;   /* the roundel, foreshortened */
+                  if (d2 < 90) rgb = 0x2a4fa8;
+                  if (d2 < 44) rgb = 0xeef0f0;
+                  if (d2 < 14) rgb = 0xd0302a; }
+                if (h < 3 && (noise % 100) < 40) rgb = (noise & 2) ? 0x4f6a32 : 0x3a5228;
+            } else if (piece == 3) {
+                rgb = (noise % 9 == 0) ? 0x9aa4ab : 0x8a949c;                       /* the far wing, in the fuselage's shade */
+                if (((x + h) % 10) == 0) rgb = 0x5e6a72;
+            } else if (piece == 4) {
+                float tt = (h - 20) / 30.0f;
+                rgb = (noise % 9 == 0) ? 0xc4ccd2 : 0xb4bcc2;                       /* the fin */
+                if (x < -53 + 2 * tt + 6) rgb = 0xd0302a;                            /* the red rudder */
+                if (h >= 40 && h < 44) rgb = 0xeef0f0;                               /* the white stripe */
+                if (x > -36 - 12 * tt - 3) rgb = 0xe0e4e6;                           /* the lit leading edge */
+            } else if (piece == 5) {
+                rgb = (h >= axis - 5) ? 0xbcc4ca : 0x7a848c;                         /* the near tailplane */
+            } else if (piece == 6) {
+                int blade = 0, along = 0; wkb_prop_at(x, h, &blade, &along);
+                rgb = along >= (blade ? 19 : 21) ? 0xf0c030 : (noise % 5 == 0) ? 0x4a545c : 0x353b42;   /* the blades, yellow tips */
             }
-            /* the near tailplane: a foreshortened slab down from the tail */
-            { float at = wkb_axis(-50);
-              bool tp = x >= -57 && x <= -41 && h < at - 1 && h >= at - 7 + (x + 41) * 0.25f;
-              if (tp) { on = true; rgb = (h >= at - 2.5f) ? 0x7d8078 : 0x454a3d; if (x == -41 || x == -57) rgb = 0x2c2f27; } }
-            /* the propeller: the hub, a blade bent back over the cowl, one dug straight into the sand */
-            { float hub = wkb_axis(48);
-              int up = (int)(h - hub);
-              bool blade_up = up >= 0 && up < 22 && x >= 48 + (up > 12 ? -(up - 12) : 0) - 1 && x <= 50 + (up > 12 ? -(up - 12) : 0);
-              bool blade_dn = up < 0 && h >= 1 && x >= 48 && x <= 50;
-              if (blade_up || blade_dn) { on = true; rgb = ((h + x) % 5 == 0) ? 0x6a6c64 : 0x33352f; if (up >= 19 && up < 22) rgb = 0xb9a63a; } }
-            /* the anchor on the sand off the nose, its chain lying back toward the spinner */
-            { int axl = x - 58;
-              bool shank = axl >= -1 && axl <= 1 && h >= 2 && h < 20;
-              bool stock = h >= 16 && h < 19 && axl >= -5 && axl <= 5;
-              bool arms = h >= 1 && h < 6 && axl >= -5 && axl <= 5 && !(h >= 4 && axl >= -2 && axl <= 2);
-              bool fluke = (axl <= -4 || axl >= 4) && axl >= -5 && axl <= 5 && h >= 5 && h < 10;
-              bool ring = h >= 20 && h < 25 && axl >= -2 && axl <= 2 && !(h >= 21 && h < 24 && axl >= -1 && axl <= 1);
-              if (shank || stock || arms || fluke || ring) { on = true; rgb = (noise % 5 == 0) ? 0x6b4a32 : (axl < 0 ? 0x5a5d5f : 0x3a3d40); }
-              if (h >= 2 && h <= 6 && x >= 51 && x <= 56 && h == 2 + (56 - x) * 4 / 5 && (x & 1)) { on = true; rgb = 0x5a5d5f; } }
-            if (!on) continue;
-            if (noise % 29 == 0) rgb = mix(rgb, 0xffffff, 0.10f);
+            if (noise % 31 == 0) rgb = mix(rgb, 0xffffff, 0.12f);
             wk_put(c, X, y, rgb, final);
         }
     }
