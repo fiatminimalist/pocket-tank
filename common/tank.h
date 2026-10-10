@@ -85,7 +85,7 @@ void  tank_glass_clamp(float *x, float *y, float m);   /* (x,y) brought to at le
 #define N_TRAINED_NAMES 4       /* name tokens the v2 model was trained on */
 #define FISH_NAME_MAX 7         /* the keeper's name for a fish (first-run setup) */
 #define LOOK_N 8                /* body / accent swatches the keeper can pick from */
-#define MAX_FOOD   8
+#define MAX_FOOD   16           /* 2026-10-10: five portions at a time (five surface taps of three pellets), a slot to spare for the trickle; 8 before (two and a half taps) */
 #define MAX_BUBBLE 24
 
 /* upkeep: the vegetation beds keep growing - up toward the surface and out,

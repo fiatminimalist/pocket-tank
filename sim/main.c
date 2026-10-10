@@ -3947,6 +3947,15 @@ static int selftest_shop(void) {
         }
         if (!progression_sell(&tank, SD_ITEM_WRECK_IDX) || (tank.sd_unlocks & SD_ITEM_WRECK) || tank.sd_balance != progression_sell_value(SD_ITEM_WRECK_IDX)) { printf("FAIL: selling the wreck back\n"); return 1; }
         printf("shop: the shipwreck - item %d at %d, placed at 200 BEHIND, saved and back, drawn in both depths, sold back for %d\n", SD_ITEM_WRECK_IDX, SD_PRICE_WRECK, progression_sell_value(SD_ITEM_WRECK_IDX));
+        /* feeding (2026-10-10): five portions at a time - five surface taps drop three pellets each
+           and all fifteen are in the water; a sixth tap finds no room */
+        { for (int i = 0; i < MAX_FOOD; i++) tank.food[i].alive = false;
+          for (int tapn = 1; tapn <= 5; tapn++) { tank_feed(&tank, TANK_W / 2, 3); int live = 0; for (int i = 0; i < MAX_FOOD; i++) live += tank.food[i].alive;
+              if (live != tapn * 3) { printf("FAIL: tap %d left %d pellets (want %d)\n", tapn, live, tapn * 3); return 1; } }
+          tank_feed(&tank, TANK_W / 2, 3); int live = 0; for (int i = 0; i < MAX_FOOD; i++) live += tank.food[i].alive;
+          if (live > MAX_FOOD) { printf("FAIL: more pellets than slots\n"); return 1; }
+          for (int i = 0; i < MAX_FOOD; i++) tank.food[i].alive = false;
+          printf("feeding: five portions at a time (15 pellets), the sixth tap finds %d slot(s)\n", MAX_FOOD - 15); }
         /* the frogman (2026-10-10, item 8): a resident like the snail - bought once at 120, never
            placed or sold; he drifts sideways across the water, turning at the margins, in a
            lane between FROG_LANE_LO and FROG_LANE_HI; the bit alone survives a save */

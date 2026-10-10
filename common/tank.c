@@ -1687,7 +1687,7 @@ int tank_shrimp_tap(tank_t *t, float x, float y) {
 void tank_touch_tap(tank_t *t, float x, float y) {
     tank_handled(t);
     if (t->tool != TOOL_HAND) return;            /* a tool in hand: no feed, no light, no startle - DONE first (2026-10-04) */
-    if (y - tank_glass_top(x) < FEED_ZONE_Y) { tank_feed(t, x, 3); return; }     /* surface tap = feed (the bowl's surface is its top glass) */
+    if (y - tank_glass_top(x) < FEED_ZONE_Y) { tank_feed(t, x, 3); return; }     /* surface tap = feed, a portion of three; up to five portions fit (MAX_FOOD) */
     if (t->tap_burst_t > TAP_WINDOW) t->tap_count = 0;
     t->tap_count++; t->tap_burst_t = 0; t->tap_x = x; t->tap_y = y;
     tank_emit(TEV_TAP, -1);
