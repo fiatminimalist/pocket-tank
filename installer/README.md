@@ -103,6 +103,20 @@ so pushing to the public repo is the whole release step: no upload, no
 cache purge. (Manual failure mode: the Actions run is red - `gh run list
 --repo fiatminimalist/aqua-pets`.)
 
+## Android, and the local server's certificate (2026-10-10)
+
+Chrome on Android installs through WebUSB (the vendored web-serial-polyfill) and
+shows a USB chooser on Install - but Chrome refuses every permission prompt on a
+page it opened through a certificate warning, so a self-signed server must be
+TRUSTED by the phone first. The local `serve.py` now presents a CA certificate
+whose Subject Alternative Names are the machine's addresses (192.168.88.216,
+100.66.66.66, 127.0.0.1, flux, localhost; regenerate it with openssl and a SAN
+config if the addresses change) and serves it at `/aqua-pets-installer.crt`. The
+page's Android section links it with the install steps (Settings → Security →
+Install a certificate → CA certificate) and has a **Test USB access** button that
+runs the chooser alone and says in words what happened. A public HTTPS host with
+a real certificate needs none of this.
+
 ## Host it
 
 Web Serial needs a secure context, so the page must be on **HTTPS** (or
