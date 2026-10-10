@@ -34,7 +34,7 @@ CFLAGS  := $(ROUNDF) -O2 -std=c11 $(ARCH) -I. -I../common -I../common/llm -DLV_C
            -Wall -Wextra -Wno-unused-parameter -MMD -MP
 LDFLAGS := $(ARCH) $(SDL_LIBS) -lm
 
-APP_SRCS  := main.c theme_test.c advisor_llm.c persist_port_sim.c net_port_sim.c ../common/tank.c ../common/update.c ../common/advisor.c ../common/render.c ../common/theme.c ../common/theme_assets.c ../common/icons.c ../common/jellyfish_assets.c ../common/wreck_assets.c ../common/progression.c ../common/setup.c ../common/audio.c ../common/notice.c ../common/sounds.c ../common/battery.c ../common/llm/q4_model.c ../common/llm/word_tok.c ../common/llm/advisor_core.c
+APP_SRCS  := main.c theme_test.c advisor_llm.c persist_port_sim.c net_port_sim.c ../common/tank.c ../common/update.c ../common/advisor.c ../common/render.c ../common/theme.c ../common/theme_assets.c ../common/icons.c ../common/jellyfish_assets.c ../common/wreck_assets.c ../common/frogman_assets.c ../common/progression.c ../common/setup.c ../common/audio.c ../common/notice.c ../common/sounds.c ../common/battery.c ../common/llm/q4_model.c ../common/llm/word_tok.c ../common/llm/advisor_core.c
 
 LVGL_SRCS := $(shell find lvgl/src -name '*.c')
 OBJS      := $(patsubst %.c,$(BUILD)/%.o,$(filter-out ../common/%,$(APP_SRCS)) $(LVGL_SRCS)) $(patsubst ../common/%.c,$(BUILD)/common/%.o,$(filter ../common/%,$(APP_SRCS)))

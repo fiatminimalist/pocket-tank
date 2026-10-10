@@ -45,6 +45,8 @@ extern const icon_t icon_shop_jellyfish;
 const icon_t *jellyfish_theme_icon(int theme);
 extern const icon_t icon_shop_wreck;            /* the shipwreck (2026-10-10): common/wreck_assets.c, tools/gen_wreck_assets.py */
 const icon_t *wreck_theme_icon(int theme);
+extern const icon_t icon_shop_frogman;          /* the frogman (2026-10-10): common/frogman_assets.c, tools/gen_frogman_assets.py */
+const icon_t *frogman_theme_icon(int theme);
 extern const icon_t icon_shop_octopus;
 extern const icon_t icon_shop_plant;
 extern const icon_t icon_shop_puffer;

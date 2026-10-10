@@ -3366,7 +3366,7 @@ static int selftest_shop(void) {
            walls; BEHIND the fish and the grass pass in front of it; the spot and
            the depth survive a save */
         {
-            if (SD_ITEM_COUNT != 18 || SD_ITEMS[2].bit != SD_ITEM_CASTLE || SD_ITEMS[2].price != SD_PRICE_CASTLE) { printf("FAIL: the castle is not the third item\n"); return 1; }
+            if (SD_ITEM_COUNT != 19 || SD_ITEMS[2].bit != SD_ITEM_CASTLE || SD_ITEMS[2].price != SD_PRICE_CASTLE) { printf("FAIL: the castle is not the third item\n"); return 1; }
             if (!tank_decor_placeable(2) || tank_decor_z_count(2) != 2 || tank_decor_z_at(2, 0) != DECOR_Z_BACK || tank_decor_z_at(2, 1) != DECOR_Z_FRONT
                 || tank_decor_z_index(2, DECOR_Z_FRONT) != 1 || tank_decor_z_index(2, DECOR_Z_BACK) != 0) { printf("FAIL: the castle's depths\n"); return 1; }
             tank.sd_balance = SD_PRICE_CASTLE - 1;
@@ -3947,6 +3947,27 @@ static int selftest_shop(void) {
         }
         if (!progression_sell(&tank, SD_ITEM_WRECK_IDX) || (tank.sd_unlocks & SD_ITEM_WRECK) || tank.sd_balance != progression_sell_value(SD_ITEM_WRECK_IDX)) { printf("FAIL: selling the wreck back\n"); return 1; }
         printf("shop: the shipwreck - item %d at %d, placed at 200 BEHIND, saved and back, drawn in both depths, sold back for %d\n", SD_ITEM_WRECK_IDX, SD_PRICE_WRECK, progression_sell_value(SD_ITEM_WRECK_IDX));
+        /* the frogman (2026-10-10, item 8): a resident like the snail - bought once at 120, never
+           placed or sold; he drifts sideways across the water, turning at the margins, in a
+           lane between FROG_LANE_LO and FROG_LANE_HI; the bit alone survives a save */
+        if (SD_ITEMS[SD_ITEM_FROGMAN_IDX].bit != SD_ITEM_FROGMAN || SD_ITEMS[SD_ITEM_FROGMAN_IDX].price != SD_PRICE_FROGMAN || strcmp(SD_ITEMS[SD_ITEM_FROGMAN_IDX].name, "FROGMAN")) { printf("FAIL: the frogman is not item %d at %d\n", SD_ITEM_FROGMAN_IDX, SD_PRICE_FROGMAN); return 1; }
+        if (tank_decor_placeable(SD_ITEM_FROGMAN_IDX) || progression_item_species(SD_ITEM_FROGMAN_IDX) != -1) { printf("FAIL: the frogman reads as placeable or a species\n"); return 1; }
+        tank.sd_unlocks &= ~SD_ITEM_FROGMAN; tank.sd_balance = SD_PRICE_FROGMAN;
+        if (!progression_buy(&tank, SD_ITEM_FROGMAN_IDX) || tank.sd_balance != 0 || !(tank.sd_unlocks & SD_ITEM_FROGMAN)) { printf("FAIL: the frogman did not sell at %d\n", SD_PRICE_FROGMAN); return 1; }
+        if (progression_buy(&tank, SD_ITEM_FROGMAN_IDX) || progression_sell(&tank, SD_ITEM_FROGMAN_IDX)) { printf("FAIL: a second frogman, or one sold back\n"); return 1; }
+        { float x0 = tank.frog_x; int turns = 0, dir = tank.frog_dir; float lo = 1e9f, hi = -1e9f, ylo = 1e9f, yhi = -1e9f;
+          for (int i = 0; i < 180 * 60; i++) { tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
+              if (tank.frog_dir != dir) { turns++; dir = tank.frog_dir; }
+              if (tank.frog_x < lo) lo = tank.frog_x; if (tank.frog_x > hi) hi = tank.frog_x;
+              if (tank.frog_y < ylo) ylo = tank.frog_y; if (tank.frog_y > yhi) yhi = tank.frog_y;
+              if (i == 120 && fabsf(tank.frog_x - x0) < 10) { printf("FAIL: the frogman did not drift (%.1f -> %.1f in 2 s)\n", x0, tank.frog_x); return 1; } }
+          if (turns < 2 || lo < FROG_MARGIN - 3 || hi > TANK_W - FROG_MARGIN + 3) { printf("FAIL: the frogman's drift: %d turns, x %.0f..%.0f\n", turns, lo, hi); return 1; }
+          if (ylo < FROG_LANE_LO - 1 || yhi > FROG_LANE_HI + 1) { printf("FAIL: the frogman left his band of water (y %.0f..%.0f)\n", ylo, yhi); return 1; }
+          if (!tank_frogman_hit(&tank, tank.frog_x, tank.frog_y) || tank_frogman_hit(&tank, tank.frog_x + 60, tank.frog_y)) { printf("FAIL: the frogman's hit test\n"); return 1; }
+          render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
+          progression_save(&tank); tank_t back; tank_init(&back, 8); progression_boot(&back);
+          if (!(back.sd_unlocks & SD_ITEM_FROGMAN) || back.frog_x != TANK_W / 2) { printf("FAIL: the frogman did not come back from the save mid-tank\n"); return 1; }
+          printf("shop: the frogman - item %d at %d, a resident (no MOVE, no SELL), drifted %d turns across x %.0f..%.0f, y %.0f..%.0f, back from the save\n", SD_ITEM_FROGMAN_IDX, SD_PRICE_FROGMAN, turns, lo, hi, ylo, yhi); }
     }
     {
         static uint16_t fb[TANK_W * TANK_H];
@@ -5157,6 +5178,8 @@ int main(int argc, char **argv) {
             else if (r == SET_TAP_FEED) printf("auto feed: %s\n", v ? "ON" : "OFF");
             else if (r == SET_TAP_THEME) printf("theme: %s\n", theme_palette(v)->name);
             else if (r == SET_TAP_ROTATE) printf("rotation: %s\n", v ? "LOCKED" : "unlocked");
+            else if (r == SET_TAP_ABOUT) { if (s_adev) { SDL_LockAudioDevice(s_adev); audio_jingle(v); SDL_UnlockAudioDevice(s_adev); }   /* the about page: its jingle while it is up */
+                                           printf(v ? "about page up (the jingle plays)\n" : "about page closed\n"); }
         } else if (updates_view && !confirm_view) {              /* the UPDATES page: CHECK, FORGET, CLOSE */
             int r = updates_page_touch((float)mx, (float)my, mpress);
             if (r == UPD_TAP_CLOSE) { updates_view = false; settings_view = true; ms_back = true; }   /* back to the settings page */

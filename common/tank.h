@@ -592,6 +592,15 @@ typedef struct tank {
      * bubbles. Its centre x (<= 0 = the default) and depth, BACK or FRONT. Both saved. */
     float    wreck_x;
     uint8_t  wreck_z;
+    /* the frogman (2026-10-10, item 8; he hung from the wreck's stern before): a little diver
+       who floats SIDEWAYS, horizontal, drifting across the water from glass to glass, turning
+       at each end, easing to a new lane now and then, waving at times. His suit is the
+       theme's (render.c). Only the bit is saved: a load puts him mid-tank. */
+    float    frog_x, frog_y;
+    float    frog_yaw;             /* -1 facing left .. 1 facing right; thin through a turn */
+    int8_t   frog_dir;             /* the way he is going */
+    float    frog_lane;            /* the y he eases toward */
+    float    frog_lane_t;          /* seconds until he picks another lane */
     /* the shrimp school (SD_ITEM_SHRIMP, see SHRIMP_*): how many (saved), the
      * pellets eaten toward the next one (0..SHRIMP_PER_JOIN, saved), the seconds
      * before another may join (saved), each shrimp's motion (not saved: a load
@@ -881,6 +890,12 @@ int   tank_species_n(const tank_t *t, int species);
 float tank_fish_hit_r(const fish_t *f);
 bool  tank_poke(tank_t *t, int idx);        /* a double tap on creature idx: its trick (puff, ink); false = it has none */
 void  tank_wreck_place(tank_t *t);           /* the shipwreck bought: its default spot (item 7) */
+void  tank_frogman_place(tank_t *t);         /* the frogman bought (or loaded): mid-tank, heading right (item 8) */
+bool  tank_frogman_hit(const tank_t *t, float x, float y);   /* within a fingertip of him */
+#define FROG_SPEED     9.0f                  /* px/s across the tank */
+#define FROG_MARGIN    (DECOR_MARGIN + 24)   /* he turns this far from the glass */
+#define FROG_LANE_LO   (TANK_H * 0.20f)      /* the band of water he drifts in */
+#define FROG_LANE_HI   (TANK_H * 0.56f)
 float tank_species_size(const fish_t *f);   /* its base size: from its personality, so a load gets the same */
 /* the species' motion, for the renderer and the tests (see THE CONVENTION in
  * fish_t). tank_ground_y: the top of what a floor walker stands on at x -
@@ -926,9 +941,11 @@ enum { SD_ITEM_PLANT = 1u << 0, SD_ITEM_SNAIL = 1u << 1, SD_ITEM_CASTLE = 1u << 
        SD_ITEM_SP_EEL = 1u << 11, SD_ITEM_SP_SHARK = 1u << 12, SD_ITEM_SP_SQUID = 1u << 13, SD_ITEM_SP_CRAB = 1u << 14,
        SD_ITEM_SP_LOBSTER = 1u << 15, SD_ITEM_SP_JELLYFISH = 1u << 16,
        SD_ITEM_WRECK = 1u << 17,   /* the shipwreck (2026-10-10): item index 7, after the urchin - a thing, before the species */
-       SD_ITEM_COUNT = 18 };
-#define SD_ITEM_SP_FIRST 8         /* the item index of the first species (the seahorse) */
+       SD_ITEM_FROGMAN = 1u << 18, /* the frogman (2026-10-10, later that day): item index 8, a resident like the snail */
+       SD_ITEM_COUNT = 19 };
+#define SD_ITEM_SP_FIRST 9         /* the item index of the first species (the seahorse) */
 #define SD_ITEM_WRECK_IDX 7        /* the shipwreck's item index */
+#define SD_ITEM_FROGMAN_IDX 8      /* the frogman's item index */
 /* per-fish paid bits (sd_paid_fish) */
 enum { SD_PAID_JUV = 1u << 0, SD_PAID_ADULT = 1u << 1, SD_PAID_ELDER = 1u << 2, SD_PAID_TRUST = 1u << 3 };
 #define PX_PER_INCH 24.0f          /* the tank reads as ~15 in tall; a fish ~1.7 in */

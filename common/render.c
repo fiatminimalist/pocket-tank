@@ -1952,7 +1952,8 @@ static float    g_coral_dim = -1;
 /* the shipwreck (2026-10-10, item 7): a small sunken boat, drawn from geometry like the
  * castle, baked into the scene; IN FRONT its hull comes back over the fish through a mask
  * (as the cluster's) that leaves its two big holes out - so a fish behind the hull shows
- * through them, swimming in and out. The frogman and his bubble mist are live (draw_wreck_live). */
+ * through them, swimming in and out. (The frogman hung from its stern until the afternoon of 2026-10-10;
+ * he is his own thing now, draw_frogman.) The hull is the theme's: three boats (draw_wreck). */
 #define WK_W   128
 #define WK_H   84                               /* rows above WK_FY: the mast's top */
 #define WK_FY  (TANK_BOT - 14 + DECOR_SINK)
@@ -2862,7 +2863,7 @@ static inline bool wk_hole(int x, int h) {                                      
 static uint32_t wk_wood(uint32_t rgb) {                                          /* the themes' weathering */
     return theme_active() == THEME_QUIET_LAGOON ? mix(rgb, 0x5d6f62, 0.35f) : theme_active() == THEME_TIDEPOOL_CLUB ? mix(rgb, 0xb08a5c, 0.4f) : rgb;
 }
-static void draw_wreck(ctx_t *c, int cx, bool final, int layer) {
+static void draw_wreck_original(ctx_t *c, int cx, bool final, int layer) {
     for (int h = -2; h <= WK_H; h++) {
         int y = WK_FY - h;
         if (y < c->oy || y >= c->oy + c->h) continue;
@@ -2926,55 +2927,205 @@ static void draw_wreck(ctx_t *c, int cx, bool final, int layer) {
     }
     draw_floor_mound(c, cx, WRECK_HALF_W - 8, 5, final);
 }
-/* the frogman (live, every frame): a little diver on a line from the stern post, bobbing
- * on the water's slow lift, a mist of fine bubbles rising from his helmet. The rect he
- * and his mist cover this frame comes back for the dirty pass. */
-static void draw_wreck_live(ctx_t *c, int cx, float clock, int *bx0, int *by0, int *bx1, int *by1) {
-    float fx = cx - 38, fy = WK_FY - 52 + sinf(clock * 1.6f) * 3 + sinf(clock * 0.7f + 1) * 1.5f;
-    float sx = cx - 50, sy = WK_FY - wk_deck(-50) - 4;                           /* the stern post's top */
-    uint32_t suit = theme_active() == THEME_TIDEPOOL_CLUB ? 0x3f5a6e : 0x2b3a46, brass = 0xd8c27a, glass = 0x9fd8e2, line = 0x8a8f8a;
-    /* the line, slack: three segments */
-    for (int k = 0; k < 3; k++) {
-        float u0 = k / 3.0f, u1 = (k + 1) / 3.0f, sag = 4;
-        float x0 = sx + (fx - sx) * u0, y0 = sy + (fy + 10 - sy) * u0 + sag * sinf(u0 * 3.14159f);
-        float x1 = sx + (fx - sx) * u1, y1 = sy + (fy + 10 - sy) * u1 + sag * sinf(u1 * 3.14159f);
-        float px[4] = { x0, x1, x1, x0 }, py[4] = { y0 - 0.5f, y1 - 0.5f, y1 + 0.5f, y0 + 0.5f };
-        fill_poly(c, px, py, 4, line);
+/* Quiet Lagoon's wreck (2026-10-10): an old rowing boat CAPSIZED on the sand - its hull an
+ * upturned arch, strakes following the keel ridge, moss along the sand and over the top,
+ * two gaps where planks fell out (the holes), a broken oar leaning on its left end, a
+ * stone anchor (a holed stone on a rope) by its right. Same layers as the Original. */
+static inline float wkl_top(int x) { float u = x / 50.0f; return 34 * (1 - u * u); }
+static inline bool wkl_hole(int x, int h) {
+    int ax = x + 20, ah = h - 12, bx = x - 18, bh = h - 11;
+    return ax * ax * 49 + ah * ah * 100 < 49 * 100 || bx * bx * 36 + bh * bh * 64 < 36 * 64;
+}
+static void draw_wreck_lagoon(ctx_t *c, int cx, bool final, int layer) {
+    for (int h = -2; h <= 48; h++) {
+        int y = WK_FY - h;
+        if (y < c->oy || y >= c->oy + c->h) continue;
+        for (int x = -WK_W / 2; x < WK_W / 2; x++) {
+            int X = cx + x;
+            if (X < c->ox || X >= c->ox + c->w) continue;
+            unsigned noise = ((unsigned)(x + 100) * 1237u + (unsigned)(h + 40) * 719u) ^ ((unsigned)(x + 130) * (unsigned)(h + 17));
+            float top = wkl_top(x);
+            bool body = x > -50 && x < 50 && h >= 0 && h < top;
+            if (layer == 0) { if (body && h < top - 2) wk_put(c, X, y, mix(water_rgb(y), 0x0b1517, 0.78f), final); continue; }
+            bool hole = body && wkl_hole(x, h);
+            if (hole) { if (layer < 0) wk_put(c, X, y, mix(water_rgb(y), 0x0b1517, 0.78f), final); continue; }
+            uint32_t rgb = 0; bool on = false;
+            if (body) {
+                on = true;
+                float down = top - h;                                             /* strakes counted from the keel ridge down */
+                bool seam = ((int)down % 6) == 0, joint = ((x + 64 + ((int)(down / 6) & 1) * 9) % 18) == 0;
+                rgb = (noise % 7 < 2) ? 0x768570 : 0x66755f;
+                if (down < 3) rgb = 0x3a4a3d;                                      /* the keel ridge */
+                else if (seam || joint) rgb = 0x3c4a3f;
+                if (x < -8 && down > 3 && down < 14) rgb = mix(rgb, 0x9aa892, 0.25f);   /* lit from the left */
+                if ((h < 7 || down < 9) && noise % 9 < 3) rgb = 0x4f7a4a;         /* moss along the sand and over the top */
+                if (noise % 31 == 0) rgb = 0x6a9a62;
+                if (wkl_hole(x - 1, h) || wkl_hole(x + 1, h) || wkl_hole(x, h - 1) || wkl_hole(x, h + 1)) rgb = 0x2f3a31;   /* broken plank ends */
+                if (h == 0) rgb = 0x3c4a3f;
+            }
+            /* the oar, leaning on the hull's left end: a shaft from the sand up and in, a blade at its top */
+            { float ox = -66 + h * (22 / 42.0f); int dxo = x - (int)(ox + 0.5f);
+              bool shaft = h >= 0 && h < 36 && dxo >= -1 && dxo <= 0;
+              bool blade = h >= 34 && h < 47 && dxo >= -4 + (h > 44 ? 2 : 0) && dxo <= 3 - (h > 44 ? 2 : 0) && (noise % 17 != 0);
+              if (shaft || blade) { on = true; rgb = blade && ((h - 34) % 4 == 0) ? 0x5e5a46 : (noise % 5 == 0) ? 0x7a7458 : 0x8c8468; } }
+            /* the stone anchor by the right end, its rope back to the hull */
+            { int axl = x - 60, ah = h - 6;
+              bool stone = axl * axl * 49 + ah * ah * 49 <= 49 * 49 && h >= 0, eye = axl * axl + (h - 7) * (h - 7) <= 6;
+              if (stone && !eye) { on = true; rgb = (noise % 6 == 0) ? 0x8d8f84 : axl < -1 ? 0x7d7f74 : 0x66685f; if (h < 2) rgb = 0x4e5048; }
+              else if (eye && h >= 0) { on = true; rgb = mix(water_rgb(y), 0x0b1517, 0.6f); }
+              float u = (x - 42) / 15.0f;                                          /* the rope: from the hull's end to the stone, sagging */
+              int ry = (int)(5 + 4 * u + sinf(u * 3.14159f) * 3 + 0.5f);
+              if (x >= 42 && x <= 57 && h == ry && (x % 3) != 2 && !stone) { on = true; rgb = 0x8a7a5a; } }
+            if (!on) continue;
+            if (noise % 29 == 0) rgb = mix(rgb, 0xffffff, 0.10f);
+            wk_put(c, X, y, rgb, final);
+        }
     }
-    /* the body: tank on the back, torso, arms out, legs and flippers kicking */
-    float kick = sinf(clock * 2.2f) * 2;
-    fill_ellipse(c, fx - 4, fy - 1, 2.2f, 5, 0x7f8a8f, 255);                      /* the air tank */
-    fill_ellipse(c, fx, fy, 3.6f, 6, suit, 255);                                  /* the torso */
-    /* an arm out - and now and then (2026-10-10) a wave: every 23 s, for 2.6 s, the arm goes up
-       and the forearm swings from the elbow, a glove at its end */
-    float wph = fmodf(clock, 23.0f);
-    if (wph < 2.6f) {
-        float swing = sinf(clock * 9.0f) * 0.55f, lift = fminf(1, wph * 4) * fminf(1, (2.6f - wph) * 4);   /* up fast, down fast */
-        float ex = fx + 6, ey = fy - 3 - 7 * lift;                                                              /* the elbow, raised */
-        float hx = ex + sinf(swing) * 7 * lift + (1 - lift) * 3, hy = ey - cosf(swing) * 7 * lift;              /* the hand */
-        { float px[4] = { fx + 2, ex + 1.2f, ex - 1.2f, fx + 2 }, py[4] = { fy - 3, ey, ey, fy - 1 }; fill_poly(c, px, py, 4, suit); }
-        { float dx = hx - ex, dy = hy - ey, l = sqrtf(dx * dx + dy * dy) + 1e-3f, nx = -dy / l * 1.1f, ny = dx / l * 1.1f;
-          float px[4] = { ex + nx, hx + nx, hx - nx, ex - nx }, py[4] = { ey + ny, hy + ny, hy - ny, ey - ny }; fill_poly(c, px, py, 4, suit); }
-        fill_ellipse(c, hx, hy, 1.6f, 1.6f, 0x1d2a33, 255);
-    } else { float px[4] = { fx + 2, fx + 9, fx + 9, fx + 2 }, py[4] = { fy - 3, fy - 6 + kick * 0.3f, fy - 4 + kick * 0.3f, fy - 1 }; fill_poly(c, px, py, 4, suit); }
-    { float px[4] = { fx - 2, fx - 1, fx + 1, fx }, py[4] = { fy + 5, fy + 12 + kick, fy + 12 + kick, fy + 5 }; fill_poly(c, px, py, 4, suit); }   /* a leg */
-    { float px[4] = { fx + 1, fx + 3, fx + 4, fx + 2 }, py[4] = { fy + 5, fy + 12 - kick, fy + 12 - kick, fy + 5 }; fill_poly(c, px, py, 4, suit); }
-    fill_ellipse(c, fx - 0.5f, fy + 13 + kick, 3, 1.3f, 0x1d2a33, 255);           /* the flippers */
-    fill_ellipse(c, fx + 2.5f, fy + 13 - kick, 3, 1.3f, 0x1d2a33, 255);
-    fill_ellipse(c, fx, fy - 9, 4.2f, 4.2f, brass, 255);                           /* the helmet */
-    fill_ellipse(c, fx + 1, fy - 9, 2.4f, 2.4f, glass, 255);                       /* its faceplate */
-    px_blend(c, (int)(fx + 0.5f), (int)(fy - 10), 0xffffff, 170);
-    /* the mist: a dozen fine bubbles rising from the helmet, each on its own slow loop */
-    int mx0 = (int)fx - 9, mx1 = (int)fx + 9, my0 = (int)fy - 60;
+    draw_floor_mound(c, cx, WRECK_HALF_W - 8, 5, final);
+}
+/* Tidepool Club's wreck (2026-10-10): a cheerful little TUGBOAT sitting upright on the sand -
+ * a beamy cream hull with a red band and a teal bottom, two big brass-rimmed portholes (the
+ * holes), a wheelhouse with lit windows and a red roof, an orange funnel with a white stripe,
+ * a mast flying a cyan pennant, a life ring on the side, an anchor hung off the bow. */
+#define WKC_DECK 26
+static inline float wkc_keel(int x) { int a = x < 0 ? -x : x; return a > 38 ? ((a - 38) / 10.0f) * ((a - 38) / 10.0f) * 14 : 0; }
+static inline bool wkc_hole(int x, int h) { int ax = x + 18, ah = h - 13, bx = x - 16, bh = h - 13; return ax * ax + ah * ah < 64 || bx * bx + bh * bh < 64; }
+static inline bool wkc_rim(int x, int h) { int ax = x + 18, ah = h - 13, bx = x - 16, bh = h - 13; int ra = ax * ax + ah * ah, rb = bx * bx + bh * bh; return (ra >= 64 && ra < 110) || (rb >= 64 && rb < 110); }
+static void draw_wreck_club(ctx_t *c, int cx, bool final, int layer) {
+    for (int h = -2; h <= WKC_DECK + 44; h++) {
+        int y = WK_FY - h;
+        if (y < c->oy || y >= c->oy + c->h) continue;
+        for (int x = -WK_W / 2; x < WK_W / 2; x++) {
+            int X = cx + x;
+            if (X < c->ox || X >= c->ox + c->w) continue;
+            unsigned noise = ((unsigned)(x + 100) * 1237u + (unsigned)(h + 40) * 719u) ^ ((unsigned)(x + 130) * (unsigned)(h + 17));
+            bool body = x > -48 && x < 48 && h >= wkc_keel(x) && h < WKC_DECK;
+            if (layer == 0) { if (body && h < WKC_DECK - 1) wk_put(c, X, y, mix(water_rgb(y), 0x12141c, 0.75f), final); continue; }
+            bool hole = body && wkc_hole(x, h);
+            if (hole) { if (layer < 0) wk_put(c, X, y, mix(water_rgb(y), 0x12141c, 0.75f), final); continue; }
+            uint32_t rgb = 0; bool on = false;
+            if (body) {
+                on = true;
+                int down = WKC_DECK - h;
+                rgb = (noise % 9 == 0) ? 0xe4d6b4 : 0xefe3c3;                       /* cream topsides */
+                if (h < 11) rgb = (noise % 7 == 0) ? 0x25756d : 0x2e8f85;             /* the teal bottom */
+                else if (h < 14) rgb = 0xd8402c;                                      /* the red boot stripe */
+                if (down <= 2) rgb = 0x5a3b28;                                        /* the gunwale */
+                if (noise % 41 == 0) rgb = mix(rgb, 0xb06a3a, 0.35f);                 /* a rust stain here and there */
+                if (wkc_rim(x, h)) rgb = ((x + h) & 1) ? 0xd8c27a : 0xb89a52;         /* the brass rims */
+                if (x <= -46 || x >= 46) rgb = mix(rgb, 0x5a3b28, 0.3f);
+            }
+            /* the wheelhouse, its windows and roof */
+            bool house = x >= -8 && x <= 18 && h >= WKC_DECK && h < WKC_DECK + 20;
+            if (house) { on = true; int hh = h - WKC_DECK;
+                bool win = hh >= 8 && hh < 15 && ((x >= -4 && x <= 2) || (x >= 8 && x <= 14));
+                rgb = win ? (hh < 11 ? 0xffe9a8 : 0xffd889) : (hh < 2 || hh >= 18 || x <= -7 || x >= 17) ? 0xd8402c : (noise % 11 == 0) ? 0xf0e4ca : 0xf8efd8;
+                if (win && (x == -1 || x == 11)) rgb = 0xd8402c; }
+            bool roof = x >= -11 && x <= 21 && h >= WKC_DECK + 20 && h < WKC_DECK + 23;
+            if (roof) { on = true; rgb = h == WKC_DECK + 22 ? 0xe8623f : 0xb8321e; }
+            /* the funnel, orange with a white stripe and a black top */
+            bool funnel = x >= 24 && x <= 32 && h >= WKC_DECK && h < WKC_DECK + 28;
+            if (funnel) { on = true; int fh = h - WKC_DECK; rgb = fh >= 24 ? 0x2b2b2b : (fh >= 17 && fh < 21) ? 0xfff6d9 : (x <= 25 ? 0xc98a34 : 0xe8a845); }
+            /* the mast and its pennant */
+            bool mast = x >= -30 && x <= -28 && h >= WKC_DECK && h < WKC_DECK + 40;
+            bool flag = x > -28 && x <= -14 && h >= WKC_DECK + 33 && h < WKC_DECK + 40 && (x + 28) <= (WKC_DECK + 40 - h) * 2 + 1 && (noise % 23 != 0);
+            if (mast) { on = true; rgb = (h % 7 == 0) ? 0x6a4428 : 0x8a5c3a; }
+            else if (flag) { on = true; rgb = ((x + 28) / 4 % 2) ? 0x33c7e0 : 0x5fd8ea; }
+            /* the life ring on the side, white and orange quarters */
+            { int rx = x - 38, rh = h - 19; int r2 = rx * rx + rh * rh;
+              if (r2 >= 12 && r2 < 42) { on = true; rgb = (rx * rh > 0) ? 0xfff6d9 : 0xe8702e; } }
+            /* the anchor hung off the bow, its chain up to the gunwale */
+            { int axl = x - 56;
+              bool shank = axl >= -1 && axl <= 1 && h >= 4 && h < 26;
+              bool stock = h >= 21 && h < 24 && axl >= -5 && axl <= 5;
+              bool arms = h >= 3 && h < 8 && axl >= -7 && axl <= 7 && !(h >= 6 && axl >= -3 && axl <= 3);
+              bool fluke = (axl <= -6 || axl >= 6) && axl >= -7 && axl <= 7 && h >= 7 && h < 12;
+              bool ring = h >= 26 && h < 31 && axl >= -3 && axl <= 3 && !(h >= 27 && h < 30 && axl >= -2 && axl <= 2);
+              if (shank || stock || arms || fluke || ring) { on = true; rgb = (noise % 5 == 0) ? 0x6f6a5a : (axl < 0 ? 0x565a5d : 0x3a3d40); }
+              { float u = (h - 31) / 8.0f; int lx = (int)(56 - 8 * u + 0.5f);
+                if (h >= 31 && h <= 39 && x == lx && (h % 3) != 2) { on = true; rgb = 0x5a5d5f; } } }
+            if (!on) continue;
+            if (noise % 29 == 0) rgb = mix(rgb, 0xffffff, 0.12f);
+            wk_put(c, X, y, rgb, final);
+        }
+    }
+    draw_floor_mound(c, cx, WRECK_HALF_W - 8, 5, final);
+}
+static void draw_wreck(ctx_t *c, int cx, bool final, int layer) {
+    if (theme_active() == THEME_QUIET_LAGOON) draw_wreck_lagoon(c, cx, final, layer);
+    else if (theme_active() == THEME_TIDEPOOL_CLUB) draw_wreck_club(c, cx, final, layer);
+    else draw_wreck_original(c, cx, final, layer);
+}
+/* ---- the frogman (2026-10-10, item 8; he hung from the wreck's stern that morning) ----
+ * A little diver floating SIDEWAYS: horizontal, face forward, air tank on his back (the
+ * top), flippers kicking behind him, drifting across the water (tank.c: frog_x, frog_yaw -
+ * the body thins through a turn, as a fish does), bobbing on the water's slow lift. His
+ * arm reaches forward - and every 23 s, for 2.6 s, it goes up and the forearm waves from the
+ * elbow. A mist of fine bubbles rises from his mask. The suit is the theme's, brighter than
+ * the wreck's old grey diver: Original a yellow-and-black banded wetsuit with red fins,
+ * Quiet Lagoon turquoise with coral bands and violet fins, Tidepool Club hot pink with lime
+ * bands and cyan fins. Live every frame; the rect he and his mist cover comes back. */
+static void thick_line(ctx_t *c, float x0, float y0, float x1, float y1, float w, uint32_t rgb) {
+    float dx = x1 - x0, dy = y1 - y0, l = sqrtf(dx * dx + dy * dy) + 1e-3f, nx = -dy / l * w * 0.5f, ny = dx / l * w * 0.5f;
+    float px[4] = { x0 + nx, x1 + nx, x1 - nx, x0 - nx }, py[4] = { y0 + ny, y1 + ny, y1 - ny, y0 - ny };
+    fill_poly(c, px, py, 4, rgb);
+}
+static void draw_frogman(ctx_t *c, const tank_t *t, int *bx0, int *by0, int *bx1, int *by1) {
+    float clock = t->clock;
+    float fx = t->frog_x, fy = t->frog_y + sinf(clock * 1.4f) * 2.5f + sinf(clock * 0.6f + 1) * 1.5f;
+    float d = t->frog_yaw >= 0 ? 1 : -1, sx = fabsf(t->frog_yaw) < 0.15f ? 0.15f : fabsf(t->frog_yaw);
+    int th = theme_active();
+    uint32_t suit  = th == THEME_QUIET_LAGOON ? 0x2fb8a6 : th == THEME_TIDEPOOL_CLUB ? 0xff4f9a : 0xf5c242;
+    uint32_t band  = th == THEME_QUIET_LAGOON ? 0xff7f66 : th == THEME_TIDEPOOL_CLUB ? 0xb6f05a : 0x1d2a33;
+    uint32_t fin   = th == THEME_QUIET_LAGOON ? 0x8a5cc8 : th == THEME_TIDEPOOL_CLUB ? 0x33c7e0 : 0xd8402c;
+    uint32_t tankc = th == THEME_QUIET_LAGOON ? 0xe8d9a0 : th == THEME_TIDEPOOL_CLUB ? 0xff9f3f : 0xb8c4cc;
+    uint32_t glass = th == THEME_QUIET_LAGOON ? 0xc4e6d1 : th == THEME_TIDEPOOL_CLUB ? 0xfff6d9 : 0x9fd8e2;
+    uint32_t mask  = th == THEME_TIDEPOOL_CLUB ? 0x5a2d7a : th == THEME_QUIET_LAGOON ? 0x264a44 : 0x1d2a33, skin = 0xf1c69b;
+    uint32_t mist  = th == THEME_TIDEPOOL_CLUB ? 0x3d8e83 : th == THEME_QUIET_LAGOON ? 0xc4e6d1 : 0x9fd8e2;
+#define FX(lx) (fx + (lx) * d * sx)                                                /* local x along the body, + = forward */
+    float kick = sinf(clock * 2.6f) * 2.5f;
+    /* the mist: a dozen fine bubbles rising from the mask, each on its own slow loop; behind him */
     for (int i = 0; i < 12; i++) {
         float ph = fmodf(clock * (0.42f + 0.03f * (i % 4)) + i * 0.083f, 1.0f);
-        float bx = fx + 1 + sinf(clock * 2.5f + i * 1.7f) * (1.5f + ph * 4) + (i % 3 - 1) * 1.5f, by = fy - 12 - ph * 46;
+        float bx = FX(10) + sinf(clock * 2.5f + i * 1.7f) * (1.5f + ph * 4) + (i % 3 - 1) * 1.5f, by = fy - 7 - ph * 46;
         float r = 0.6f + ph * 1.3f; int a = (int)(150 * (1 - ph * 0.8f));
-        fill_ellipse(c, bx, by, r, r, theme_active() == THEME_TIDEPOOL_CLUB ? 0x3d8e83 : 0xc4e6d1, a);
+        fill_ellipse(c, bx, by, r, r, mist, a);
         if (r > 1.2f) px_blend(c, (int)(bx - 0.4f), (int)(by - 0.5f), 0xffffff, 110);
     }
-    *bx0 = (int)fminf(mx0, sx) - 2; *bx1 = (int)fx + 16; *by0 = my0 - 2; *by1 = (int)(fy + 16) + 2;   /* wide enough for the wave */
-    if (sy + 6 > *by1) *by1 = (int)sy + 6;
+    /* the legs and flippers, behind: from the hips, kicking against each other */
+    thick_line(c, FX(-7), fy - 1.5f, FX(-16), fy - 1.5f + kick * 0.5f, 2.6f, suit);
+    thick_line(c, FX(-7), fy + 1.5f, FX(-16), fy + 1.5f - kick * 0.5f, 2.6f, suit);
+    fill_ellipse(c, FX(-20), fy - 1.5f + kick, 4.5f * sx + 0.6f, 1.8f, fin, 255);
+    fill_ellipse(c, FX(-20), fy + 1.5f - kick, 4.5f * sx + 0.6f, 1.8f, fin, 255);
+    /* the air tank along his back (the top), its valve toward the head */
+    fill_ellipse(c, FX(-1), fy - 5.2f, 7 * sx + 0.4f, 2.4f, tankc, 255);
+    fill_ellipse(c, FX(6.5f), fy - 5.2f, 1.2f, 1.2f, 0x565a5d, 255);
+    px_blend(c, (int)(FX(-3) + 0.5f), (int)(fy - 6), 0xffffff, 120);
+    /* the torso, with its bands */
+    fill_ellipse(c, FX(0), fy, 9 * sx + 0.5f, 4.2f, suit, 255);
+    fill_ellipse(c, FX(-4), fy, 1.3f * sx + 0.4f, 4.0f, band, 255);
+    fill_ellipse(c, FX(3), fy, 1.3f * sx + 0.4f, 4.0f, band, 255);
+    /* the arm: forward along the body, or up and waving (every 23 s, for 2.6 s) */
+    float wph = fmodf(clock, 23.0f);
+    if (wph < 2.6f) {
+        float swing = sinf(clock * 9.0f) * 0.55f, lift = fminf(1, wph * 4) * fminf(1, (2.6f - wph) * 4);
+        float ex = FX(4), ey = fy - 3 - 6 * lift, hx = ex + sinf(swing) * 7 * lift * d + (1 - lift) * 6 * d * sx, hy = ey - cosf(swing) * 7 * lift;
+        thick_line(c, FX(2), fy - 1, ex, ey, 2.4f, suit);
+        thick_line(c, ex, ey, hx, hy, 2.2f, suit);
+        fill_ellipse(c, hx, hy, 1.7f, 1.7f, band, 255);
+    } else {
+        thick_line(c, FX(3), fy + 1, FX(12), fy + 2.5f, 2.4f, suit);
+        fill_ellipse(c, FX(12.5f), fy + 2.5f, 1.6f, 1.6f, band, 255);
+    }
+    /* the head: a hood, the face, the mask and its glass, the regulator's hose back to the tank */
+    thick_line(c, FX(9), fy - 1, FX(6), fy - 4.5f, 1.2f, 0x3a3d40);
+    fill_ellipse(c, FX(11), fy - 1, 4.2f * sx + 0.8f, 4.2f, suit, 255);
+    fill_ellipse(c, FX(12.5f), fy - 0.5f, 2.6f * sx + 0.4f, 2.6f, skin, 255);
+    fill_ellipse(c, FX(12.5f), fy - 2, 2.9f * sx + 0.4f, 1.9f, mask, 255);
+    fill_ellipse(c, FX(12.8f), fy - 2, 2.0f * sx + 0.2f, 1.2f, glass, 255);
+    px_blend(c, (int)(FX(13.5f) + 0.5f), (int)(fy - 2.5f), 0xffffff, 170);
+#undef FX
+    *bx0 = (int)fx - 28; *bx1 = (int)fx + 28; *by0 = (int)fy - 58; *by1 = (int)fy + 12;
 }
 
 /* ---- a piece IN FRONT, the castle's way (2026-10-03). The cluster and the
@@ -3285,9 +3436,6 @@ void render_tank(const tank_t *t, uint16_t *fb, int stride) {
         if (qx1 >= qx0) DYN_RECT(qx0, qy0, qx1, qy1); } while (0)
     if (kx >= 0 && kz == DECOR_Z_BACK) CORAL_CROWN();   /* the crown BEHIND: over the baked fan, under the grass */
     if (lx >= 0 && lz == DECOR_Z_BACK) CLUSTER_CROWN();
-#define WRECK_LIVE() do { int qx0, qy0, qx1, qy1; draw_wreck_live(&c, wx, t->clock, &qx0, &qy0, &qx1, &qy1); \
-        if (qx1 >= qx0) DYN_RECT(qx0, qy0, qx1, qy1); } while (0)
-    if (wx >= 0 && wz == DECOR_Z_BACK) WRECK_LIVE();    /* the frogman BEHIND: over the baked wreck, under the grass and the fish */
     PROF_ADD(0, p0);
 
     PROF_ADD(1, p0);   /* stage 1 (light shafts) retired 2026-09-01 */
@@ -3360,6 +3508,8 @@ void render_tank(const tank_t *t, uint16_t *fb, int stride) {
             DYN_RECT((int)t->shrimp[i].x - 10, (int)t->shrimp[i].y - 5, (int)t->shrimp[i].x + 10, (int)t->shrimp[i].y + 5);
         }
     }
+    /* the frogman (2026-10-10): drifting sideways in mid-water, under the fish */
+    if (t->sd_unlocks & SD_ITEM_FROGMAN) { int qx0, qy0, qx1, qy1; draw_frogman(&c, t, &qx0, &qy0, &qx1, &qy1); DYN_RECT(qx0, qy0, qx1, qy1); }
     PROF_ADD(3, p0);
     /* fish */
     for (int i = 0; i < t->n_fish; i++) {
@@ -3402,7 +3552,6 @@ void render_tank(const tank_t *t, uint16_t *fb, int stride) {
     if (wx >= 0 && wz == DECOR_Z_FRONT) {               /* the shipwreck IN FRONT: its hull back over the fish - not its holes */
         if (g_front_wk_x >= 0) front_restore(fb, &ds()->wk_mask[0][0], (WK_W + 31) / 32, WK_H + 1, wx - WK_W / 2, WK_FY - WK_H);
         else draw_wreck(&c, wx, cached, -1);
-        WRECK_LIVE();
     }
     if (lx >= 0 && lz == DECOR_Z_FRONT) {
         if (g_front_cl_x >= 0) front_restore(fb, &ds()->cl_mask[0][0], (CL_W + 31) / 32, CL_H + 1, lx - CL_W / 2, CL_FY - CL_H);
@@ -5013,7 +5162,7 @@ static const icon_t *shop_icon(int item) {
         &icon_shop_seahorse, &icon_shop_octopus, &icon_shop_puffer, &icon_shop_angler, &icon_shop_eel,
         &icon_shop_shark, &icon_shop_squid, &icon_shop_crab, &icon_shop_lobster, &icon_shop_jellyfish };
     if (progression_item_species(item) > 0) return SP_ICONS[progression_item_species(item) - 1];
-    return item == 0 ? &icon_shop_plant : item == 1 ? &icon_shop_snail : item == 2 ? &icon_shop_castle : item == 3 ? &icon_shop_coral : item == 4 ? &icon_shop_cluster : item == 5 ? &icon_shop_shrimp : item == SD_ITEM_WRECK_IDX ? &icon_shop_wreck : &icon_shop_urchin; }
+    return item == 0 ? &icon_shop_plant : item == 1 ? &icon_shop_snail : item == 2 ? &icon_shop_castle : item == 3 ? &icon_shop_coral : item == 4 ? &icon_shop_cluster : item == 5 ? &icon_shop_shrimp : item == SD_ITEM_WRECK_IDX ? &icon_shop_wreck : item == SD_ITEM_FROGMAN_IDX ? &icon_shop_frogman : &icon_shop_urchin; }
 /* a species' creature needs one free place (2026-10-07; a pair needed two): with no room its UNLOCK reads NO ROOM, dim */
 static bool shop_no_room(const tank_t *t, int item) { return progression_item_species(item) > 0 && !progression_has_room_one(t); }
 /* pages (2026-09-23, the fourth item): SHP_PER_PAGE rows fit between the
@@ -5300,6 +5449,43 @@ static void render_original_settings(const tank_t *t, uint16_t *fb, int stride, 
     button(&c, SET_CLOSE_X, SET_FOOT_Y, MSP_CLOSE_W, MSP_CLOSE_H, 0x1c2f36, MSP_TEAL, "CLOSE", 2);
     /* UPDATES (2026-09-30, docs/OTA.md): bottom left, the same size as CLOSE */
     button(&c, SET_UPD_X, SET_FOOT_Y, SET_UPD_W, MSP_CLOSE_H, 0x1c2f36, MSP_TEAL, "UPDATES", 2);
+    button(&c, SET_ABT_X, SET_ABT_Y, SET_ABT_W, MSP_CLOSE_H, 0x1c2f36, MSP_TEAL, "ABOUT", 2);   /* (2026-10-10) */
+}
+/* ---- the ABOUT page (2026-10-10): the game's name, who makes it, the release and the build,
+ * a little fish crossing above them and bubbles rising; a jingle plays while it is up (the
+ * platform's: SET_TAP_ABOUT). Inside the settings bounds on every board, in the theme's colours. */
+static void render_about_page(const tank_t *t, uint16_t *fb, int stride) {
+    int x, y, w, h; render_settings_bounds(&x, &y, &w, &h);
+    const theme_palette_t *p = theme_palette(t->theme);
+    ctx_t c = ctx_full(fb, stride, 1); g_dirty_hold = true;
+    rect_fill(&c, 0, 0, TANK_W, TANK_H, p->background);
+    int cx = x + w / 2, ty = y + h * 3 / 10;
+    /* bubbles: a dozen on their own slow loops, rising the page's height */
+    for (int i = 0; i < 12; i++) {
+        float ph = fmodf(t->clock * (0.09f + 0.013f * (i % 5)) + i * 0.37f, 1.0f);
+        float bx = x + 12 + (i * 37 + 11) % (w - 24) + sinf(t->clock * 1.3f + i) * 4, by = y + h - 50 - ph * (h - 60);
+        float r = 1.5f + (i % 3) * 0.9f;
+        fill_ellipse(&c, bx, by, r, r, p->accent, (int)(90 * (1 - ph * 0.6f)));
+        px_blend(&c, (int)(bx - r * 0.4f), (int)(by - r * 0.4f), p->text, 120);
+    }
+    /* a fish crossing above the title, turning at the ends */
+    { fish_t f; memset(&f, 0, sizeof f);
+      float u = sinf(t->clock * 0.45f);
+      f.x = cx + u * (w / 2 - 44); f.y = y + 30 + sinf(t->clock * 1.1f) * 3; f.size = 0.95f;
+      f.yaw = f.yaw_tail = cosf(t->clock * 0.45f) >= 0 ? 1 : -1; f.yaw *= fminf(1, fabsf(cosf(t->clock * 0.45f)) * 3); f.yaw_tail = f.yaw;
+      f.color = 0x66caca; f.fin = 0x417b96; f.accent = 0x92dcaf; f.stage = STAGE_ADULT;
+      draw_fish_core(&c, &f, 0, false, 1); }
+    draw_text(&c, cx - text_w("AQUA PETS", 3) / 2, ty, 3, p->text, "AQUA PETS");
+    round_fill(&c, cx - 40, ty + 30, 80, 3, 1, p->accent);
+    draw_text(&c, cx - text_w("DEVELOPED BY", 2) / 2, ty + 48, 2, p->muted, "DEVELOPED BY");
+    draw_text(&c, cx - text_w("SOFTWORKZ PTE LTD", 2) / 2, ty + 70, 2, p->text, "SOFTWORKZ PTE LTD");
+    char ver[48]; snprintf(ver, sizeof ver, "VERSION %s %s", PT_RELEASE, PT_RELEASE_STAGE);
+    for (char *q = ver; *q; q++) if (*q >= 'a' && *q <= 'z') *q -= 32;
+    draw_text(&c, cx - text_w(ver, 2) / 2, ty + 104, 2, p->accent, ver);
+    char bld[48]; snprintf(bld, sizeof bld, "BUILD %s", version_port_string());
+    for (char *q = bld; *q; q++) if (*q >= 'a' && *q <= 'z') *q -= 32;
+    draw_text_8px(&c, cx - ((int)strlen(bld) * 6 - 1) / 2, ty + 128, p->muted, bld);
+    button(&c, cx - 56, y + h - 44, 112, 44, p->panel, p->border, "BACK", 2);
 }
 static int set_segment_w(float x, int n, int dx) {
     if (x < SET_SEG_X - 10) return -1;
@@ -5311,12 +5497,14 @@ static int set_segment(float x, int n) { return set_segment_w(x, n, SET_SEG_DX);
  * VOLUME 0..2, FEED 1 = ON, SCREEN 1 = TURNED; ROTATE carries none (a
  * toggle); the LIGHTS OUT row's own hits are LIGHT_PREV / LIGHT_NEXT (its
  * left and right halves). */
-enum { SET_HIT_LIGHT_PREV = 100, SET_HIT_LIGHT_NEXT, SET_HIT_THEMES, SET_HIT_THEME_PICK, SET_HIT_THEME_BACK, SET_HIT_PAGE, SET_HIT_CYCLE_BRIGHT, SET_HIT_CYCLE_VOLUME, SET_HIT_TOGGLE_FEED, SET_HIT_TOGGLE_SCREEN };
-static bool g_settings_themes;
+enum { SET_HIT_LIGHT_PREV = 100, SET_HIT_LIGHT_NEXT, SET_HIT_THEMES, SET_HIT_THEME_PICK, SET_HIT_THEME_BACK, SET_HIT_PAGE, SET_HIT_CYCLE_BRIGHT, SET_HIT_CYCLE_VOLUME, SET_HIT_TOGGLE_FEED, SET_HIT_TOGGLE_SCREEN,
+       SET_HIT_ABOUT, SET_HIT_ABOUT_BACK };   /* (2026-10-10) the ABOUT button / row, and the about page's BACK */
+static bool g_settings_themes, g_settings_about;
 static int g_settings_page, g_settings_bright = 60, g_settings_volume = 2;
 static int original_settings_tap(float x, float y, int *value) {
     x -= PAGE_X; y -= PAGE_Y;                    /* the page's own coordinates */
     if (x >= (PAGE_W - 244) / 2 && x < (PAGE_W + 244) / 2 && y >= SET_TITLE_Y - 8 && y < SET_TITLE_Y + 32) return SET_HIT_THEMES;
+    if (x >= SET_ABT_X - 8 && x < SET_ABT_X + SET_ABT_W + 8 && y >= SET_ABT_Y - 6 && y < SET_ABT_Y + MSP_CLOSE_H + 8) return SET_HIT_ABOUT;   /* (before the foot's halves, on a wide foot it stands between them) */
     if (x >= SET_CLOSE_X - 8 && y >= SET_FOOT_Y - 4) return SET_TAP_CLOSE;
     if (x < SET_UPD_X + SET_UPD_W + 8 && y >= SET_FOOT_Y - 4) return SET_TAP_UPDATES;
     /* the row bands: from a little above each segment down to the next row
@@ -5326,7 +5514,7 @@ static int original_settings_tap(float x, float y, int *value) {
     if (y >= SET_SEG_Y(SET_ROW2_Y) - 12 && y < SET_SEG_Y(SET_ROW3_Y) - 12) { if (seg < 0) return SET_TAP_NONE; *value = seg; return SET_TAP_VOLUME; }
     if (y >= SET_SEG_Y(SET_ROW3_Y) - 12 && y < SET_SEG_Y(SET_ROW4_Y) - 12) { if (seg < 0) return SET_TAP_NONE; *value = 0; return x < SET_SPAN_MID ? SET_HIT_LIGHT_PREV : SET_HIT_LIGHT_NEXT; }
     if (y >= SET_SEG_Y(SET_ROW4_Y) - 12 && y < SET_SEG_Y(SET_ROW5_Y) - 12) { if (two < 0) return SET_TAP_NONE; *value = two == 0; return SET_TAP_FEED; }
-    if (y >= SET_SEG_Y(SET_ROW5_Y) - 12 && y < SET_FOOT_Y - 4) {
+    if (y >= SET_SEG_Y(SET_ROW5_Y) - 12 && y < (TANK_WORN ? SET_ABT_Y - 6 : SET_FOOT_Y - 4)) {
         if (two < 0) return SET_TAP_NONE;
 #if TANK_WORN
         *value = two == 1; return SET_TAP_SCREEN;
@@ -5346,7 +5534,7 @@ void render_settings_bounds(int *x, int *y, int *w, int *h) {
     *x = 22; *y = 20; *w = 404; *h = 328;
 #endif
 }
-void render_settings_leave(void) { g_settings_themes = false; g_settings_page = 0; }
+void render_settings_leave(void) { g_settings_themes = false; g_settings_about = false; g_settings_page = 0; }
 static int modern_row_y(int y, int h, int row) {
     return y + 64 + row * (h > 350 ? 90 : 64);
 }
@@ -5357,6 +5545,7 @@ void render_settings(const tank_t *t, uint16_t *fb, int stride, int bright_pct, 
     render_use_theme(t->theme);
     g_settings_bright = bright_pct;
     g_settings_volume = volume < 0 ? 0 : volume > 2 ? 2 : volume;
+    if (g_settings_about) { render_about_page(t, fb, stride); return; }
     if (!g_settings_themes && !theme_active()) { render_original_settings(t, fb, stride, bright_pct, volume); return; }
     int x,y,w,h; render_settings_bounds(&x,&y,&w,&h);
     const theme_palette_t *p = theme_palette(t->theme);
@@ -5394,9 +5583,15 @@ void render_settings(const tank_t *t, uint16_t *fb, int stride, int bright_pct, 
     for (int row=0;row<3;row++) {
         int by=modern_row_y(y,h,row), rh=h>350?72:54;
         const char *label, *value;
+        char bld[24];
         if (!g_settings_page) {
             label=row==0?"THEME":row==1?"BRIGHTNESS":"SOUND";
             value=row==0?p->name:row==1?SET_BRIGHT[bright_index(bright_pct)]:SET_VOLUME[g_settings_volume];
+        } else if (g_settings_page==2) {               /* the third page (2026-10-10): who made it; every row opens the about page */
+            snprintf(bld,sizeof bld,"%.22s",version_port_string());
+            for (char *q=bld;*q;q++) if (*q>='a'&&*q<='z') *q-=32;
+            label=row==0?"ABOUT":row==1?"VERSION":"BUILD";
+            value=row==0?"AQUA PETS BY SOFTWORKZ":row==1?"V" PT_RELEASE " ALPHA":bld;
         } else {
             label=row==0?"LIGHTS OUT":row==1?"AUTO FEED":TANK_WORN?"SCREEN":"ROTATION";
             value=row==0?SET_LIGHT[tank_light_choice(t)]:row==1?SET_FEED[t->autofeed_off?1:0]:
@@ -5405,18 +5600,19 @@ void render_settings(const tank_t *t, uint16_t *fb, int stride, int bright_pct, 
         button(&c,x,by,w,rh,p->panel,p->border,"",2);
         draw_text(&c,x+12,by+9,2,p->muted,label);
         draw_text(&c,x+12,by+31,2,p->text,value);
-        if (g_settings_page && row==0) {
+        if (g_settings_page==1 && row==0) {
             button(&c,x+w-100,by+5,44,44,p->accent,p->accent,"-",2);
             button(&c,x+w-50,by+5,44,44,p->accent,p->accent,"+",2);
         } else draw_text(&c,x+w-28,by+(rh-14)/2,2,p->accent,"+");
     }
-    button(&c,x,y+h-44,72,44,p->panel,p->border,g_settings_page?"BACK":"MORE",2);
+    button(&c,x,y+h-44,72,44,p->panel,p->border,g_settings_page==2?"BACK":"MORE",2);
     button(&c,x+80,y+h-44,104,44,p->panel,p->border,"UPDATES",2);
     button(&c,x+w-112,y+h-44,112,44,p->accent,p->accent,"DONE",2);
 }
 int render_settings_tap(float tx, float ty, int *value) {
     *value=0;
     int x,y,w,h; render_settings_bounds(&x,&y,&w,&h);
+    if (g_settings_about) return hit_rect(tx,ty,x+(w-112)/2-8,y+h-52,128,56)?SET_HIT_ABOUT_BACK:SET_TAP_NONE;
     if (g_settings_themes) {
         for (int i=0;i<THEME_COUNT;i++) if (hit_rect(tx,ty,x,y+64+i*62,w,56)) { *value=i; return SET_HIT_THEME_PICK; }
         return hit_rect(tx,ty,x+(w-112)/2,y+h-44,112,44)?SET_HIT_THEME_BACK:SET_TAP_NONE;
@@ -5430,6 +5626,7 @@ int render_settings_tap(float tx, float ty, int *value) {
         int by=modern_row_y(y,h,row),rh=h>350?72:54;
         if (!hit_rect(tx,ty,x,by,w,rh)) continue;
         if (!g_settings_page) return row==0?SET_HIT_THEMES:row==1?SET_HIT_CYCLE_BRIGHT:SET_HIT_CYCLE_VOLUME;
+        if (g_settings_page==2) return SET_HIT_ABOUT;
         if (row==1) return SET_HIT_TOGGLE_FEED;
         if (row==2) return TANK_WORN?SET_HIT_TOGGLE_SCREEN:SET_TAP_ROTATE;
         if (hit_rect(tx,ty,x+w-100,by+5,44,44)) return SET_HIT_LIGHT_PREV;
@@ -5461,7 +5658,9 @@ int render_settings_touch(tank_t *t, float x, float y, bool down, int *value) {
                 }
                 r = SET_TAP_THEME; *value = t->theme;
             }
-            else if (h == SET_HIT_PAGE) { g_settings_page = !g_settings_page; }
+            else if (h == SET_HIT_PAGE) { g_settings_page = (g_settings_page + 1) % 3; }
+            else if (h == SET_HIT_ABOUT) { g_settings_about = true; r = SET_TAP_ABOUT; *value = 1; }
+            else if (h == SET_HIT_ABOUT_BACK) { g_settings_about = false; r = SET_TAP_ABOUT; *value = 0; }
             else if (h == SET_HIT_CYCLE_BRIGHT) {
                 int bi = bright_index(g_settings_bright);
                 *value = g_settings_bright = SET_BRIGHT_PCT[(bi + 1) % SET_BRIGHT_N]; r = SET_TAP_BRIGHT;
@@ -5498,7 +5697,7 @@ int render_settings_touch(tank_t *t, float x, float y, bool down, int *value) {
         }
     }
     s_down = down;
-    if (r == SET_TAP_CLOSE || r == SET_TAP_UPDATES) { g_settings_themes = false; g_settings_page = 0; }
+    if (r == SET_TAP_CLOSE || r == SET_TAP_UPDATES) { g_settings_themes = false; g_settings_about = false; g_settings_page = 0; }
     return r;
 }
 

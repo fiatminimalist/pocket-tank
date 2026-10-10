@@ -296,14 +296,30 @@ fish do not know it is there. They find the arch by chance, which is most
 of the charm.
 
 **The shipwreck.** The eighth thing in the shop (200, 2026-10-10) is a small
-sunken boat lying on the sand, drawn from geometry like the castle: a planked
-hull tilted up toward the bow, a broken mast with a yard and a rag of sail, a
-cabin with a porthole, an anchor on the sand before the bow with its chain up
-to the prow. Two big holes are knocked through the hull: IN FRONT, the fish
-pass behind the hull and show through them, swimming in and out; BEHIND it is
-a backdrop in the weeds. A frogman hangs on a line from the stern post,
-bobbing on the water's lift, a mist of fine bubbles rising from his helmet.
-The octopus, crab and lobster den under its holes when there is no reef.
+sunken boat lying on the sand, drawn from geometry like the castle, and a
+different boat in each theme (later that day): Original a planked hull tilted
+up toward the bow, a broken mast with a yard and a rag of sail, a cabin with a
+porthole, an anchor on the sand before the bow with its chain up to the prow;
+Quiet Lagoon an old rowing boat capsized on the sand, moss along its strakes
+and over the keel, a broken oar leaning on one end and a holed stone anchor
+on a rope by the other; Tidepool Club a cheerful little tug sitting upright -
+cream topsides, a red boot stripe, a teal bottom, a wheelhouse with lit windows,
+an orange funnel, a pennant on the mast, a life ring on the side and an anchor
+hung off the bow. Every hull has two big holes (the tug's are brass-rimmed
+portholes): IN FRONT, the fish pass behind the hull and show through them,
+swimming in and out; BEHIND it is a backdrop in the weeds. The octopus, crab
+and lobster den under its holes when there is no reef.
+
+**The frogman.** The ninth thing (120, 2026-10-10; that morning he hung on a
+line from the wreck's stern) is a little diver who floats sideways, horizontal,
+drifting across the water from glass to glass at a walking pace, turning at
+each end (he thins through the turn, as a fish does), easing to a new lane now
+and then, bobbing on the water's lift, a mist of fine bubbles rising from his
+mask. His arm reaches forward, and every 23 s it goes up and waves. He wears
+the theme's suit: a yellow-and-black banded wetsuit with red fins in Original,
+turquoise with coral bands and violet fins in Quiet Lagoon, hot pink with lime
+bands and cyan fins in Tidepool Club. A resident like the snail: bought once,
+never placed or sold.
 
 **The coral.** The fourth thing in the shop (100) is a branching coral,
 drawn from a little skeleton of rounded branches on a chunky pixel grid:
@@ -449,6 +465,15 @@ charging, about how long it will last (or how long until it is full), how
 long ago it was unplugged, the screen-on time since, and how long a full
 charge lasts. The tank learns those times from its own battery as you use
 it.
+
+**About.** The settings page has an ABOUT button (2026-10-10; on the themed
+layout it is the third page of rows, under MORE): the game's name, who makes it
+(Softworkz Pte Ltd), the release and the build id, a fish crossing above them
+and bubbles rising - and a 30-second underwater jingle that loops while the
+page is up, synthesised on the device (`common/audio.c`: twelve bars of a
+kalimba arpeggio, a hummed melody, a soft pad and bubble chirps at 96 BPM,
+under a slow wobble and a low-pass; nothing in the sound bank). It follows the
+VOLUME setting. BACK returns to the settings.
 
 **Updates over Wi-Fi.** The settings page has an UPDATES button. Tap CHECK
 FOR UPDATES and the tank pauses, turns its radio on and looks for a newer
@@ -777,7 +802,7 @@ seven-minute prompt check before an overnight run is always worth it.
   and touch) puts a tank left on the desk to sleep; the double-tap by
   default
 - ✅ Sand dollars: care earns points, the shop spends them; a sword plant,
-  an algae-grazing snail, a swim-through castle and a sunken shipwreck with a bobbing frogman; what you buy you place yourself,
+  an algae-grazing snail, a swim-through castle, a sunken shipwreck (a different boat in each theme) and a drifting frogman; what you buy you place yourself,
   where along the floor and whether it stands behind, among or in front
   of the fish
 - ✅ Browser installer: one click from Chrome or Edge, at

@@ -65,7 +65,7 @@ static int art_sheets(const tank_t *base,const char *prefix) {
             }
             shot(prefix,page==2?"species3":page?"species2":"species1",id);
         }
-        for(int which=0;which<6;which++) {
+        for(int which=0;which<7;which++) {
             tank_t a=t; a.sd_unlocks=0;
             for(int b=0;b<VEG_BEDS_MAX;b++)for(int i=0;i<VEG_FRONDS_MAX;i++)a.veg_h[b][i]=which==3?.34f:VEG_NUB;
             tank_veg_sync(&a);
@@ -75,6 +75,7 @@ static int art_sheets(const tank_t *base,const char *prefix) {
             else if(which==2){a.sd_unlocks=SD_ITEM_CLUSTER;tank_cluster_place(&a);a.cluster_x=TANK_W/2;a.cluster_growth=1;label="reef";}
             else if(which==3){a.sd_unlocks=SD_ITEM_PLANT;tank_plant_place(&a);label="plants";}
             else if(which==5){a.sd_unlocks=SD_ITEM_WRECK;tank_wreck_place(&a);a.wreck_x=TANK_W/2;label="wreck";}
+            else if(which==6){a.sd_unlocks=SD_ITEM_FROGMAN;tank_frogman_place(&a);a.frog_x=TANK_W/2;a.frog_y=TANK_H*.4f;a.clock=23.8f;label="frogman";}
             else{a.sd_unlocks=SD_ITEM_SNAIL|SD_ITEM_SHRIMP|SD_ITEM_URCHIN;tank_snail_place(&a);tank_shrimp_place(&a,3);tank_urchin_place(&a);a.snail_x=TANK_W/2;a.snail_y=SNAIL_FLOOR_Y;a.snail_front=true;a.urchin_x=TANK_W/2+48;label="companions";}
             for(int j=0;j<5;j++){a.food[j].alive=true;a.food[j].x=TANK_W/2-45+j*17;a.food[j].y=TANK_H/2-25+j%2*10;}
             render_tank(&a,fb,TANK_W);render_tank(&a,fb,TANK_W);shot(prefix,label,id);
@@ -249,7 +250,23 @@ int selftest_themes(const char *prefix) {
             CHECK(tap(&t,x+30,y+64+row_step+20,&v)==SET_TAP_FEED && !v,"auto feeding toggle");
             CHECK(tap(&t,x+30,y+64+row_step+20,&v)==SET_TAP_FEED && v,"auto feeding restored");
             tank_light_choice_set(&t,0);
+            /* the third page (2026-10-10): ABOUT / VERSION / BUILD rows, any of them the about page, BACK out of it */
+            tap(&t,x+36,y+h-22,&v); render_settings(&t,fb,TANK_W,100,2);
+            CHECK(safe_page(),"third settings page safe"); shot(prefix,"settings_about_rows",id);
+            CHECK(tap(&t,x+30,y+64+20,&v)==SET_TAP_ABOUT && v==1,"the ABOUT row opens the about page");
+            t.clock=7; render_settings(&t,fb,TANK_W,100,2); CHECK(safe_page(),"about page safe"); shot(prefix,"about",id);
+            CHECK(tap(&t,x+w/2,y+40,&v)==SET_TAP_NONE,"a tap on the about page's words does nothing");
+            CHECK(tap(&t,x+w/2,y+h-22,&v)==SET_TAP_ABOUT && v==0,"BACK leaves the about page");
+            render_settings(&t,fb,TANK_W,100,2);
+            CHECK(tap(&t,x+36,y+h-22,&v)==SET_TAP_NONE,"BACK from the third page");
             CHECK(tap(&t,x+w-40,y+h-22,&v)==SET_TAP_CLOSE,"Done closes settings");
+        } else {
+            /* the Original layout's ABOUT button (2026-10-10), its page, BACK */
+            CHECK(tap(&t,PAGE_X+SET_ABT_X+SET_ABT_W/2,PAGE_Y+SET_ABT_Y+MSP_CLOSE_H/2,&v)==SET_TAP_ABOUT && v==1,"the ABOUT button opens the about page");
+            t.clock=7; render_settings(&t,fb,TANK_W,60,1); shot(prefix,"about",id);
+            CHECK(tap(&t,x+w/2,y+h-22,&v)==SET_TAP_ABOUT && v==0,"BACK leaves the about page (Original)");
+            render_settings(&t,fb,TANK_W,60,1);
+            CHECK(tap(&t,PAGE_X+SET_CLOSE_X+40,PAGE_Y+SET_FOOT_Y+10,&v)==SET_TAP_CLOSE,"CLOSE after the about page");
         }
         CHECK(progression_save(&t),"save theme");
         tank_init(&loaded,1); progression_boot(&loaded);

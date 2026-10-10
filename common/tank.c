@@ -537,6 +537,7 @@ void tank_init(tank_t *t, uint32_t seed) {
     t->coral_x = 0; t->coral_z = DECOR_Z_FRONT; t->coral_rgb = 0; t->coral_growth = 0; t->coral_acc = 0;
     t->cluster_x = 0; t->cluster_z = DECOR_Z_FRONT; t->cluster_scheme = 0; t->cluster_growth = 0; t->cluster_acc = 0;
     t->wreck_x = 0; t->wreck_z = DECOR_Z_FRONT;
+    t->frog_x = TANK_W / 2; t->frog_y = t->frog_lane = TANK_H * 0.36f; t->frog_yaw = 1; t->frog_dir = 1; t->frog_lane_t = 20;
     t->tank_ms_bits = 0; t->tank_ms_seen = 0; t->ask_rr = 0; t->advisor_asks = 0;
     tank_scatter_food(t, 2);
 }
@@ -1452,6 +1453,34 @@ void tank_plant_place(tank_t *t) {
 }
 void tank_castle_place(tank_t *t) {
     t->castle_x = 0; t->castle_z = DECOR_Z_FRONT;          /* the default spot, the fish swim through */
+}
+void tank_frogman_place(tank_t *t) {
+    t->frog_x = TANK_W / 2; t->frog_y = t->frog_lane = TANK_H * 0.36f; t->frog_yaw = 1; t->frog_dir = 1; t->frog_lane_t = 20;
+}
+bool tank_frogman_hit(const tank_t *t, float x, float y) {
+    if (!(t->sd_unlocks & SD_ITEM_FROGMAN)) return false;
+    float dx = x - t->frog_x, dy = y - t->frog_y;
+    return dx * dx / (22.0f * 22.0f) + dy * dy / (14.0f * 14.0f) < 1;
+}
+/* the frogman's drift (2026-10-10): sideways across the water at FROG_SPEED, a turn at
+ * either margin (his yaw eases over ~0.8 s, so he thins and comes back facing the other
+ * way), a slow ease to a new lane every 20-40 s. The bob and the wave are the renderer's,
+ * off the clock. */
+static void frogman_tick(tank_t *t, float dt) {
+    if (!(t->sd_unlocks & SD_ITEM_FROGMAN)) return;
+    float lo = FROG_MARGIN, hi = TANK_W - FROG_MARGIN;
+    if (t->frog_dir >= 0 && t->frog_x >= hi) t->frog_dir = -1;
+    if (t->frog_dir < 0 && t->frog_x <= lo) t->frog_dir = 1;
+    float want = (float)t->frog_dir, d = want - t->frog_yaw, step = 2.5f * dt;
+    t->frog_yaw += d > step ? step : d < -step ? -step : d;
+    t->frog_x += t->frog_yaw * FROG_SPEED * dt;            /* slows through the turn, as a fish does */
+    t->frog_x = t->frog_x < lo - 2 ? lo - 2 : t->frog_x > hi + 2 ? hi + 2 : t->frog_x;
+    t->frog_lane_t -= dt;
+    if (t->frog_lane_t <= 0) {
+        t->frog_lane_t = tank_randf(t, 20, 40);
+        t->frog_lane = tank_randf(t, FROG_LANE_LO, FROG_LANE_HI);
+    }
+    t->frog_y += (t->frog_lane - t->frog_y) * fminf(1, 0.15f * dt);
 }
 void tank_wreck_place(tank_t *t) {
     t->wreck_x = 0; t->wreck_z = DECOR_Z_FRONT;            /* the default spot, in front of the grass: the fish pass behind its holes */
@@ -3166,6 +3195,7 @@ void tank_tick(tank_t *t, float dt, advisor_fn advise) {
     snail_tick(t, dt);
     urchin_tick(t, dt);
     shrimp_tick(t, dt);
+    frogman_tick(t, dt);
 
     /* bubbles rise */
     for (int i = 0; i < MAX_BUBBLE; i++) {

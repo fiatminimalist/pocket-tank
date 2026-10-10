@@ -617,7 +617,8 @@ static void tank_task(void *arg) {
           else if (w == SET_TAP_LIGHT) ESP_LOGI(TAG, "settings: lights out %s", v ? "AUTO (the idle rule)" : "MANUAL (double-tap the glass)");
           else if (w == SET_TAP_IDLE) ESP_LOGI(TAG, "settings: lights out after %d s still", v);
           else if (w == SET_TAP_FEED) ESP_LOGI(TAG, "settings: auto feed %s", v ? "ON" : "OFF (the keeper feeds; a starving fish loses trust)");
-          else if (w == SET_TAP_ROTATE) ESP_LOGI(TAG, "settings: rotation %s", v ? (tank.orient_inv ? "LOCKED (turned over)" : "LOCKED (upright)") : "unlocked (the picture follows the tank)"); }
+          else if (w == SET_TAP_ROTATE) ESP_LOGI(TAG, "settings: rotation %s", v ? (tank.orient_inv ? "LOCKED (turned over)" : "LOCKED (upright)") : "unlocked (the picture follows the tank)");
+          else if (w == SET_TAP_ABOUT) { audio_port_jingle(v != 0); ESP_LOGI(TAG, "settings: about page %s", v ? "up (the jingle plays)" : "closed"); } }
         if (touch_port_take_update() == UPD_TAP_CHECK) request_update();   /* the updates page's CHECK: save, restart into update mode */
         { int r = touch_port_take_shop();                               /* the shop's UNLOCK / MOVE / SELL */
           if (r >= SHOP_TAP_SELL) {                                     /* sold back: the refund, the piece gone, the row for sale again */

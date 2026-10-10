@@ -82,9 +82,10 @@ def main():
         for scale in [2,3]:
             w,h=5*scale,7*scale; packed=[]
             font=ImageFont.truetype(str(font_path),h)
+            cap_top=ImageDraw.Draw(Image.new('L',(w,h))).textbbox((0,0),'H',font=font)[1]   # one baseline for the cell (2026-10-10: each glyph sat on its own top, so a period floated to the cap line)
             for code in range(32,127):
                 im=Image.new('L',(w,h)); d=ImageDraw.Draw(im); box=d.textbbox((0,0),chr(code),font=font)
-                d.text(((w-(box[2]-box[0]))//2-box[0],-box[1]),chr(code),font=font,fill=255)
+                d.text(((w-(box[2]-box[0]))//2-box[0],-cap_top),chr(code),font=font,fill=255)
                 pixels=list(im.getdata())
                 for i in range(0,len(pixels),2): packed.append(((pixels[i]>>4)<<4)|((pixels[i+1]>>4) if i+1<len(pixels) else 0))
             source.append(array(f'font_{tid}_{scale}','uint8_t',packed)); byte_count+=len(packed)

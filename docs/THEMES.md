@@ -43,7 +43,8 @@ food, bubbles, battery and menu treatments live alongside their Original paths i
 | Creatures | Shaded natural profiles, fin rays, scales, gills and shell detail | Rounder bodies, spots, bold fins and claws |
 | Sword plant / weeds | Veined leaves and delicate stems | Scalloped leaves and fuller blades |
 | Castle | A sunken ruin (2026-10-10): stepped platform, fluted columns (one broken), a crumbling arch and keystone, a fallen lintel, moss on the ledges | A pineapple house (2026-10-10): diamond skin, a crown of leaves, a round-topped door, two portholes |
-| Shipwreck (2026-10-10) | Weathered green-grey planks, the same holes, mast, anchor and frogman | Warm sun-bleached planks, the same |
+| Shipwreck (2026-10-10) | A rowing boat capsized on the sand: an upturned, moss-grown hull with two plank gaps for holes, a broken oar leaning on it, a holed stone anchor on a rope | A cheerful upright tug: cream topsides, a red boot stripe, a teal bottom, brass-rimmed porthole holes, a wheelhouse with lit windows, an orange funnel, a cyan pennant, a life ring, an anchor off the bow |
+| Frogman (2026-10-10) | Turquoise suit with coral bands, violet fins, a cream tank, a green mask | Hot pink suit with lime bands, cyan fins, an orange tank, a purple mask (Original: yellow with black bands, red fins) |
 | Coral / reef | The keeper's coral / tube / brain hues on a dark basalt rock (2026-10-10; the first cut pulled every piece toward the water's tone and read as twigs and slabs): a ridged brain, streaked tubes, deep rims | Thick finger coral, stacked sponges, dotted dome |
 | Snail / companions | Warm shaded shell whorls, soft shrimp, fine urchin spines | Warm striped shell, segmented shrimp, rounded urchin tips |
 | Food / bubbles | Small flakes and pearl rings | Round tablets and outlined bubbles |
@@ -87,6 +88,8 @@ and the milestones rows frame it. Jellyfish have no ink or electric effects.
 
 `common/jellyfish.inc` is the live geometry. Shop thumbnails are generated from
 the approved HTML study by `python3 tools/gen_jellyfish_assets.py` (or `--check`).
+The shipwreck's and the frogman's thumbnails (one per theme, matching the three hulls and
+the three suits) come from `tools/gen_wreck_assets.py` and `tools/gen_frogman_assets.py`.
 The three thumbnails add 9,216 bytes of pixel data. Existing persisted IDs and
 save offsets are unchanged; the shop presence flag uses the next unused bit.
 
